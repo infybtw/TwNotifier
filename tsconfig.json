@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",          // JS version to output
+    "module": "CommonJS",        // Node.js module system
+    "rootDir": "./app",          // Source files folder
+    "outDir": "./dist",          // Compiled JS folder
+    "strict": true,              // Enable strict type checking
+    "esModuleInterop": true,     // Allow default imports from CommonJS
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["app"]
+}
