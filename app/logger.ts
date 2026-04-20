@@ -1,5 +1,5 @@
 import { Logger, ILogObj, ILogObjMeta } from "tslog";
-import { appendFileSync } from "fs";
+import { appendFileSync, mkdirSync } from "fs";
 
 const logger = new Logger({
   name: "TwNotifier",
@@ -9,6 +9,8 @@ const logger = new Logger({
     "{{dd}}.{{mm}}.{{yyyy}} {{hh}}:{{MM}}:{{ss}} [{{logLevelName}}] {{name}} ",
   prettyErrorTemplate: "\n{{errorName}} {{errorMessage}}\n{{errorStack}}",
 });
+
+mkdirSync("logs", { recursive: true });
 
 logger.attachTransport((logObj: ILogObj) => {
   const { _meta, ...data } = logObj as ILogObj & { _meta: ILogObjMeta };
@@ -20,7 +22,7 @@ logger.attachTransport((logObj: ILogObj) => {
     ...data,
   });
 
-  appendFileSync("./logs/app.log", line + "\n");
+  appendFileSync("logs/app.log", line + "\n");
 });
 
 export default logger;

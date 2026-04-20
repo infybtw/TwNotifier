@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { SHARD_COUNT } from "./config";
 import { getAppToken } from "./twitchAPI/auth";
 import { connectWebSocket } from "./twitchAPI/shards";

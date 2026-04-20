@@ -4,17 +4,20 @@ const db = new Database("main.db");
 
 db.run(`CREATE TABLE IF NOT EXISTS channels(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  channel_name varchar(64)
-  )`);
+  channel_id INTEGER UNIQUE,
+  channel_name VARCHAR(64)
+)`);
 
 db.run(`CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER UNIQUE
-  )`);
+  user_id INTEGER UNIQUE,
+  created TEXT
+)`);
 
 db.run(`CREATE TABLE IF NOT EXISTS users_follows(
-    user_id INTEGER REFERENCES users(id),
-    channel_id INTEGER REFERENCES channels(id)
+  user_id INTEGER REFERENCES users(id),
+  channel_id INTEGER REFERENCES channels(id),
+  created TEXT
 )`);
 
 export const addUser = db.query<User, [number, string]>(

@@ -1,7 +1,3 @@
-import "dotenv/config";
-
-import tokens from "../tokens.json";
-
 export const CLIENT_ID: string = String(process.env.CLIENT_ID);
 export const CLIENT_SECRET: string = String(process.env.CLIENT_SECRET);
 export const BOT_USER_ID: string = String(process.env.BOT_USER_ID);

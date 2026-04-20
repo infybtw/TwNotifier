@@ -17,7 +17,6 @@
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",
     "@grammyjs/storage-file": "^2.5.1",
-    "better-sqlite3": "^12.9.0",
     "grammy": "^1.42.0",
     "pino": "^10.3.1",
     "tslog": "^4.10.2"
