@@ -1,6 +1,9 @@
 import { APP_TOKEN, CLIENT_ID } from "../config";
+import logger from "../logger";
 
-async function getUserId(login: string) {
+const log = logger.getSubLogger({ name: "twitchAPI:users" });
+
+async function getUserId(login: string): Promise<number> {
   const url = new URL("https://api.twitch.tv/helix/users");
   url.searchParams.set("login", login);
 
@@ -14,9 +17,12 @@ async function getUserId(login: string) {
 
   const data = await res.json();
   if (res.status === 200) {
-    console.log("Broadcaster found!");
-    console.log("Broadcaster ID: " + data.data[0].id);
-    return data.data[0].id;
+    try {
+      const broadcaster_id = data.data[0].id;
+      return data.data[0].id;
+    } catch (err) {
+      return -1;
+    }
   } else {
     console.log("Broadcaster not found!");
     return -1;

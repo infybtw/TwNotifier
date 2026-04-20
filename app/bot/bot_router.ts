@@ -1,5 +1,4 @@
 import { Composer } from "grammy";
-import { homePageKeyboard } from "./keyboards";
 import logger from "../logger";
 import {
   addChannel,
@@ -41,6 +40,13 @@ router.command("add", async (ctx) => {
   }
 
   const channel_id = Number(await getUserId(channel_name));
+  if (channel_id <= -1) {
+    log.info("channel not found", {
+      user_id: ctx.message?.from.id,
+      broadcaster_login: channel_name,
+    });
+    return ctx.reply("Канал с таким именем не найден");
+  }
   //@ts-ignore
   if (followExists.get(ctx.message?.from.id, channel_id)) {
     return ctx.reply(`Вы уже отслеживаете ${channel_name}`);
@@ -51,11 +57,6 @@ router.command("add", async (ctx) => {
       channel_name: channel_name,
       channel_id: channel_id,
     });
-  }
-
-  //@ts-ignore
-  if (followExists.get(ctx.message?.from.id, channel_id)) {
-    return ctx.reply(`Вы уже отслеживаете ${channel_name}`);
   }
   const now = new Date().toISOString();
   //@ts-ignore
