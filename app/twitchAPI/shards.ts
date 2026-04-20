@@ -2,7 +2,11 @@ import WebSocket from "ws";
 import fetch from "node-fetch";
 import { APP_TOKEN, CLIENT_ID, CONDUIT_ID } from "../config";
 import { onNotification, onSessionWelcome } from "../handlers/ws_handler";
-import { subscribeAllStreams, subscribeToChannelOnline } from "./subscriptions";
+import {
+  subscribeAllStreamsOffline,
+  subscribeAllStreamsOnline,
+  subscribeToChannelOnline,
+} from "./subscriptions";
 
 const SHARD_URL: string =
   "https://api.twitch.tv/helix/eventsub/conduits/shards";
@@ -59,7 +63,8 @@ export async function connectWebSocket(url: string) {
     switch (type) {
       case "session_welcome":
         await onSessionWelcome(msg.payload.session.id);
-        await subscribeAllStreams();
+        await subscribeAllStreamsOnline();
+        await subscribeAllStreamsOffline();
         break;
       case "session_keepalive":
         break;
