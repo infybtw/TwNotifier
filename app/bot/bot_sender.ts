@@ -1,5 +1,8 @@
 import { getChannelFollowers } from "../database/db";
+import logger from "../logger";
 import { botInstance as bot } from "./bot";
+
+const log = logger.getSubLogger({ name: "bot:sender" });
 
 export async function sendStreamOnlineNotificationToUsers(
   channel_id: number,
@@ -11,8 +14,14 @@ export async function sendStreamOnlineNotificationToUsers(
     await bot.api.sendMessage(
       follower.user_id,
       //@ts-ignore
-      `${channel_name} ведет прямую трансляцию.\n${data.title}\nКатегория: ${data.game_name}\n\ntwitch.tv/${channel_name}`,
+      `<b>${channel_name}</b> ведет прямую трансляцию.\n${data.title}\n<i>${data.game_name}</i>\n\n<a href="https://twitch.tv/${channel_name}">Twitch</a>`,
+      { parse_mode: "HTML" },
     );
+    log.info("message sent", {
+      user_id: follower.user_id,
+      //@ts-ignore
+      text: `<b>${channel_name}</b> ведет прямую трансляцию.\n${data.title}\n<i>${data.game_name}</i>\n\n<a href="https://twitch.tv/${channel_name}">Twitch</a>`,
+    });
   }
 }
 
@@ -24,7 +33,13 @@ export async function sendStreamOfflineNotificationToUsers(
   for (const follower of followers) {
     await bot.api.sendMessage(
       follower.user_id,
-      `${channel_name} завершил прямую трансляцию.`,
+      `<b>${channel_name}</b> завершил прямую трансляцию.`,
+      { parse_mode: "HTML" },
     );
+    log.info("message sent", {
+      user_id: follower.user_id,
+      //@ts-ignore
+      text: `<b>${channel_name}</b> завершил прямую трансляцию.`,
+    });
   }
 }
