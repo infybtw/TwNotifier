@@ -47,3 +47,9 @@ export const removeFollow = db.query<Follow, [number, number]>(
 export const getFollowList = db.query<Follow, [number]>(
   "SELECT * FROM users_follows WHERE user_id = ?",
 );
+
+export const getChannelFollowers = db.query<Follow, [number]>(
+  "SELECT * FROM users_follows WHERE channel_id = ?",
+);
+
+export const getAllChannels = db.query<Channel, []>("SELECT * FROM channels");

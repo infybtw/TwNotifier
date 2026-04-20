@@ -5,8 +5,7 @@ import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "bot" });
 
-const botInstance = new Bot(BOT_TOKEN);
-
+export const botInstance = new Bot(BOT_TOKEN);
 botInstance.use(router);
 
 export async function botStart() {

@@ -1,11 +1,20 @@
 import { APP_TOKEN, BOT_USER_ID, CLIENT_ID, CONDUIT_ID } from "../config";
 import fetch from "node-fetch";
+import { getAllChannels } from "../database/db";
+import logger from "../logger";
 
-export async function subscribeToChannelOnline(broadcasterId: string) {
+const log = logger.getSubLogger({ name: "twitchAPI:subscriptions" });
+
+export async function subscribeToChannelOnline(
+  broadcasterId: number,
+  broadcaster_name: string,
+) {
   const subscription = {
     type: "stream.online",
     version: "1",
-    condition: { broadcaster_user_id: broadcasterId, user_id: BOT_USER_ID },
+    condition: {
+      broadcaster_user_id: String(broadcasterId),
+    },
   };
 
   const res = await fetch(
@@ -29,26 +38,31 @@ export async function subscribeToChannelOnline(broadcasterId: string) {
 
   const data = await res.json();
   if (res.status === 202) {
-    console.log(`[${broadcasterId}]Subscribed to ${subscription.type}`);
+    log.info("subscribed to event", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+    });
   } else if (data.status === 409) {
-    console.log(`[${broadcasterId}]Already subscribed ${subscription.type}`);
+    log.info("allready subscribed", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+    });
   } else {
-    console.error(
-      `[${broadcasterId}]Subscription error ${subscription.type}:`,
-      data.message,
-    );
+    log.error("subscription error", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+      error_message: data.message,
+    });
   }
 }
 
-export async function getBroadcasterIdByLogin(login: string): Promise<number> {
-  const res = await fetch(`https://api.twitch.tv/helix/users?login=${login}`, {
-    headers: {
-      "Client-Id": CLIENT_ID,
-      Authorization: `Bearer ${APP_TOKEN}`,
-    },
-  });
-
-  const data = await res.json();
-  const broadcasterId = data.data[0]?.id;
-  return broadcasterId;
+export async function subscribeAllStreams() {
+  const channels = getAllChannels.all();
+  for (const channel of channels) {
+    await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
+  }
+  log.info("subscribed to all channels");
 }
