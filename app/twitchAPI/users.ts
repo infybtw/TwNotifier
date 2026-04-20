@@ -3,7 +3,7 @@ import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "twitchAPI:users" });
 
-async function getUserId(login: string): Promise<number> {
+export async function getUserId(login: string): Promise<number> {
   const url = new URL("https://api.twitch.tv/helix/users");
   url.searchParams.set("login", login);
 
@@ -24,9 +24,27 @@ async function getUserId(login: string): Promise<number> {
       return -1;
     }
   } else {
-    console.log("Broadcaster not found!");
     return -1;
   }
 }
 
-export { getUserId };
+export async function getChannelInfo(broadcaster_id: number) {
+  const url = new URL("https://api.twitch.tv/helix/channels");
+  url.searchParams.set("broadcaster_id", String(broadcaster_id));
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${APP_TOKEN}`,
+      "Client-Id": CLIENT_ID,
+    },
+  });
+
+  const data = await res.json();
+  if (res.status === 200) {
+    return data.data[0];
+  } else {
+    log.warn("request failed", { status: res.status });
+    return null;
+  }
+}

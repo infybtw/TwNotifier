@@ -1,9 +1,8 @@
 import "dotenv/config";
-import fetch from "node-fetch";
 
 import { SHARD_COUNT } from "./config";
 import { getAppToken } from "./twitchAPI/auth";
-import { connectWebSocket, updateShard } from "./twitchAPI/shards";
+import { connectWebSocket } from "./twitchAPI/shards";
 import {
   deleteAllConduits,
   getConduits,

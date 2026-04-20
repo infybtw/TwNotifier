@@ -4,6 +4,7 @@ import {
 } from "../bot/bot_sender";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
+import { getChannelInfo } from "../twitchAPI/users";
 
 export async function onSessionWelcome(sessionId: any) {
   console.log("Session ID: ", sessionId);
@@ -18,9 +19,13 @@ export async function onNotification(payload: any) {
   switch (type) {
     case "stream.online":
       log.info("stream online", { payload: payload });
+      const streamData = await getChannelInfo(
+        payload.event.broadcaster_user_id,
+      );
       sendStreamOnlineNotificationToUsers(
         Number(payload.event.broadcaster_user_id),
         payload.event.broadcaster_user_name,
+        streamData,
       );
       break;
     case "stream.offline":
