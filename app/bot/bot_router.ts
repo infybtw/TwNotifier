@@ -12,6 +12,7 @@ import {
   userExists,
 } from "../database/db";
 import { getUserId } from "../twitchAPI/users";
+import { subscribeToChannelOnline } from "../twitchAPI/subscriptions";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -59,6 +60,14 @@ router.command("add", async (ctx) => {
   const now = new Date().toISOString();
   //@ts-ignore
   addFollow.get(ctx.message?.from.id, channel_id, now);
+  const subResCode = await subscribeToChannelOnline(channel_id, channel_name);
+  if (subResCode < 0) {
+    log.error("subscribe error", { subResponseCode: subResCode });
+    ctx.reply(
+      "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
+    );
+    return;
+  }
   ctx.reply(`Готово! Теперь вы отслеживаете ${channel_name}`);
   log.info("new follow", {
     userId: ctx.message?.from.id,

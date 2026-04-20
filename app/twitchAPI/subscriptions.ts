@@ -8,7 +8,7 @@ const log = logger.getSubLogger({ name: "twitchAPI:subscriptions" });
 export async function subscribeToChannelOnline(
   broadcasterId: number,
   broadcaster_name: string,
-) {
+): Promise<number> {
   const subscription = {
     type: "stream.online",
     version: "1",
@@ -43,12 +43,14 @@ export async function subscribeToChannelOnline(
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
     });
+    return 202;
   } else if (data.status === 409) {
     log.info("allready subscribed", {
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
     });
+    return 409;
   } else {
     log.error("subscription error", {
       type: subscription.type,
@@ -56,6 +58,7 @@ export async function subscribeToChannelOnline(
       broadcaster_name: broadcaster_name,
       error_message: data.message,
     });
+    return -1;
   }
 }
 
