@@ -38,16 +38,13 @@ export async function updateShard(
     }),
   });
 
-  try {
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("Error shard update: ", data);
-      throw new Error("Update shard failed");
-    }
-    console.log(`Shard updated successfully. Session ID: `, sessionId);
-  } catch (err) {
-    log.error("json parsing error", { error: err });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) {
+    console.error("Error shard update: ", data);
+    throw new Error("Update shard failed");
   }
+  console.log(`Shard updated successfully. Session ID: `, sessionId);
 }
 
 export async function connectWebSocket(url: string) {
