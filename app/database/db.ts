@@ -20,6 +20,12 @@ db.run(`CREATE TABLE IF NOT EXISTS users_follows(
   created TEXT
 )`);
 
+db.run(`CREATE TABLE IF NOT EXISTS users_settings(
+    user_id INTEGER PRIMARY KEY REFERENCES users(user_id),
+    online_notification INTEGER DEFAULT(1),
+    offline_notification INTEGER DEFAULT(1)
+)`);
+
 export const addUser = db.query<User, [number, string]>(
   "INSERT INTO users(user_id,created) VALUES(?,?)",
 );
@@ -27,6 +33,42 @@ export const addUser = db.query<User, [number, string]>(
 export const userExists = db.query<User, [number]>(
   "SELECT user_id FROM users WHERE user_id = ?",
 );
+
+export const addUserSettings = db.query<Settings, [number]>(
+  "INSERT INTO users_settings(user_id) VALUES(?)",
+);
+
+export const getSettingsState = db.query<Settings, [number]>(
+  "SELECT * FROM users_settings WHERE user_id = ?",
+);
+
+const setOnlineNotificationState = db.query<
+  Settings,
+  [state: number, user_id: number]
+>("UPDATE users_settings SET online_notification = ? WHERE user_id = ? ");
+
+const setOfflineNotificationState = db.query<
+  Settings,
+  [state: number, user_id: number]
+>("UPDATE users_settings SET offline_notification = ? WHERE user_id = ? ");
+
+export async function toggleOnlineNotificationState(user_id: number) {
+  const settingsState = getSettingsState.get(user_id);
+  if (settingsState?.online_notification === 1) {
+    setOnlineNotificationState.get(0, user_id);
+  } else {
+    setOnlineNotificationState.get(1, user_id);
+  }
+}
+
+export async function toggleOfflineNotificationState(user_id: number) {
+  const settingsState = getSettingsState.get(user_id);
+  if (settingsState?.offline_notification === 1) {
+    setOfflineNotificationState.get(0, user_id);
+  } else {
+    setOfflineNotificationState.get(1, user_id);
+  }
+}
 
 export const channelExists = db.query<Channel, [number]>(
   "SELECT * FROM channels WHERE channel_id = ?",

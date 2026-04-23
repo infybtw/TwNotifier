@@ -4,6 +4,7 @@ import {
   addChannel,
   addFollow,
   addUser,
+  addUserSettings,
   channelExists,
   followExists,
   getFollowList,
@@ -15,6 +16,7 @@ import {
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
+import { homePageKeyboard } from "./keyboards";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -23,12 +25,15 @@ export const router = new Composer();
 router.command("start", async (ctx) => {
   ctx.reply(
     "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
+    { reply_markup: homePageKeyboard },
   );
   //@ts-ignore
   if (!userExists.get(ctx.message?.from.id)) {
     const now = new Date().toISOString();
     //@ts-ignore
     addUser.get(ctx.message?.from.id, now);
+    //@ts-ignore
+    addUserSettings.get(ctx.message?.from.id);
     log.info("user registered", { userId: ctx.message?.from.id });
   } else {
     log.info("used /start", { userId: ctx.message?.from.id });
