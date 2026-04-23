@@ -7,6 +7,10 @@ export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);
 export let APP_TOKEN: string;
 export let CONDUIT_ID: string;
 
+export const TWITCH_WS: string = String(process.env.TWITCH_WS);
+export const TWITCH_HELIX: string = String(process.env.TWITCH_HELIX);
+export const TWITCH_OAUTH: string = String(process.env.TWITCH_OAUTH);
+
 export async function setAppToken(appToken: string): Promise<void> {
   APP_TOKEN = appToken;
 }

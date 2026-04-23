@@ -1,4 +1,4 @@
-import { SHARD_COUNT } from "./config";
+import { SHARD_COUNT, TWITCH_WS } from "./config";
 import { getAppToken } from "./twitchAPI/auth";
 import { connectWebSocket } from "./twitchAPI/shards";
 import {
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
     await deleteAllConduits(conduitList);
   }
   await createConduit(SHARD_COUNT);
-  await connectWebSocket("wss://eventsub.wss.twitch.tv/ws");
+  await connectWebSocket(TWITCH_WS);
 }
 
 main().catch(console.error);

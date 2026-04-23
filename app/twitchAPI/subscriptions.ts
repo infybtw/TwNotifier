@@ -1,4 +1,11 @@
-import { APP_TOKEN, BOT_USER_ID, CLIENT_ID, CONDUIT_ID } from "../config";
+import {
+  APP_TOKEN,
+  BOT_USER_ID,
+  CLIENT_ID,
+  CONDUIT_ID,
+  TWITCH_HELIX,
+  TWITCH_OAUTH,
+} from "../config";
 import fetch from "node-fetch";
 import { getAllChannels } from "../database/db";
 import logger from "../logger";
@@ -17,24 +24,21 @@ export async function subscribeToChannelOnline(
     },
   };
 
-  const res = await fetch(
-    "https://api.twitch.tv/helix/eventsub/subscriptions",
-    {
-      method: "POST",
-      headers: {
-        "Client-ID": CLIENT_ID,
-        Authorization: `Bearer ${APP_TOKEN}`, // <- App токен! <--
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...subscription,
-        transport: {
-          method: "conduit", // ← не websocket, а conduit!
-          conduit_id: CONDUIT_ID,
-        },
-      }),
+  const res = await fetch(TWITCH_HELIX + "/helix/eventsub/subscriptions", {
+    method: "POST",
+    headers: {
+      "Client-ID": CLIENT_ID,
+      Authorization: `Bearer ${APP_TOKEN}`, // <- App токен! <--
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify({
+      ...subscription,
+      transport: {
+        method: "conduit", // ← не websocket, а conduit!
+        conduit_id: CONDUIT_ID,
+      },
+    }),
+  });
 
   const data = await res.json();
   if (res.status === 202) {
@@ -82,24 +86,21 @@ export async function subscribeToChannelOffline(
     },
   };
 
-  const res = await fetch(
-    "https://api.twitch.tv/helix/eventsub/subscriptions",
-    {
-      method: "POST",
-      headers: {
-        "Client-ID": CLIENT_ID,
-        Authorization: `Bearer ${APP_TOKEN}`, // <- App токен! <--
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...subscription,
-        transport: {
-          method: "conduit", // ← не websocket, а conduit!
-          conduit_id: CONDUIT_ID,
-        },
-      }),
+  const res = await fetch(TWITCH_HELIX + "/helix/eventsub/subscriptions", {
+    method: "POST",
+    headers: {
+      "Client-ID": CLIENT_ID,
+      Authorization: `Bearer ${APP_TOKEN}`, // <- App токен! <--
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify({
+      ...subscription,
+      transport: {
+        method: "conduit", // ← не websocket, а conduit!
+        conduit_id: CONDUIT_ID,
+      },
+    }),
+  });
 
   const data = await res.json();
   if (res.status === 202) {

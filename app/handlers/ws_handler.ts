@@ -8,7 +8,7 @@ import { getChannelInfo } from "../twitchAPI/users";
 
 export async function onSessionWelcome(sessionId: any) {
   console.log("Session ID: ", sessionId);
-  await updateShard(sessionId, "0");
+  await updateShard(sessionId, 0);
 }
 
 const log = logger.getSubLogger({ name: "handlers:ws_handler" });

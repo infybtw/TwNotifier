@@ -1,6 +1,6 @@
-import { APP_TOKEN, CLIENT_ID, setConduitId } from "../config";
+import { APP_TOKEN, CLIENT_ID, setConduitId, TWITCH_HELIX } from "../config";
 
-const CONDUIT_URL: string = "https://api.twitch.tv/helix/eventsub/conduits";
+const CONDUIT_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits";
 
 export async function getConduits() {
   const res = await fetch(CONDUIT_URL, {

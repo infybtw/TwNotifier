@@ -1,7 +1,7 @@
-import { CLIENT_ID, CLIENT_SECRET, setAppToken } from "../config";
+import { CLIENT_ID, CLIENT_SECRET, setAppToken, TWITCH_OAUTH } from "../config";
 
 async function getAppToken() {
-  const res = await fetch("https://id.twitch.tv/oauth2/token", {
+  const res = await fetch(TWITCH_OAUTH + "/oauth2/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

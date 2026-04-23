@@ -1,20 +1,21 @@
 import WebSocket from "ws";
 import fetch from "node-fetch";
-import { APP_TOKEN, CLIENT_ID, CONDUIT_ID } from "../config";
+import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, TWITCH_HELIX } from "../config";
 import { onNotification, onSessionWelcome } from "../handlers/ws_handler";
 import {
   subscribeAllStreamsOffline,
   subscribeAllStreamsOnline,
-  subscribeToChannelOnline,
 } from "./subscriptions";
+import logger from "../logger";
 
-const SHARD_URL: string =
-  "https://api.twitch.tv/helix/eventsub/conduits/shards";
+const log = logger.getSubLogger({ name: "twitchAPI:shards" });
+
+const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
 let ws: WebSocket;
 
 export async function updateShard(
   sessionId: string,
-  shardId: string,
+  shardId: number,
 ): Promise<void> {
   const res = await fetch(SHARD_URL, {
     method: "PATCH",
@@ -27,7 +28,7 @@ export async function updateShard(
       conduit_id: CONDUIT_ID,
       shards: [
         {
-          id: `${shardId}`,
+          id: shardId,
           transport: {
             method: "websocket",
             session_id: sessionId,
@@ -37,13 +38,16 @@ export async function updateShard(
     }),
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    console.error("Error shard update: ", data);
-    throw new Error("Update shard failed");
+  try {
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("Error shard update: ", data);
+      throw new Error("Update shard failed");
+    }
+    console.log(`Shard updated successfully. Session ID: `, sessionId);
+  } catch (err) {
+    log.error("json parsing error", { error: err });
   }
-
-  console.log(`Shard updated successfully. Session ID: `, sessionId);
 }
 
 export async function connectWebSocket(url: string) {

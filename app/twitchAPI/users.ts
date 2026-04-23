@@ -1,10 +1,10 @@
-import { APP_TOKEN, CLIENT_ID } from "../config";
+import { APP_TOKEN, CLIENT_ID, TWITCH_HELIX } from "../config";
 import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "twitchAPI:users" });
 
 export async function getUserId(login: string): Promise<number> {
-  const url = new URL("https://api.twitch.tv/helix/users");
+  const url = new URL(TWITCH_HELIX + "/helix/users");
   url.searchParams.set("login", login);
 
   const res = await fetch(url, {
@@ -29,7 +29,7 @@ export async function getUserId(login: string): Promise<number> {
 }
 
 export async function getChannelInfo(broadcaster_id: number) {
-  const url = new URL("https://api.twitch.tv/helix/channels");
+  const url = new URL(TWITCH_HELIX + "/helix/channels");
   url.searchParams.set("broadcaster_id", String(broadcaster_id));
 
   const res = await fetch(url, {
