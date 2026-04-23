@@ -52,21 +52,29 @@ const setOfflineNotificationState = db.query<
   [state: number, user_id: number]
 >("UPDATE users_settings SET offline_notification = ? WHERE user_id = ? ");
 
-export async function toggleOnlineNotificationState(user_id: number) {
+export async function toggleOnlineNotificationState(
+  user_id: number,
+): Promise<number> {
   const settingsState = getSettingsState.get(user_id);
   if (settingsState?.online_notification === 1) {
     setOnlineNotificationState.get(0, user_id);
+    return 0;
   } else {
     setOnlineNotificationState.get(1, user_id);
+    return 1;
   }
 }
 
-export async function toggleOfflineNotificationState(user_id: number) {
+export async function toggleOfflineNotificationState(
+  user_id: number,
+): Promise<number> {
   const settingsState = getSettingsState.get(user_id);
   if (settingsState?.offline_notification === 1) {
     setOfflineNotificationState.get(0, user_id);
+    return 0;
   } else {
     setOfflineNotificationState.get(1, user_id);
+    return 1;
   }
 }
 

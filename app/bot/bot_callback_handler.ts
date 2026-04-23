@@ -4,8 +4,11 @@ import {
   toggleOfflineNotificationState,
   toggleOnlineNotificationState,
 } from "../database/db";
+import logger from "../logger";
 
 export const router = new Composer();
+
+const log = logger.getSubLogger({ name: "bot:callback_handler" });
 
 router.callbackQuery("settingsCMD", async (ctx) => {
   await ctx.editMessageText("Настройки", {
@@ -22,15 +25,25 @@ router.callbackQuery("settingsBACK", async (ctx) => {
 });
 
 router.callbackQuery("toogleOnlineNotificationCMD", async (ctx) => {
-  toggleOnlineNotificationState(ctx.from.id);
+  const newState = await toggleOnlineNotificationState(ctx.from.id);
   await ctx.editMessageReplyMarkup({
     reply_markup: await buildSettingsKeyboard(ctx.from.id),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "onlineNotification",
+    new_state: newState,
   });
 });
 
 router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
-  await toggleOfflineNotificationState(ctx.from.id);
+  const newState = await toggleOfflineNotificationState(ctx.from.id);
   await ctx.editMessageReplyMarkup({
     reply_markup: await buildSettingsKeyboard(ctx.from.id),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "offlineNotification",
+    new_state: newState,
   });
 });
