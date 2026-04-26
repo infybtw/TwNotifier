@@ -6,7 +6,22 @@ import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "bot" });
 
-export const botInstance = new Bot(BOT_TOKEN);
+interface SessionData {
+  pendingChannel?: {
+    channelId: number;
+    channelName: string;
+    displayName: string;
+  };
+}
+
+export type MyContext = Context & SessionFlavor<SessionData>;
+
+export const botInstance = new Bot<MyContext>(BOT_TOKEN);
+
+botInstance.use(session({
+  initial: (): SessionData => ({}),
+}));
+
 botInstance.use(mRouter);
 botInstance.use(cRouter);
 

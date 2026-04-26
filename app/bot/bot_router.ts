@@ -1,4 +1,5 @@
 import { Composer } from "grammy";
+import { InlineKeyboard } from "grammy";
 import logger from "../logger";
 import {
   addChannel,
@@ -17,12 +18,13 @@ import {
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
-import { homePageKeyboard } from "./keyboards";
+import { homePageKeyboard, confirmationKeyboard } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
+import { MyContext } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
-export const router = new Composer();
+export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
   ctx.reply(
@@ -59,55 +61,40 @@ router.command("add", async (ctx) => {
   if (!user) {
     return ctx.reply("Канал с таким именем не найден");
   }
+  
   const channel_id = Number(user.id);
   const display_name = user.display_name;
-  if (!channelExists.get(channel_id)) {
-    addChannel.get(channel_id, display_name);
-    log.info("new channel added", {
-      channel_id: channel_id,
-      channel_name: display_name,
-    });
-  } else {
-    const current_name = channelExists.get(channel_id)?.channel_name;
-    if (current_name !== display_name) {
-      updateChannelName.run(display_name, channel_id);
-    }
-  }
+  
   if (!ctx.from) {
     return ctx.reply("Ошибка: не удалось определить пользователя");
   }
   
+  // Check if already following
   if (followExists.get(ctx.from.id, channel_id)) {
     return ctx.reply(`Вы уже отслеживаете ${display_name}`);
   }
-  const now = new Date().toISOString();
-  addFollow.get(ctx.from.id, channel_id, now);
-  const subOnlineResCode = await subscribeToChannelOnline(
-    channel_id,
-    display_name || channel_name_lower,
-  );
-  if (subOnlineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOnlineResCode });
-    ctx.reply(
-      "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
-    );
-    return;
-  }
-  const subOfflineResCode = await subscribeToChannelOffline(
-    channel_id,
-    display_name || channel_name_lower,
-  );
-  if (subOfflineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOfflineResCode });
-    ctx.reply(
-      "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
-    );
-    return;
-  }
-  ctx.reply(`Готово! Теперь вы отслеживаете ${display_name}`);
-  log.info("new follow", {
+  
+  // Store pending channel in session
+  ctx.session.pendingChannel = {
+    channelId: channel_id,
+    channelName: channel_name_lower,
+    displayName: display_name
+  };
+  
+  // Show preview with confirmation buttons
+  const previewMessage = `Вы хотите добавить канал:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `Продолжить добавление?`;
+    
+  await ctx.reply(previewMessage, {
+    reply_markup: confirmationKeyboard,
+  });
+  
+  log.info("showing channel preview", {
     userId: ctx.from.id,
     channel: display_name,
+    channelId: channel_id
   });
 });
 
@@ -153,3 +140,5 @@ router.command("list", async (ctx) => {
   }
   ctx.reply(reply_text);
 });
+
+
