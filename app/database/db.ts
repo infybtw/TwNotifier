@@ -105,4 +105,8 @@ export const getChannelFollowers = db.query<Follow, [number]>(
   "SELECT * FROM users_follows WHERE channel_id = ?",
 );
 
+export const updateChannelName = db.query<void, [string, number]>(
+  "UPDATE channels SET channel_name = ? WHERE channel_id = ?",
+);
+
 export const getAllChannels = db.query<Channel, []>("SELECT * FROM channels");

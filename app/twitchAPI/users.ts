@@ -1,9 +1,12 @@
 import { APP_TOKEN, CLIENT_ID, TWITCH_HELIX } from "../config";
 import logger from "../logger";
+import { TwitchUser } from "../models/twitch_user";
 
 const log = logger.getSubLogger({ name: "twitchAPI:users" });
 
-export async function getUserId(login: string): Promise<number> {
+export async function getUserByLogin(
+  login: string,
+): Promise<TwitchUser | null> {
   const url = new URL(TWITCH_HELIX + "/helix/users");
   url.searchParams.set("login", login);
 
@@ -16,16 +19,31 @@ export async function getUserId(login: string): Promise<number> {
   });
 
   const data = await res.json();
-  if (res.status === 200) {
-    try {
-      const broadcaster_id = data.data[0].id;
-      return data.data[0].id;
-    } catch (err) {
-      return -1;
-    }
-  } else {
-    return -1;
+  if (res.status === 200 && data.data && data.data.length > 0) {
+    return data.data[0];
   }
+  return null;
+}
+
+export async function getUserById(
+  id: number | string,
+): Promise<TwitchUser | null> {
+  const url = new URL(TWITCH_HELIX + "/helix/users");
+  url.searchParams.set("id", String(id));
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${APP_TOKEN}`,
+      "Client-Id": CLIENT_ID,
+    },
+  });
+
+  const data = await res.json();
+  if (res.status === 200 && data.data && data.data.length > 0) {
+    return data.data[0];
+  }
+  return null;
 }
 
 export async function getChannelInfo(broadcaster_id: number) {
