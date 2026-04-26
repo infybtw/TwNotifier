@@ -7,7 +7,12 @@ import logger from "../logger";
 const log = logger.getSubLogger({ name: "bot" });
 
 interface SessionData {
-  pendingChannel?: {
+  pendingAdd?: {
+    channelId: number;
+    channelName: string;
+    displayName: string;
+  };
+  pendingRemove?: {
     channelId: number;
     channelName: string;
     displayName: string;

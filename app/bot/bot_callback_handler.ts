@@ -50,13 +50,13 @@ router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
 });
 
 router.callbackQuery("confirm_add", async (ctx) => {
-  if (!ctx.session.pendingChannel) {
+  if (!ctx.session.pendingAdd) {
     await ctx.answerCallbackQuery("Сессия истекла. Пожалуйста, начните добавление заново.");
     await ctx.editMessageText("Сессия истекла. Используйте /add для добавления канала.");
     return;
   }
   
-  const { displayName } = ctx.session.pendingChannel;
+  const { displayName } = ctx.session.pendingAdd;
   
   await ctx.answerCallbackQuery("Добавляем канал...");
   
@@ -65,7 +65,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
   const { subscribeToChannelOffline, subscribeToChannelOnline } = await import("../twitchAPI/subscriptions");
   const log = logger.getSubLogger({ name: "bot:callback_handler" });
   
-  const { channelId, channelName } = ctx.session.pendingChannel;
+  const { channelId, channelName } = ctx.session.pendingAdd;
   
   // Add channel to database if not exists
   if (!channelExists.get(channelId)) {
@@ -95,7 +95,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
     await ctx.editMessageText(
       "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
     );
-    ctx.session.pendingChannel = undefined;
+    ctx.session.pendingAdd = undefined;
     return;
   }
   
@@ -108,12 +108,12 @@ router.callbackQuery("confirm_add", async (ctx) => {
     await ctx.editMessageText(
       "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
     );
-    ctx.session.pendingChannel = undefined;
+    ctx.session.pendingAdd = undefined;
     return;
   }
   
   // Clear pending channel
-  ctx.session.pendingChannel = undefined;
+  ctx.session.pendingAdd = undefined;
   
   await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
   log.info("new follow", {
@@ -123,9 +123,9 @@ router.callbackQuery("confirm_add", async (ctx) => {
 });
 
 router.callbackQuery("cancel_add", async (ctx) => {
-  if (ctx.session.pendingChannel) {
-    const { displayName } = ctx.session.pendingChannel;
-    ctx.session.pendingChannel = undefined;
+  if (ctx.session.pendingAdd) {
+    const { displayName } = ctx.session.pendingAdd;
+    ctx.session.pendingAdd = undefined;
     await ctx.answerCallbackQuery("Добавление отменено");
     await ctx.editMessageText(`❌ Добавление канала ${displayName} отменено.`);
     log.info("channel addition cancelled", {
@@ -135,5 +135,51 @@ router.callbackQuery("cancel_add", async (ctx) => {
   } else {
     await ctx.answerCallbackQuery("Нет активного добавления");
     await ctx.editMessageText("Нет активного процесса добавления канала.");
+  }
+});
+
+router.callbackQuery("confirm_remove", async (ctx) => {
+  if (!ctx.session.pendingRemove) {
+    await ctx.answerCallbackQuery("Сессия истекла. Пожалуйста, начните удаление заново.");
+    await ctx.editMessageText("Сессия истекла. Используйте /remove для удаления канала.");
+    return;
+  }
+  
+  const { displayName, channelId } = ctx.session.pendingRemove;
+  
+  await ctx.answerCallbackQuery("Удаляем канал...");
+  
+  // Import required functions
+  const { removeFollow } = await import("../database/db");
+  const log = logger.getSubLogger({ name: "bot:callback_handler" });
+  
+  // Remove the follow
+  //@ts-ignore
+  removeFollow.get(ctx.from.id, channelId);
+  
+  // Clear pending removal
+  ctx.session.pendingRemove = undefined;
+  
+  await ctx.editMessageText(`✅ Канал ${displayName} удален из отслеживаемых.`);
+  log.info("channel removed", {
+    userId: ctx.from.id,
+    channel: displayName,
+    channelId: channelId
+  });
+});
+
+router.callbackQuery("cancel_remove", async (ctx) => {
+  if (ctx.session.pendingRemove) {
+    const { displayName } = ctx.session.pendingRemove;
+    ctx.session.pendingRemove = undefined;
+    await ctx.answerCallbackQuery("Удаление отменено");
+    await ctx.editMessageText(`❌ Удаление канала ${displayName} отменено.`);
+    log.info("channel removal cancelled", {
+      userId: ctx.from.id,
+      channel: displayName,
+    });
+  } else {
+    await ctx.answerCallbackQuery("Нет активного удаления");
+    await ctx.editMessageText("Нет активного процесса удаления канала.");
   }
 });

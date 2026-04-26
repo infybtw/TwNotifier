@@ -18,7 +18,7 @@ import {
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
-import { homePageKeyboard, confirmationKeyboard } from "./keyboards";
+import { homePageKeyboard, addConfirmationKeyboard, removeConfirmationKeyboard } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 
@@ -75,7 +75,7 @@ router.command("add", async (ctx) => {
   }
   
   // Store pending channel in session
-  ctx.session.pendingChannel = {
+  ctx.session.pendingAdd = {
     channelId: channel_id,
     channelName: channel_name_lower,
     displayName: display_name
@@ -88,7 +88,7 @@ router.command("add", async (ctx) => {
     `Продолжить добавление?`;
     
   await ctx.reply(previewMessage, {
-    reply_markup: confirmationKeyboard,
+    reply_markup: addConfirmationKeyboard,
   });
   
   log.info("showing channel preview", {
@@ -102,7 +102,7 @@ router.command("remove", async (ctx) => {
   const input = ctx.match.trim();
 
   if (!input) {
-    return ctx.reply("Неверный формат, Приме�� использования: /remove xqc или /remove https://twitch.tv/xqc");
+    return ctx.reply("Неверный формат, Пример использования: /remove xqc или /remove https://twitch.tv/xqc");
   }
 
   const extractedUsername = extractUsernameFromTwitchUrl(input);
@@ -115,16 +115,42 @@ router.command("remove", async (ctx) => {
   if (!user) {
     return ctx.reply("Канал с таким именем не найден");
   }
+  
   const channel_id = Number(user.id);
   const display_name = user.display_name || extractedUsername;
+  
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
+  }
+  
+  // Check if user is following this channel
   //@ts-ignore
   if (!followExists.get(ctx.from.id, channel_id)) {
-    ctx.reply(`Вы не подписаны на ${display_name}`);
-  } else {
-    //@ts-ignore
-    removeFollow.get(ctx.from.id, channel_id);
-    ctx.reply(`Вы больше не отслеживаете ${display_name}`);
+    return ctx.reply(`Вы не подписаны на ${display_name}`);
   }
+  
+  // Store pending removal in session
+  ctx.session.pendingRemove = {
+    channelId: channel_id,
+    channelName: channel_name_lower,
+    displayName: display_name
+  };
+  
+  // Show preview with confirmation buttons
+  const previewMessage = `Вы хотите удалить канал из отслеживаемых:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `Подтвердите удаление?`;
+    
+  await ctx.reply(previewMessage, {
+    reply_markup: removeConfirmationKeyboard,
+  });
+  
+  log.info("showing remove preview", {
+    userId: ctx.from.id,
+    channel: display_name,
+    channelId: channel_id
+  });
 });
 
 router.command("list", async (ctx) => {
