@@ -18,6 +18,7 @@ import {
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
 import { homePageKeyboard } from "./keyboards";
+import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -25,7 +26,7 @@ export const router = new Composer();
 
 router.command("start", async (ctx) => {
   ctx.reply(
-    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
+    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал (можно использовать имя или URL Twitch)\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
     { reply_markup: homePageKeyboard },
   );
   //@ts-ignore
@@ -42,16 +43,21 @@ router.command("start", async (ctx) => {
 });
 
 router.command("add", async (ctx) => {
-  const channel_name = ctx.match.trim();
+  const input = ctx.match.trim();
 
-  if (!channel_name) {
-    return ctx.reply("Неверный формат, Пример использования: /add xqc");
+  if (!input) {
+    return ctx.reply("Неверный формат, Пример использования: /add xqc или /add https://twitch.tv/xqc");
   }
 
-  const channel_name_lower = channel_name.toLowerCase();
+  const extractedUsername = extractUsernameFromTwitchUrl(input);
+  if (!extractedUsername) {
+    return ctx.reply("Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.");
+  }
+
+  const channel_name_lower = extractedUsername.toLowerCase();
   const user = await getUserByLogin(channel_name_lower);
   if (!user) {
-    return ctx.reply("Канал с таким именем не най��ен");
+    return ctx.reply("Канал с таким именем не найден");
   }
   const channel_id = Number(user.id);
   const display_name = user.display_name;
@@ -67,6 +73,10 @@ router.command("add", async (ctx) => {
       updateChannelName.run(display_name, channel_id);
     }
   }
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
+  }
+  
   if (followExists.get(ctx.from.id, channel_id)) {
     return ctx.reply(`Вы уже отслеживаете ${display_name}`);
   }
@@ -102,23 +112,31 @@ router.command("add", async (ctx) => {
 });
 
 router.command("remove", async (ctx) => {
-  const channel_name = ctx.match.trim();
+  const input = ctx.match.trim();
 
-  if (!channel_name) {
-    return ctx.reply("Неверный формат, Пример использования: /remove xqc");
+  if (!input) {
+    return ctx.reply("Неверный формат, Приме�� использования: /remove xqc или /remove https://twitch.tv/xqc");
   }
-  const user = await getUserByLogin(channel_name.toLowerCase());
+
+  const extractedUsername = extractUsernameFromTwitchUrl(input);
+  if (!extractedUsername) {
+    return ctx.reply("Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.");
+  }
+
+  const channel_name_lower = extractedUsername.toLowerCase();
+  const user = await getUserByLogin(channel_name_lower);
   if (!user) {
     return ctx.reply("Канал с таким именем не найден");
   }
   const channel_id = Number(user.id);
+  const display_name = user.display_name || extractedUsername;
   //@ts-ignore
   if (!followExists.get(ctx.from.id, channel_id)) {
-    ctx.reply(`Вы не подписаны на ${channel_name}`);
+    ctx.reply(`Вы не подписаны на ${display_name}`);
   } else {
     //@ts-ignore
     removeFollow.get(ctx.from.id, channel_id);
-    ctx.reply(`Вы больше не отслеживаете ${channel_name}`);
+    ctx.reply(`Вы больше не отслеживаете ${display_name}`);
   }
 });
 
