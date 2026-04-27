@@ -1,4 +1,5 @@
 import { Composer } from "grammy";
+import { InlineKeyboard } from "grammy";
 import logger from "../logger";
 import {
   addChannel,
@@ -17,15 +18,17 @@ import {
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
-import { homePageKeyboard } from "./keyboards";
+import { homePageKeyboard, addConfirmationKeyboard, removeConfirmationKeyboard } from "./keyboards";
+import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
+import { MyContext } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
-export const router = new Composer();
+export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
   ctx.reply(
-    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
+    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал (можно использовать имя или URL Twitch)\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
     { reply_markup: homePageKeyboard },
   );
   //@ts-ignore
@@ -42,84 +45,112 @@ router.command("start", async (ctx) => {
 });
 
 router.command("add", async (ctx) => {
-  const channel_name = ctx.match.trim();
+  const input = ctx.match.trim();
 
-  if (!channel_name) {
-    return ctx.reply("Неверный формат, Пример использования: /add xqc");
+  if (!input) {
+    return ctx.reply("Неверный формат, Пример использования: /add xqc или /add https://twitch.tv/xqc");
   }
 
-  const channel_name_lower = channel_name.toLowerCase();
+  const extractedUsername = extractUsernameFromTwitchUrl(input);
+  if (!extractedUsername) {
+    return ctx.reply("Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.");
+  }
+
+  const channel_name_lower = extractedUsername.toLowerCase();
   const user = await getUserByLogin(channel_name_lower);
   if (!user) {
-    return ctx.reply("Канал с таким именем не най��ен");
+    return ctx.reply("Канал с таким именем не найден");
   }
+  
   const channel_id = Number(user.id);
   const display_name = user.display_name;
-  if (!channelExists.get(channel_id)) {
-    addChannel.get(channel_id, display_name);
-    log.info("new channel added", {
-      channel_id: channel_id,
-      channel_name: display_name,
-    });
-  } else {
-    const current_name = channelExists.get(channel_id)?.channel_name;
-    if (current_name !== display_name) {
-      updateChannelName.run(display_name, channel_id);
-    }
+  
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
   }
+  
+  // Check if already following
   if (followExists.get(ctx.from.id, channel_id)) {
     return ctx.reply(`Вы уже отслеживаете ${display_name}`);
   }
-  const now = new Date().toISOString();
-  addFollow.get(ctx.from.id, channel_id, now);
-  const subOnlineResCode = await subscribeToChannelOnline(
-    channel_id,
-    display_name || channel_name_lower,
-  );
-  if (subOnlineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOnlineResCode });
-    ctx.reply(
-      "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
-    );
-    return;
-  }
-  const subOfflineResCode = await subscribeToChannelOffline(
-    channel_id,
-    display_name || channel_name_lower,
-  );
-  if (subOfflineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOfflineResCode });
-    ctx.reply(
-      "Ошибка подписки, попробуйте позже или обратитесь в тех.поддержку.",
-    );
-    return;
-  }
-  ctx.reply(`Готово! Теперь вы отслеживаете ${display_name}`);
-  log.info("new follow", {
+  
+  // Store pending channel in session
+  ctx.session.pendingAdd = {
+    channelId: channel_id,
+    channelName: channel_name_lower,
+    displayName: display_name
+  };
+  
+  // Show preview with confirmation buttons
+  const previewMessage = `Вы хотите добавить канал:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `Продолжить добавление?`;
+    
+  await ctx.reply(previewMessage, {
+    reply_markup: addConfirmationKeyboard,
+  });
+  
+  log.info("showing channel preview", {
     userId: ctx.from.id,
     channel: display_name,
+    channelId: channel_id
   });
 });
 
 router.command("remove", async (ctx) => {
-  const channel_name = ctx.match.trim();
+  const input = ctx.match.trim();
 
-  if (!channel_name) {
-    return ctx.reply("Неверный формат, Пример использования: /remove xqc");
+  if (!input) {
+    return ctx.reply("Неверный формат, Пример использования: /remove xqc или /remove https://twitch.tv/xqc");
   }
-  const user = await getUserByLogin(channel_name.toLowerCase());
+
+  const extractedUsername = extractUsernameFromTwitchUrl(input);
+  if (!extractedUsername) {
+    return ctx.reply("Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.");
+  }
+
+  const channel_name_lower = extractedUsername.toLowerCase();
+  const user = await getUserByLogin(channel_name_lower);
   if (!user) {
     return ctx.reply("Канал с таким именем не найден");
   }
+  
   const channel_id = Number(user.id);
+  const display_name = user.display_name || extractedUsername;
+  
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
+  }
+  
+  // Check if user is following this channel
   //@ts-ignore
   if (!followExists.get(ctx.from.id, channel_id)) {
-    ctx.reply(`Вы не подписаны на ${channel_name}`);
-  } else {
-    //@ts-ignore
-    removeFollow.get(ctx.from.id, channel_id);
-    ctx.reply(`Вы больше не отслеживаете ${channel_name}`);
+    return ctx.reply(`Вы не подписаны на ${display_name}`);
   }
+  
+  // Store pending removal in session
+  ctx.session.pendingRemove = {
+    channelId: channel_id,
+    channelName: channel_name_lower,
+    displayName: display_name
+  };
+  
+  // Show preview with confirmation buttons
+  const previewMessage = `Вы хотите удалить канал из отслеживаемых:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `Подтвердите удаление?`;
+    
+  await ctx.reply(previewMessage, {
+    reply_markup: removeConfirmationKeyboard,
+  });
+  
+  log.info("showing remove preview", {
+    userId: ctx.from.id,
+    channel: display_name,
+    channelId: channel_id
+  });
 });
 
 router.command("list", async (ctx) => {
@@ -135,3 +166,5 @@ router.command("list", async (ctx) => {
   }
   ctx.reply(reply_text);
 });
+
+

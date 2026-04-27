@@ -5,6 +5,14 @@ export const homePageKeyboard = new InlineKeyboard()
   .text("Настройки", "settingsCMD")
   .text("Инфо", "infoCMD");
 
+export const addConfirmationKeyboard = new InlineKeyboard()
+  .text("Продолжить", "confirm_add")
+  .text("Отмена", "cancel_add");
+
+export const removeConfirmationKeyboard = new InlineKeyboard()
+  .text("Удалить", "confirm_remove")
+  .text("Отмена", "cancel_remove");
+
 export async function buildSettingsKeyboard(
   user_id: number,
 ): Promise<InlineKeyboard> {
