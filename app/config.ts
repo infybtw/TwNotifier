@@ -3,6 +3,7 @@ export const CLIENT_SECRET: string = String(process.env.CLIENT_SECRET);
 export const BOT_USER_ID: string = String(process.env.BOT_USER_ID);
 export const SHARD_COUNT: number = Number(process.env.SHARD_COUNT);
 export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);
+export const DATABASE_URL: string = String(process.env.DATABASE_URL);
 
 export let APP_TOKEN: string;
 export let CONDUIT_ID: string;

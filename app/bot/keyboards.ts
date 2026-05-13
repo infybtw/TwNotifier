@@ -16,7 +16,7 @@ export const removeConfirmationKeyboard = new InlineKeyboard()
 export async function buildSettingsKeyboard(
   user_id: number,
 ): Promise<InlineKeyboard> {
-  const user_settings = getSettingsState.get(user_id);
+  const user_settings = await getSettingsState(user_id);
   let onlineNotificationText = "Уведомления о начале трансляции ";
   let offlineNotificationText = "Уведомления об окончании трансляции ";
   if (user_settings?.online_notification === 1) {

@@ -9,9 +9,9 @@ export async function sendStreamOnlineNotificationToUsers(
   channel_name: string,
   data: JSON,
 ) {
-  const followers = getChannelFollowers.all(channel_id);
+  const followers = await getChannelFollowers(channel_id);
   for (const follower of followers) {
-    const userSettings = getSettingsState.get(follower.user_id);
+    const userSettings = await getSettingsState(follower.user_id);
     if (userSettings?.online_notification === 1) {
       await bot.api.sendMessage(
         follower.user_id,
@@ -32,9 +32,9 @@ export async function sendStreamOfflineNotificationToUsers(
   channel_id: number,
   channel_name: string,
 ) {
-  const followers = getChannelFollowers.all(channel_id);
+  const followers = await getChannelFollowers(channel_id);
   for (const follower of followers) {
-    const userSettings = getSettingsState.get(follower.user_id);
+    const userSettings = await getSettingsState(follower.user_id);
     if (userSettings?.offline_notification === 1) {
       await bot.api.sendMessage(
         follower.user_id,

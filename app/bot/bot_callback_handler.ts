@@ -1,9 +1,17 @@
 import { Composer } from "grammy";
 import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
 import {
+  getChannel,
   toggleOfflineNotificationState,
   toggleOnlineNotificationState,
+  addChannel,
+  updateChannelName,
+  addFollow,
 } from "../database/db";
+import {
+  subscribeToChannelOffline,
+  subscribeToChannelOnline,
+} from "../twitchAPI/subscriptions";
 import logger from "../logger";
 import { MyContext } from "./bot";
 
@@ -51,40 +59,29 @@ router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
 
 router.callbackQuery("confirm_add", async (ctx) => {
   if (!ctx.session.pendingAdd) {
-    await ctx.answerCallbackQuery("Сессия истекла. Пожалуйста, начните добавление заново.");
-    await ctx.editMessageText("Сессия истекла. Используйте /add для добавления канала.");
-    return;
+    return await ctx.editMessageText(
+      "Сессия истекла. Используйте /add для добавления канала.",
+    );
   }
-  
+
   const { displayName } = ctx.session.pendingAdd;
-  
+
   await ctx.answerCallbackQuery("Добавляем канал...");
-  
-  // Import the addChannelToFollowList function
-  const { addChannel, channelExists, updateChannelName, addFollow } = await import("../database/db");
-  const { subscribeToChannelOffline, subscribeToChannelOnline } = await import("../twitchAPI/subscriptions");
-  const log = logger.getSubLogger({ name: "bot:callback_handler" });
-  
+
   const { channelId, channelName } = ctx.session.pendingAdd;
-  
-  // Add channel to database if not exists
-  if (!channelExists.get(channelId)) {
-    addChannel.get(channelId, displayName);
+
+  if (!(await getChannel(channelId))) {
+    await addChannel(channelId, displayName);
     log.info("new channel added", {
       channel_id: channelId,
       channel_name: displayName,
     });
   } else {
-    const current_name = channelExists.get(channelId)?.channel_name;
+    const current_name = (await getChannel(channelId)).channel_name;
     if (current_name !== displayName) {
-      updateChannelName.run(displayName, channelId);
+      await updateChannelName(channelId, displayName);
     }
   }
-  
-  // Add follow
-  const now = new Date().toISOString();
-  addFollow.get(ctx.from.id, channelId, now);
-  
   // Subscribe to events
   const subOnlineResCode = await subscribeToChannelOnline(
     channelId,
@@ -98,7 +95,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
     ctx.session.pendingAdd = undefined;
     return;
   }
-  
+
   const subOfflineResCode = await subscribeToChannelOffline(
     channelId,
     displayName || channelName,
@@ -111,10 +108,14 @@ router.callbackQuery("confirm_add", async (ctx) => {
     ctx.session.pendingAdd = undefined;
     return;
   }
-  
+
+  // Add follow
+  const now = new Date().toISOString();
+  await addFollow(ctx.from.id, channelId, now);
+
   // Clear pending channel
   ctx.session.pendingAdd = undefined;
-  
+
   await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
   log.info("new follow", {
     userId: ctx.from.id,
@@ -140,31 +141,35 @@ router.callbackQuery("cancel_add", async (ctx) => {
 
 router.callbackQuery("confirm_remove", async (ctx) => {
   if (!ctx.session.pendingRemove) {
-    await ctx.answerCallbackQuery("Сессия истекла. Пожалуйста, начните удаление заново.");
-    await ctx.editMessageText("Сессия истекла. Используйте /remove для удаления канала.");
+    await ctx.answerCallbackQuery(
+      "Сессия истекла. Пожалуйста, начните удаление заново.",
+    );
+    await ctx.editMessageText(
+      "Сессия истекла. Используйте /remove для удаления канала.",
+    );
     return;
   }
-  
+
   const { displayName, channelId } = ctx.session.pendingRemove;
-  
+
   await ctx.answerCallbackQuery("Удаляем канал...");
-  
+
   // Import required functions
   const { removeFollow } = await import("../database/db");
   const log = logger.getSubLogger({ name: "bot:callback_handler" });
-  
+
   // Remove the follow
   //@ts-ignore
-  removeFollow.get(ctx.from.id, channelId);
-  
+  await removeFollow(ctx.from.id, channelId);
+
   // Clear pending removal
   ctx.session.pendingRemove = undefined;
-  
+
   await ctx.editMessageText(`✅ Канал ${displayName} удален из отслеживаемых.`);
   log.info("channel removed", {
     userId: ctx.from.id,
     channel: displayName,
-    channelId: channelId
+    channelId: channelId,
   });
 });
 

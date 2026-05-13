@@ -67,7 +67,7 @@ export async function subscribeToChannelOnline(
 }
 
 export async function subscribeAllStreamsOnline() {
-  const channels = getAllChannels.all();
+  const channels = await getAllChannels();
   for (const channel of channels) {
     await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
   }
@@ -129,7 +129,7 @@ export async function subscribeToChannelOffline(
 }
 
 export async function subscribeAllStreamsOffline() {
-  const channels = getAllChannels.all();
+  const channels = await getAllChannels();
   for (const channel of channels) {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }
