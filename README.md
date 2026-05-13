@@ -9,7 +9,7 @@ TwitchNotifierBot is a notification system that connects to Twitch's EventSub We
 ### Key Features
 - Real-time Twitch stream notifications via Telegram
 - Twitch EventSub WebSocket integration for efficient streaming
-- SQLite database for persistent user preferences
+- PostgreSQL(SQLite deprecated) database for persistent user preferences
 - Grammy.js framework for Telegram bot interactions
 - Development mode with localhost API mocking support
 
@@ -24,7 +24,7 @@ TwitchNotifierBot is a notification system that connects to Twitch's EventSub We
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/iinfy/twnotifier
    cd TwitchNotifierBot
    ```
 
@@ -49,25 +49,28 @@ Create `.env` and `.env.dev` files with the following structure:
 
 ```bash
 # Twitch API Credentials
-CLIENT_ID=your_twitch_client_id_here
-CLIENT_SECRET=your_twitch_client_secret_here
-BOT_USER_ID=-1
+CLIENT_ID=TWITCH_CLIENT_ID
+CLIENT_SECRET=TWITCH_CLIENT_SECRET
+BOT_USER_ID=BOT_USER_ID(not required)
 
 # Twitch EventSub Configuration
 SHARD_COUNT=1
 
 # Telegram Bot Token
-BOT_TOKEN=your_telegram_bot_token_here
+BOT_TOKEN=TELEGRAM_BOT_TOKEN
 
 # Production endpoints (use in .env):
-TWITCH_WS=wss://eventsub.wss.twitch.tv/ws
-TWITCH_HELIX=https://api.twitch.tv
-TWITCH_OAUTH=https://id.twitch.tv
+TWITCH_WS=TWITCH_WS_URL
+TWITCH_HELIX=TWITCH_HELIX_URL
+TWITCH_OAUTH=TWITCH_OAUTH_URL
+DATABASE_URL=DATABASE_URL
 
+# DEV ONLY — NEVER IN PRODUCTION
 # Development endpoints (use in .env.dev):
 # TWITCH_WS=ws://localhost:8081/ws
 # TWITCH_HELIX=localhost:7777
 # TWITCH_OAUTH=localhost:7777
+
 ```
 
 ### Running the Bot
@@ -117,7 +120,6 @@ app/
 - **[grammy](https://grammy.dev/)** (^1.42.0) - Telegram Bot Framework
 - **[@grammyjs/conversations](https://grammy.dev/plugins/conversations)** (^2.1.1) - Conversation management for Telegram bots
 - **[@grammyjs/storage-file](https://grammy.dev/plugins/storage-file)** (^2.5.1) - File-based session storage
-- **[pino](https://getpino.io/)** (^10.3.1) - JSON logging library
 - **[tslog](https://tslog.js.org/)** (^4.10.2) - TypeScript logging with rich features
 
 ### Development Dependencies
@@ -127,7 +129,7 @@ app/
 
 ### Runtime
 - **[Bun](https://bun.sh/)** - JavaScript runtime and package manager
-- **SQLite** - Embedded database for persistence
+- **PostgreSQL** - Embedded database for persistence
 
 ## Development
 
@@ -136,19 +138,3 @@ app/
 - Module: CommonJS
 - Source directory: `app/`
 - Output directory: `dist/`
-
-### Database
-The bot uses SQLite (`main.db`) for storing:
-- User preferences and settings
-- Channel subscriptions
-- Follow relationships
-- Streamer information
-
-Database files are git-ignored and should be backed up separately.
-
-### Logging
-Logs are stored in the `logs/` directory with structured JSON format using Pino and tslog.
-
-## License
-
-[Add your license here]
