@@ -59,13 +59,9 @@ router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
 
 router.callbackQuery("confirm_add", async (ctx) => {
   if (!ctx.session.pendingAdd) {
-    await ctx.answerCallbackQuery(
-      "Сессия истекла. Пожалуйста, начните добавление заново.",
-    );
-    await ctx.editMessageText(
+    return await ctx.editMessageText(
       "Сессия истекла. Используйте /add для добавления канала.",
     );
-    return;
   }
 
   const { displayName } = ctx.session.pendingAdd;
@@ -86,11 +82,6 @@ router.callbackQuery("confirm_add", async (ctx) => {
       await updateChannelName(channelId, displayName);
     }
   }
-
-  // Add follow
-  const now = new Date().toISOString();
-  await addFollow(ctx.from.id, channelId, now);
-
   // Subscribe to events
   const subOnlineResCode = await subscribeToChannelOnline(
     channelId,
@@ -117,6 +108,10 @@ router.callbackQuery("confirm_add", async (ctx) => {
     ctx.session.pendingAdd = undefined;
     return;
   }
+
+  // Add follow
+  const now = new Date().toISOString();
+  await addFollow(ctx.from.id, channelId, now);
 
   // Clear pending channel
   ctx.session.pendingAdd = undefined;
