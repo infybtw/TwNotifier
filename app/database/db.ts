@@ -1,11 +1,10 @@
 import { SQL } from "bun";
 import logger from "../logger";
+import { DATABASE_URL } from "../config";
 
 const log = logger.getSubLogger({ name: "database" });
 
-const db: SQL = new SQL(
-  "postgres://infydev:infy.dev@localhost:5432/twnotifier",
-);
+const db: SQL = new SQL(DATABASE_URL);
 
 export async function checkDBConnection() {
   try {

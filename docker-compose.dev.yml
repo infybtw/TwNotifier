@@ -23,6 +23,7 @@ services:
     build:
       context: .
       dockerfile: twitch-mock/Dockerfile
+      network: host
     ports:
       - "7777:7777" # HTTP (OAuth + Helix)
       - "8081:8081" # WebSocket EventSub
