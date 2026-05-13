@@ -123,6 +123,7 @@ app/
 ### Development Dependencies
 - **[@types/bun](https://bun.sh/docs/typescript)** - TypeScript definitions for Bun
 - **[typescript](https://www.typescriptlang.org/)** (^5) - TypeScript compiler
+- **[TwitchMock](https://github.com/twirapp/twir/tree/main/apps/twitch-mock)** - Twitch mock by Satont
 
 ### Runtime
 - **[Bun](https://bun.sh/)** - JavaScript runtime and package manager
