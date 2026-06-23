@@ -6,16 +6,12 @@ import {
   TWITCH_HELIX,
   TWITCH_OAUTH,
 } from "../config";
-import fetch from "node-fetch";
-import { getAllChannels } from "../database/db";
+import {getChannels } from "../database/db";
 import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "twitchAPI:subscriptions" });
 
-export async function subscribeToChannelOnline(
-  broadcasterId: number,
-  broadcaster_name: string,
-): Promise<number> {
+export async function subscribeToChannelOnline(broadcasterId: number, broadcaster_name: string): Promise<number> {
   const subscription = {
     type: "stream.online",
     version: "1",
@@ -67,17 +63,14 @@ export async function subscribeToChannelOnline(
 }
 
 export async function subscribeAllStreamsOnline() {
-  const channels = await getAllChannels();
+  const channels = await getChannels();
   for (const channel of channels) {
     await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
   }
   log.info("subscribed to all channels online");
 }
 
-export async function subscribeToChannelOffline(
-  broadcasterId: number,
-  broadcaster_name: string,
-): Promise<number> {
+export async function subscribeToChannelOffline(broadcasterId: number, broadcaster_name: string): Promise<number> {
   const subscription = {
     type: "stream.offline",
     version: "1",
@@ -129,7 +122,7 @@ export async function subscribeToChannelOffline(
 }
 
 export async function subscribeAllStreamsOffline() {
-  const channels = await getAllChannels();
+  const channels = await getChannels();
   for (const channel of channels) {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }

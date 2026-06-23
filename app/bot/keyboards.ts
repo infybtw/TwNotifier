@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import { getSettingsState } from "../database/db";
+import { getSettingsStateByUserId } from "../database/db";
 
 export const homePageKeyboard = new InlineKeyboard()
   .text("Настройки", "settingsCMD")
@@ -16,7 +16,10 @@ export const removeConfirmationKeyboard = new InlineKeyboard()
 export async function buildSettingsKeyboard(
   user_id: number,
 ): Promise<InlineKeyboard> {
-  const user_settings = await getSettingsState(user_id);
+  const user_settings = await getSettingsStateByUserId(user_id);
+  if (!user_settings) {
+    return new InlineKeyboard().text("Назад", "settingsBACK");
+  }
   let onlineNotificationText = "Уведомления о начале трансляции ";
   let offlineNotificationText = "Уведомления об окончании трансляции ";
   if (user_settings?.online_notification === 1) {
