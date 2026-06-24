@@ -44,8 +44,8 @@ router.command("add", async (ctx) => {
     return ctx.reply(
       "Неверный формат, Пример использования: /add xqc или /add https://twitch.tv/xqc",
     );
-  } 
-  
+  }
+
   const extractedUsername = extractUsernameFromTwitchUrl(input);
   if (!extractedUsername) {
     return ctx.reply(

@@ -5,7 +5,6 @@
   "private": true,
   "scripts": {
     "dev": "bun --env-file=.env run app/index.ts",
-    "start": "bun run --env-file=.env app/index.ts",
     "test": "bun test"
   },
   "devDependencies": {
