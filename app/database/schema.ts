@@ -23,7 +23,7 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
 export const users_follows = pgTable("users_follows", {
-  user_id: integer().primaryKey().references(() => users.user_id),
+  user_id: integer().references(() => users.user_id),
   channel_id: integer().references(() => channels.channel_id),
   created: text().notNull()
 })
