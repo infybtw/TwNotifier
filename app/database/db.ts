@@ -1,231 +1,137 @@
 import { SQL } from "bun";
-import logger from "../logger";
-import { DATABASE_URL } from "../config";
+import { drizzle } from "drizzle-orm/bun-sql";
+import { Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { and, eq } from "drizzle-orm";
 
-const log = logger.getSubLogger({ name: "database" });
 
-const db: SQL = new SQL(DATABASE_URL);
+const sqlConnect = new SQL(process.env.DATABASE_URL!)
+const db = drizzle(sqlConnect)
 
-export async function checkDBConnection() {
+export async function getUserByUserId(user_id: number): Promise<User> {
+  const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
+  return user
+}
+
+export async function getSettingsStateByUserId(user_id: number): Promise<UserSettings>{
+  const [userSettings] = await db.select().from(users_settings).where(eq(users_settings.user_id, user_id)).limit(1)
+  return userSettings
+}
+
+export async function getChannelByChannelId(channel_id: number): Promise<Channel> {
+  const [channel] = await db.select().from(channels).where(eq(channels.channel_id, channel_id)).limit(1)
+  return channel
+}
+
+export async function getFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
+  const [follow] = await db.select().from(users_follows).where(and(eq(users_follows.user_id,user_id), eq(users_follows.channel_id, channel_id))).limit(1)
+  return follow
+}
+
+export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>{
+  const follows = db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
+  return follows
+}
+
+export async function getChannelFollowersByChannelId(channel_id: number): Promise<UserFollow[]>{
+  const follows = await db.select().from(users_follows).where(eq(users_follows.channel_id, channel_id))
+  return follows
+}
+
+export async function getChannels(): Promise<Channel[]>{
+  const res = await db.select().from(channels)
+  return res
+}
+
+async function addUser(user_id: number): Promise<User> {
   try {
-    await db`SELECT 1`;
-    log.info("✅ Succesfully connected to PostgreSQL");
+    const result = await db.transaction(async (tx) => {
+      const [newUser] = await tx.insert(users)
+        .values({ user_id: user_id, created: new Date().toISOString() })
+        .onConflictDoNothing({ target: users.user_id })
+        .returning()
+      const [newUserSettings] = await tx.insert(users_settings)
+        .values({ user_id: user_id })
+        .onConflictDoNothing({target: users_settings.user_id})
+        .returning()
+
+      if (!newUser || !newUserSettings) {
+        tx.rollback()
+      }
+      return newUser
+    })
+
+    return result
   } catch (err) {
-    log.error("❌ Failed to connect PostgreSQL:", { err });
-    process.exit(1);
+    throw new Error(`Failed to add user ${user_id}. ${err}`)
   }
 }
 
-export async function prepareDB() {
-  await db`CREATE TABLE IF NOT EXISTS channels(
-    id BIGSERIAL PRIMARY KEY,
-    channel_id INTEGER UNIQUE,
-    channel_name VARCHAR(64)
-  )`;
-
-  await db`CREATE TABLE IF NOT EXISTS users(
-    id BIGSERIAL PRIMARY KEY,
-    user_id INTEGER UNIQUE,
-    created TEXT
-  )`;
-
-  await db`CREATE TABLE IF NOT EXISTS users_follows(
-    user_id INTEGER PRIMARY KEY REFERENCES users(user_id),
-    channel_id INTEGER REFERENCES channels(channel_id),
-    created TEXT
-  )`;
-
-  await db`CREATE TABLE IF NOT EXISTS users_settings(
-      user_id INTEGER PRIMARY KEY REFERENCES users(user_id),
-      online_notification INTEGER DEFAULT(1),
-      offline_notification INTEGER DEFAULT(1)
-  )`;
-}
-
-export async function addUser(user_id: number, date: string) {
-  try {
-    await db`INSERT INTO users(user_id,created) VALUES(${user_id},${date})`;
-  } catch (err: any) {
-    log.error("add user failed", {
-      user_id: user_id,
-      date: date,
-      err,
-      pg_code: err.code,
-    });
+async function addChannel(channel_id: number, channel_name: string): Promise<Channel>{
+  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name }).returning()
+  if (!newChannel) {
+    throw new Error(`Failed to add channel ${channel_id}`)
   }
+  return newChannel
 }
 
-export async function getUser(user_id: number): Promise<User> {
-  const users =
-    (await db`SELECT user_id FROM users WHERE user_id = ${user_id}`) as User[];
-  return users[0];
-}
-
-export async function addUserSettings(user_id: number) {
-  try {
-    await db`INSERT INTO users_settings(user_id) VALUES(${user_id})`;
-  } catch (err: any) {
-    log.error("add user settings failed", {
-      user_id: user_id,
-      err,
-      pg_code: err.code,
-    });
+async function addFollow(user_id: number, channel_id: number): Promise<UserFollow>{
+  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString() }).returning()
+  if (!userFollow) {
+    throw new Error(`Failed to create follow ${user_id}-${channel_id}`)
   }
+  return userFollow
 }
 
-export async function getSettingsState(
-  user_id: number,
-): Promise<Settings | undefined> {
-  const settings =
-    (await db`SELECT * FROM users_settings WHERE user_id = ${user_id}`) as Settings[];
-  return settings[0];
+export async function removeFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
+  const [follow] = await db.delete(users_follows)
+    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id)))
+    .returning()
+  return follow
 }
 
-export async function setOnlineNotificationState(
-  user_id: number,
-  state: number,
-) {
-  try {
-    await db`UPDATE users_settings SET online_notification = ${state} WHERE user_id = ${user_id}`;
-  } catch (err: any) {
-    log.error("set online notification state failed", {
-      user_id: user_id,
-      err,
-      pg_code: err.code,
-    });
+//deprecated
+export async function updateChannelName(channel_id: number, new_channel_name: string): Promise<Channel>{
+  const [channel] = await db.update(channels)
+    .set({ channel_name: new_channel_name })
+    .where(eq(channels.channel_id, channel_id))
+    .returning()
+  return channel
+}
+
+export async function checkOrCreateUser(user_id: number): Promise<{ user: User, isNew: boolean }> {
+  const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
+  if (exist) {
+    return { user: exist, isNew: false }
   }
+
+  const user = await addUser(user_id)
+  return { user, isNew: true }
 }
 
-export async function setOfflineNotificationState(
-  user_id: number,
-  state: number,
-) {
-  try {
-    await db`UPDATE users_settings SET offline_notification = ${state} WHERE user_id = ${user_id}`;
-  } catch (err: any) {
-    log.error("set offline notification state failed", {
-      user_id: user_id,
-      err,
-      pg_code: err.code,
-    });
+export async function checkOrCreateChannel(channel_id: number, channel_name: string): Promise<{ channel: Channel, isNew: boolean }>{
+  const [exist] = await db.select().from(channels).where(eq(channels.channel_id, channel_id)).limit(1)
+  if (exist) {
+    return {channel: exist, isNew: false}
   }
+  const channel = await addChannel(channel_id, channel_name)
+  return {channel, isNew: true}
 }
 
-export async function toggleOnlineNotificationState(
-  user_id: number,
-): Promise<number> {
-  const settingsState = await getSettingsState(user_id);
-  if (settingsState?.online_notification === 1) {
-    await setOnlineNotificationState(user_id, 0);
-    return 0;
-  } else {
-    await setOnlineNotificationState(user_id, 1);
-    return 1;
+export async function checkOrCreateFollow(user_id: number, channel_id: number): Promise<{follow: UserFollow, isNew: boolean}> {
+  const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id))).limit(1)
+  if (exist) {
+    return {follow: exist, isNew: false}
   }
+  const userFollow = await addFollow(user_id, channel_id)
+  return {follow: userFollow , isNew: true}
 }
 
-export async function toggleOfflineNotificationState(
-  user_id: number,
-): Promise<number> {
-  const settingsState = await getSettingsState(user_id);
-  if (settingsState?.offline_notification === 1) {
-    await setOfflineNotificationState(user_id, 0);
-    return 0;
-  } else {
-    await setOfflineNotificationState(user_id, 1);
-    return 1;
-  }
+export async function setOnlineNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ online_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
 }
 
-export async function getChannel(channel_id: number): Promise<Channel> {
-  const channel =
-    (await db`SELECT * FROM channels WHERE channel_id = ${channel_id}`) as Channel[];
-  return channel[0];
-}
-
-export async function addChannel(channel_id: number, channel_name: string) {
-  try {
-    await db`INSERT INTO channels(channel_id,channel_name) VALUES(${channel_id},${channel_name})`;
-  } catch (err: any) {
-    log.error("add channel failed", {
-      channel_id: channel_id,
-      channel_name: channel_name,
-      err,
-      pg_code: err.code,
-    });
-  }
-}
-
-export async function addFollow(
-  user_id: number,
-  channel_id: number,
-  created: string,
-) {
-  try {
-    await db`INSERT INTO users_follows(user_id,channel_id,created) VALUES (${user_id},${channel_id},${created})`;
-  } catch (err: any) {
-    log.error("add follow failed", {
-      user_id: user_id,
-      channel_id: channel_id,
-      err,
-      pg_code: err.code,
-    });
-  }
-}
-
-export async function getFollow(
-  user_id: number,
-  channel_id: number,
-): Promise<Follow> {
-  const follow =
-    (await db`SELECT * FROM users_follows WHERE user_id = ${user_id} AND channel_id = ${channel_id}`) as Follow[];
-  return follow[0];
-}
-
-export async function removeFollow(user_id: number, channel_id: number) {
-  try {
-    await db`DELETE FROM users_follows WHERE user_id = ${user_id} AND channel_id = ${channel_id}`;
-  } catch (err: any) {
-    log.error("remove follow failed", {
-      user_id: user_id,
-      channel_id: channel_id,
-      err,
-      pg_code: err.code,
-    });
-  }
-}
-
-export async function getFollowList(user_id: number): Promise<Follow[]> {
-  const follows =
-    (await db`SELECT * FROM users_follows WHERE user_id = ${user_id}`) as Follow[];
-  return follows;
-}
-
-export async function getChannelFollowers(
-  channel_id: number,
-): Promise<Follow[]> {
-  const follows =
-    (await db`SELECT * FROM users_follows WHERE channel_id = ${channel_id}`) as Follow[];
-  return follows;
-}
-
-export async function updateChannelName(
-  channel_id: number,
-  new_channel_name: string,
-) {
-  try {
-    await db`UPDATE channels SET channel_name = ${new_channel_name} WHERE channel_id = ${channel_id}`;
-  } catch (err: any) {
-    log.error("update channel name failed", {
-      channel_id: channel_id,
-      new_channel_name: new_channel_name,
-      err,
-      pg_code: err.code,
-    });
-  }
-}
-
-export async function getAllChannels(): Promise<Channel[]> {
-  const channels = (await db`SELECT * FROM channels`) as Channel[];
-  return channels;
+export async function setOfflineNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ offline_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
 }

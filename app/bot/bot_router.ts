@@ -2,16 +2,10 @@ import { Composer } from "grammy";
 import { InlineKeyboard } from "grammy";
 import logger from "../logger";
 import {
-  addChannel,
-  addFollow,
-  addUser,
-  addUserSettings,
-  getFollowList,
-  removeFollow,
-  updateChannelName,
-  getUser,
-  getChannel,
-  getFollow,
+  checkOrCreateUser,
+  getChannelByChannelId,
+  getFollowByUserIdAndChannelId,
+  getFollowsByUserId
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
 import {
@@ -36,12 +30,7 @@ router.command("start", async (ctx) => {
     { reply_markup: homePageKeyboard },
   );
   //@ts-ignore
-  if (!(await getUser(ctx.message?.from.id))) {
-    const now = new Date().toISOString();
-    //@ts-ignore
-    await addUser(ctx.message?.from.id, now);
-    //@ts-ignore
-    await addUserSettings(ctx.message?.from.id);
+  if (await checkOrCreateUser(ctx.from?.id).isNew) {
     log.info("user registered", { userId: ctx.message?.from.id });
   } else {
     log.info("used /start", { userId: ctx.message?.from.id });
@@ -77,8 +66,7 @@ router.command("add", async (ctx) => {
     return ctx.reply("Ошибка: не удалось определить пользователя");
   }
 
-  // Check if already following
-  if (await getFollow(ctx.from.id, channel_id)) {
+  if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
     return ctx.reply(`Вы уже отслеживаете ${display_name}`);
   }
 
@@ -138,7 +126,7 @@ router.command("remove", async (ctx) => {
 
   // Check if user is following this channel
   //@ts-ignore
-  if (!(await getFollow(ctx.from.id, channel_id))) {
+  if (!(await getFollowByUserIdAndChannelId(ctx.from.id, channel_id))) {
     return ctx.reply(`Вы не подписаны на ${display_name}`);
   }
 
@@ -168,15 +156,14 @@ router.command("remove", async (ctx) => {
 });
 
 router.command("list", async (ctx) => {
-  //@ts-ignore
-  const follows = await getFollowList(ctx.message?.from.id);
+  const follows = await getFollowsByUserId(ctx.message?.from.id!);
   if (follows.length < 1) {
     return ctx.reply("У вас пока нет подписок");
   }
   let reply_text = "Ваши подписки:\n";
   for (const sub of follows) {
-    const channel = await getChannel(sub.channel_id);
-    reply_text += `${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
+      const channel = await getChannelByChannelId(sub.channel_id!);
+      reply_text += `${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
   }
   ctx.reply(reply_text);
 });

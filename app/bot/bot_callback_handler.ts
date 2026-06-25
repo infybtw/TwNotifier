@@ -1,12 +1,9 @@
 import { Composer } from "grammy";
 import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
 import {
-  getChannel,
-  toggleOfflineNotificationState,
-  toggleOnlineNotificationState,
-  addChannel,
-  updateChannelName,
-  addFollow,
+    checkOrCreateChannel,
+  checkOrCreateFollow,
+  getChannelByChannelId,
 } from "../database/db";
 import {
   subscribeToChannelOffline,
@@ -14,6 +11,7 @@ import {
 } from "../twitchAPI/subscriptions";
 import logger from "../logger";
 import { MyContext } from "./bot";
+import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
 
 export const router = new Composer<MyContext>();
 
@@ -34,7 +32,7 @@ router.callbackQuery("settingsBACK", async (ctx) => {
 });
 
 router.callbackQuery("toogleOnlineNotificationCMD", async (ctx) => {
-  const newState = await toggleOnlineNotificationState(ctx.from.id);
+  const newState = await toggleOnlineNotificationStateByUserId(ctx.from.id);
   await ctx.editMessageReplyMarkup({
     reply_markup: await buildSettingsKeyboard(ctx.from.id),
   });
@@ -46,7 +44,7 @@ router.callbackQuery("toogleOnlineNotificationCMD", async (ctx) => {
 });
 
 router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
-  const newState = await toggleOfflineNotificationState(ctx.from.id);
+  const newState = await toggleOfflineNotificationStateByUserId(ctx.from.id);
   await ctx.editMessageReplyMarkup({
     reply_markup: await buildSettingsKeyboard(ctx.from.id),
   });
@@ -64,24 +62,16 @@ router.callbackQuery("confirm_add", async (ctx) => {
     );
   }
 
+
+
   const { displayName } = ctx.session.pendingAdd;
 
   await ctx.answerCallbackQuery("Добавляем канал...");
 
   const { channelId, channelName } = ctx.session.pendingAdd;
 
-  if (!(await getChannel(channelId))) {
-    await addChannel(channelId, displayName);
-    log.info("new channel added", {
-      channel_id: channelId,
-      channel_name: displayName,
-    });
-  } else {
-    const current_name = (await getChannel(channelId)).channel_name;
-    if (current_name !== displayName) {
-      await updateChannelName(channelId, displayName);
-    }
-  }
+  await checkOrCreateChannel(channelId, channelName)
+
   // Subscribe to events
   const subOnlineResCode = await subscribeToChannelOnline(
     channelId,
@@ -111,16 +101,25 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   // Add follow
   const now = new Date().toISOString();
-  await addFollow(ctx.from.id, channelId, now);
-
-  // Clear pending channel
-  ctx.session.pendingAdd = undefined;
-
-  await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
-  log.info("new follow", {
-    userId: ctx.from.id,
-    channel: displayName,
-  });
+  try {
+    const follow = (await checkOrCreateFollow(ctx.from.id, channelId))
+    ctx.session.pendingAdd = undefined;
+    if (!follow.isNew) {
+      return await ctx.editMessageText(`✅ Вы уже отслеживаете ${displayName}`);
+    }
+    await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
+    log.info("new follow", {
+      userId: ctx.from.id,
+      channel: displayName,
+    });
+  } catch (err) {
+    log.error("follow error", {
+      userId: ctx.from.id,
+      channelId: channelId,
+      error: err,
+    })
+    await ctx.editMessageText(`⛔ Упс, произошла ошибка. Уже работаем над ее исправлением!`)
+  }
 });
 
 router.callbackQuery("cancel_add", async (ctx) => {
@@ -155,12 +154,12 @@ router.callbackQuery("confirm_remove", async (ctx) => {
   await ctx.answerCallbackQuery("Удаляем канал...");
 
   // Import required functions
-  const { removeFollow } = await import("../database/db");
+  const { removeFollowByUserIdAndChannelId } = await import("../database/db");
   const log = logger.getSubLogger({ name: "bot:callback_handler" });
 
   // Remove the follow
   //@ts-ignore
-  await removeFollow(ctx.from.id, channelId);
+  await removeFollowByUserIdAndChannelId(ctx.from.id, channelId);
 
   // Clear pending removal
   ctx.session.pendingRemove = undefined;

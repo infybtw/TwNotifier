@@ -7,13 +7,12 @@ import {
   createConduit,
 } from "./twitchAPI/conduits";
 import { botStart } from "./bot/bot";
-import { prepareDB } from "./database/db";
+import { migrateDB } from "./migrate";
 
-// let ws        = null;
 
 async function main(): Promise<void> {
+  await migrateDB()
   await botStart();
-  await prepareDB();
   await getAppToken();
   const conduitList = await getConduits();
   if (conduitList) {

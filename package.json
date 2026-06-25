@@ -4,12 +4,12 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --env-file=.env.dev --watch run app/index.ts",
-    "start": "bun run --env-file=.env app/index.ts",
+    "dev": "bun --env-file=.env run app/index.ts",
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -17,7 +17,9 @@
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",
     "@grammyjs/storage-file": "^2.5.1",
+    "drizzle-orm": "^0.45.2",
     "grammy": "^1.42.0",
+    "pg": "^8.22.0",
     "pino": "^10.3.1",
     "tslog": "^4.10.2"
   }
