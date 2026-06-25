@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U infydev -d twnotifier"]
+      test: ["CMD-SHELL", "pg_isready -U infydev -d twn"]
       interval: 10s
       timeout: 5s
       retries: 5
