@@ -101,18 +101,25 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   // Add follow
   const now = new Date().toISOString();
-  const follow = (await checkOrCreateFollow(ctx.from.id, channelId))
-
-  // Clear pending channel
-  ctx.session.pendingAdd = undefined;
-  if (!follow.isNew) {
-    return await ctx.editMessageText(`✅ Вы уже отслеживаете ${displayName}`);
+  try {
+    const follow = (await checkOrCreateFollow(ctx.from.id, channelId))
+    ctx.session.pendingAdd = undefined;
+    if (!follow.isNew) {
+      return await ctx.editMessageText(`✅ Вы уже отслеживаете ${displayName}`);
+    }
+    await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
+    log.info("new follow", {
+      userId: ctx.from.id,
+      channel: displayName,
+    });
+  } catch (err) {
+    log.error("follow error", {
+      userId: ctx.from.id,
+      channelId: channelId,
+      error: err,
+    })
+    await ctx.editMessageText(`⛔ Упс, произошла ошибка. Уже работаем над ее исправлением!`)
   }
-  await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);
-  log.info("new follow", {
-    userId: ctx.from.id,
-    channel: displayName,
-  });
 });
 
 router.callbackQuery("cancel_add", async (ctx) => {
