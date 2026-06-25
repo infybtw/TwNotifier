@@ -11,7 +11,7 @@ CREATE TABLE "users" (
 );
 --> statement-breakpoint
 CREATE TABLE "users_follows" (
-	"user_id" integer PRIMARY KEY NOT NULL,
+	"user_id" integer,
 	"channel_id" integer,
 	"created" text NOT NULL
 );

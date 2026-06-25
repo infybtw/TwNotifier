@@ -101,11 +101,11 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   // Add follow
   const now = new Date().toISOString();
-  const followExist = (await checkOrCreateFollow(ctx.from.id, channelId)).isNew;
+  const follow = (await checkOrCreateFollow(ctx.from.id, channelId))
 
   // Clear pending channel
   ctx.session.pendingAdd = undefined;
-  if (followExist) {
+  if (!follow.isNew) {
     return await ctx.editMessageText(`✅ Вы уже отслеживаете ${displayName}`);
   }
   await ctx.editMessageText(`✅ Готово! Теперь вы отслеживаете ${displayName}`);

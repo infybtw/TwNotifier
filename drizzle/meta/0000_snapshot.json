@@ -1,5 +1,5 @@
 {
-  "id": "39966512-8527-45fb-b3c1-fb798f202fd2",
+  "id": "f5ff51e6-031d-44de-8324-460cbfac8f10",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -77,8 +77,8 @@
         "user_id": {
           "name": "user_id",
           "type": "integer",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": false
         },
         "channel_id": {
           "name": "channel_id",
