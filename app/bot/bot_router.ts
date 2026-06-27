@@ -174,6 +174,6 @@ router.command("admin", async (ctx) => {
   ctx.session.adminLogin = {
     signed_in: true
   }
-  log.warn(`@${ctx.from?.username!} enter admin system`)
+  log.warn(`${ctx.from?.id!} enter admin system`)
   ctx.reply("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
 })

@@ -216,7 +216,8 @@ router.callbackQuery("admin_users", async (ctx) => {
     const users = await getUsers()
     let message = `Зарегестрированно ${users.length} пользователей:\n`
     for (const user of users) {
-      message += `${user.user_id}`
+      message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
     }
+    ctx.editMessageText(message)
   }
 })
