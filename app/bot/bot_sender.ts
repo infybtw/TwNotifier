@@ -24,10 +24,7 @@ export async function sendStreamOnlineNotificationToUsers(channel_id: number, ch
     }
 }
 
-export async function sendStreamOfflineNotificationToUsers(
-  channel_id: number,
-  channel_name: string,
-) {
+export async function sendStreamOfflineNotificationToUsers(channel_id: number,channel_name: string) {
     const followers = await getChannelFollowersByChannelId(channel_id);
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id);

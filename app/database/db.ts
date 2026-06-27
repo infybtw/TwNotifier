@@ -42,11 +42,16 @@ export async function getChannels(): Promise<Channel[]>{
   return res
 }
 
-async function addUser(user_id: number): Promise<User> {
+export async function getUsers(): Promise<User[]>{
+  const res = await db.select().from(users)
+  return res
+}
+
+async function addUser(user_id: number, username: string, first_name: string): Promise<User> {
   try {
     const result = await db.transaction(async (tx) => {
       const [newUser] = await tx.insert(users)
-        .values({ user_id: user_id, created: new Date().toISOString() })
+        .values({ user_id: user_id, username: username, first_name: first_name, created: new Date().toISOString() })
         .onConflictDoNothing({ target: users.user_id })
         .returning()
       const [newUserSettings] = await tx.insert(users_settings)
@@ -98,13 +103,16 @@ export async function updateChannelName(channel_id: number, new_channel_name: st
   return channel
 }
 
-export async function checkOrCreateUser(user_id: number): Promise<{ user: User, isNew: boolean }> {
+export async function checkOrCreateUser(user_id: number, username: string, first_name: string): Promise<{ user: User, isNew: boolean }> {
   const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   if (exist) {
     return { user: exist, isNew: false }
   }
-
-  const user = await addUser(user_id)
+  if (!username) {
+    const user = await addUser(user_id, username, first_name)
+    return { user, isNew: true }
+  }
+  const user = await addUser(user_id, username, first_name)
   return { user, isNew: true }
 }
 

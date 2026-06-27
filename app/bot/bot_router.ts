@@ -5,17 +5,15 @@ import {
   checkOrCreateUser,
   getChannelByChannelId,
   getFollowByUserIdAndChannelId,
-  getFollowsByUserId
+  getFollowsByUserId,
+  getUserByUserId
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
-import {
-  subscribeToChannelOffline,
-  subscribeToChannelOnline,
-} from "../twitchAPI/subscriptions";
 import {
   homePageKeyboard,
   addConfirmationKeyboard,
   removeConfirmationKeyboard,
+  adminKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
@@ -30,10 +28,10 @@ router.command("start", async (ctx) => {
     { reply_markup: homePageKeyboard },
   );
   //@ts-ignore
-  if (await checkOrCreateUser(ctx.from?.id).isNew) {
-    log.info("user registered", { userId: ctx.message?.from.id });
+  if (await checkOrCreateUser(ctx.from?.id, ctx.from?.username, ctx.from?.first_name).isNew) {
+    log.info("user registered", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name });
   } else {
-    log.info("used /start", { userId: ctx.message?.from.id });
+    log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name});
   }
 });
 
@@ -167,3 +165,15 @@ router.command("list", async (ctx) => {
   }
   ctx.reply(reply_text);
 });
+
+router.command("admin", async (ctx) => {
+  if (!(await getUserByUserId(ctx.from?.id!)).is_admin) {
+    ctx.reply("Данная команда доступна только админам")
+    return
+  }
+  ctx.session.adminLogin = {
+    signed_in: true
+  }
+  log.warn(`@${ctx.from?.username!} enter admin system`)
+  ctx.reply("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+})

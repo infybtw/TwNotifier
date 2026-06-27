@@ -4,6 +4,8 @@ import {
     checkOrCreateChannel,
   checkOrCreateFollow,
   getChannelByChannelId,
+  getChannels,
+  getUsers,
 } from "../database/db";
 import {
   subscribeToChannelOffline,
@@ -12,6 +14,7 @@ import {
 import logger from "../logger";
 import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
+import { sleep } from "bun";
 
 export const router = new Composer<MyContext>();
 
@@ -187,3 +190,33 @@ router.callbackQuery("cancel_remove", async (ctx) => {
     await ctx.editMessageText("Нет активного процесса удаления канала.");
   }
 });
+
+//admin routes
+router.callbackQuery("admin_exit", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.session.adminLogin = undefined
+    await ctx.editMessageText("Вы вышли из системы администрирования")
+    log.warn(`${ctx.from.username} exit admin system`)
+  }
+})
+
+router.callbackQuery("admin_channels", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const channels = await getChannels()
+    let message = `Всего активно ${channels.length} каналов:\n`
+    for (const channel of channels) {
+      message += `${channel.channel_name} - ${channel.channel_id}\n`
+    }
+    ctx.editMessageText(message)
+  }
+})
+
+router.callbackQuery("admin_users", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const users = await getUsers()
+    let message = `Зарегестрированно ${users.length} пользователей:\n`
+    for (const user of users) {
+      message += `${user.user_id}`
+    }
+  }
+})
