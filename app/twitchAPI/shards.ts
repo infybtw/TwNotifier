@@ -1,11 +1,6 @@
 import WebSocket from "ws";
-import fetch from "node-fetch";
 import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, TWITCH_HELIX } from "../config";
 import { onNotification, onSessionWelcome } from "../handlers/ws_handler";
-import {
-  subscribeAllStreamsOffline,
-  subscribeAllStreamsOnline,
-} from "./subscriptions";
 import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "twitchAPI:shards" });
@@ -13,10 +8,7 @@ const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
 let ws: WebSocket;
 
-export async function updateShard(
-  sessionId: string,
-  shardId: number,
-): Promise<void> {
+export async function updateShard(sessionId: string,shardId: number): Promise<void> {
   const res = await fetch(SHARD_URL, {
     method: "PATCH",
     headers: {
@@ -57,15 +49,13 @@ export async function connectWebSocket(url: string) {
     );
   });
 
-  ws.on("message", async (raw) => {
+  ws.on("message", async (raw: any) => {
     const msg = JSON.parse(raw.toString());
     const type = msg.metadata?.message_type;
 
     switch (type) {
       case "session_welcome":
         await onSessionWelcome(msg.payload.session.id);
-        await subscribeAllStreamsOnline();
-        await subscribeAllStreamsOffline();
         break;
       case "session_keepalive":
         break;
@@ -83,10 +73,10 @@ export async function connectWebSocket(url: string) {
     }
   });
 
-  ws.on("close", (code) => {
+  ws.on("close", (code: any) => {
     console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
     if (code !== 1000) setTimeout(connectWebSocket, 5000);
   });
 
-  ws.on("error", (e) => console.error("WebSocket error:", e.message));
+  ws.on("error", (e: any) => console.error("WebSocket error:", e.message));
 }

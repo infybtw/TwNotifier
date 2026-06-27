@@ -57,6 +57,17 @@ export async function deleteAllConduits(conduits: any) {
 }
 
 export async function createConduit(shardCount: any) {
+  const conduitList = await getConduits();
+  if (!conduitList) {
+    console.log("Conduits not found")
+  } else if (conduitList.length > 1) {
+    await deleteAllConduits(conduitList);
+  } else if (conduitList.length === 1) {
+    const conduit_id = conduitList[0].id
+    await setConduitId(conduit_id)
+    console.log(`Conduit reassigned ${conduit_id}`)
+    return
+  }
   const res = await fetch(CONDUIT_URL, {
     method: "POST",
     headers: {
