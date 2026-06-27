@@ -14,10 +14,6 @@ async function main(): Promise<void> {
   await migrateDB()
   await botStart();
   await getAppToken();
-  const conduitList = await getConduits();
-  if (conduitList) {
-    await deleteAllConduits(conduitList);
-  }
   await createConduit(SHARD_COUNT);
   await connectWebSocket(TWITCH_WS);
 }
