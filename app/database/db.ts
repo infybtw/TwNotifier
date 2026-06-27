@@ -47,6 +47,11 @@ export async function getUsers(): Promise<User[]>{
   return res
 }
 
+export async function getAdmins(): Promise<User[]>{
+  const res = await db.select().from(users).where(eq(users.is_admin, true))
+  return res
+}
+
 async function addUser(user_id: number, username: string, first_name: string): Promise<User> {
   try {
     const result = await db.transaction(async (tx) => {
@@ -107,10 +112,6 @@ export async function checkOrCreateUser(user_id: number, username: string, first
   const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   if (exist) {
     return { user: exist, isNew: false }
-  }
-  if (!username) {
-    const user = await addUser(user_id, username, first_name)
-    return { user, isNew: true }
   }
   const user = await addUser(user_id, username, first_name)
   return { user, isNew: true }

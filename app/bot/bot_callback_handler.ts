@@ -3,6 +3,7 @@ import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
 import {
     checkOrCreateChannel,
   checkOrCreateFollow,
+  getAdmins,
   getChannelByChannelId,
   getChannels,
   getUsers,
@@ -215,6 +216,17 @@ router.callbackQuery("admin_users", async (ctx) => {
   if (ctx.session.adminLogin) {
     const users = await getUsers()
     let message = `Зарегестрированно ${users.length} пользователей:\n`
+    for (const user of users) {
+      message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
+    }
+    ctx.editMessageText(message)
+  }
+})
+
+router.callbackQuery("admin_admins", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const users = await getAdmins()
+    let message = `Зарегестрированно ${users.length} админов:\n`
     for (const user of users) {
       message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
     }
