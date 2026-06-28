@@ -5,7 +5,9 @@ import {
   pgTable,
   text,
   varchar,
-  bigint
+  bigint,
+  primaryKey,
+  serial
 } from "drizzle-orm/pg-core";
 
 export const channels = pgTable("channels", {
@@ -44,3 +46,16 @@ export const users_settings = pgTable("users_settings", {
 
 export type UserSettings = typeof users_settings.$inferSelect
 export type NewUserSettings = typeof users_settings.$inferInsert
+
+export const admin_keys = pgTable("admin_keys", {
+  id: serial("id").primaryKey(),
+  key: text().notNull().unique(),
+  issue_date: text().notNull(),
+  issued_by: bigint({ mode: "number" }).references(() => users.user_id),
+  used: boolean().default(false),
+  used_date: text(),
+  used_by: bigint({ mode: "number"}).references(() => users.user_id)
+})
+
+export type AdminKey = typeof admin_keys.$inferSelect
+export type NewAdminKey = typeof admin_keys.$inferInsert

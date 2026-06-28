@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
 import {
+  addAdminKey,
     checkOrCreateChannel,
   checkOrCreateFollow,
   getAdmins,
@@ -15,7 +16,7 @@ import {
 import logger from "../logger";
 import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
-import { sleep } from "bun";
+import { randomBytes } from "node:crypto";
 
 export const router = new Composer<MyContext>();
 
@@ -197,7 +198,7 @@ router.callbackQuery("admin_exit", async (ctx) => {
   if (ctx.session.adminLogin) {
     ctx.session.adminLogin = undefined
     await ctx.editMessageText("Вы вышли из системы администрирования")
-    log.warn(`${ctx.from.username} exit admin system`)
+    log.warn(`${ctx.from.id} exit admin system`)
   }
 })
 
@@ -231,5 +232,16 @@ router.callbackQuery("admin_admins", async (ctx) => {
       message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
     }
     ctx.editMessageText(message)
+  }
+})
+
+router.callbackQuery("admin_add", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const key = randomBytes(32).toString("base64url")
+    const adminKey = await addAdminKey(ctx.from.id, key)
+    if (!addAdminKey) {
+      return ctx.editMessageText("Произошла ошибка при гененрации Админ-Ключа")
+    }
+    ctx.editMessageText(`Админ ключ успешно сгененерирован\n\n<tg-spoiler>${adminKey.key}</tg-spoiler>`, {parse_mode: "HTML"})
   }
 })

@@ -1,11 +1,13 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { admin_keys, AdminKey, Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
 import { and, eq } from "drizzle-orm";
-
+import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
 const db = drizzle(sqlConnect)
+
+const log = logger.getSubLogger({ name: "db" });
 
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
@@ -92,6 +94,16 @@ async function addFollow(user_id: number, channel_id: number): Promise<UserFollo
   return userFollow
 }
 
+export async function addAdminKey(user_id: number, key: string): Promise<AdminKey>{
+  const [adminKey] = await db.insert(admin_keys).values({ issued_by: user_id, key, issue_date: new Date().toISOString() }).returning()
+  return adminKey
+}
+
+export async function getAdminKeyByKey(key: string): Promise<AdminKey> {
+  const [res] = await db.select().from(admin_keys).where(eq(admin_keys.key, key)).limit(1)
+  return res
+}
+
 export async function removeFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
   const [follow] = await db.delete(users_follows)
     .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id)))
@@ -99,22 +111,18 @@ export async function removeFollowByUserIdAndChannelId(user_id: number, channel_
   return follow
 }
 
-//deprecated
-export async function updateChannelName(channel_id: number, new_channel_name: string): Promise<Channel>{
-  const [channel] = await db.update(channels)
-    .set({ channel_name: new_channel_name })
-    .where(eq(channels.channel_id, channel_id))
-    .returning()
-  return channel
-}
-
-export async function checkOrCreateUser(user_id: number, username: string, first_name: string): Promise<{ user: User, isNew: boolean }> {
+export async function checkOrCreateUser(user_id: number, username: string, first_name: string): Promise<{ user: User, isNew: boolean } | undefined> {
   const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   if (exist) {
     return { user: exist, isNew: false }
   }
-  const user = await addUser(user_id, username, first_name)
-  return { user, isNew: true }
+  try {
+    const user = await addUser(user_id, username, first_name)
+    return { user, isNew: true }
+  } catch (err) {
+    log.error("Failed to add user.", err)
+    return undefined
+  }
 }
 
 export async function checkOrCreateChannel(channel_id: number, channel_name: string): Promise<{ channel: Channel, isNew: boolean }>{
@@ -135,6 +143,23 @@ export async function checkOrCreateFollow(user_id: number, channel_id: number): 
   return {follow: userFollow , isNew: true}
 }
 
+export async function makeUserAdmin(user_id: number, key: string): Promise<User | undefined> {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const adminKey = await getAdminKeyByKey(key)
+      if (!adminKey || adminKey.used) {
+        return undefined
+      }
+      await setAdminKeyUsedById(adminKey.id, user_id)
+      const user = await setUserAdmin(user_id, true)
+      return user
+    })
+    return result
+  } catch (err) {
+    throw new Error(`Failed to make user admin ${user_id} ${key}. ${err}`)
+  }
+}
+
 export async function setOnlineNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
   const [newUserSettings] = await db.update(users_settings).set({ online_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
   return newUserSettings
@@ -143,4 +168,14 @@ export async function setOnlineNotificationStateByUserId(user_id: number, state:
 export async function setOfflineNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
   const [newUserSettings] = await db.update(users_settings).set({ offline_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
   return newUserSettings
+}
+
+async function setAdminKeyUsedById(id: number, used_by: number): Promise<AdminKey>{
+  const [adminKey] = await db.update(admin_keys).set({ used: true, used_date: new Date().toISOString(), used_by}).where(eq(admin_keys.id, id)).returning()
+  return adminKey
+}
+
+async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
+  const [user] = await db.update(users).set({is_admin}).where(eq(users.user_id, user_id)).returning()
+  return user
 }
