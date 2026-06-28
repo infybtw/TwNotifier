@@ -44,3 +44,5 @@ export const adminKeyboard = new InlineKeyboard()
   .text("Администраторы","admin_admins").text("Добавить администратора", "admin_add").row()
   .text("Подписки","admin_follow").text("Перезапуск EventSub","admin_eventsubreload").row()
   .text("Выйти", "admin_exit")
+
+export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")

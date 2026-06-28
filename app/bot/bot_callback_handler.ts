@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -209,7 +209,7 @@ router.callbackQuery("admin_channels", async (ctx) => {
     for (const channel of channels) {
       message += `${channel.channel_name} - ${channel.channel_id}\n`
     }
-    ctx.editMessageText(message)
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
   }
 })
 
@@ -220,7 +220,7 @@ router.callbackQuery("admin_users", async (ctx) => {
     for (const user of users) {
       message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
     }
-    ctx.editMessageText(message)
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
   }
 })
 
@@ -231,7 +231,7 @@ router.callbackQuery("admin_admins", async (ctx) => {
     for (const user of users) {
       message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
     }
-    ctx.editMessageText(message)
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
   }
 })
 
@@ -242,6 +242,10 @@ router.callbackQuery("admin_add", async (ctx) => {
     if (!addAdminKey) {
       return ctx.editMessageText("Произошла ошибка при гененрации Админ-Ключа")
     }
-    ctx.editMessageText(`Админ ключ успешно сгененерирован\n\n<tg-spoiler>${adminKey.key}</tg-spoiler>`, {parse_mode: "HTML"})
+    ctx.editMessageText(`Админ ключ успешно сгененерирован\n\n<tg-spoiler>${adminKey.key}</tg-spoiler>`, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
   }
+})
+
+router.callbackQuery("admin_back", async (ctx) => {
+  ctx.editMessageText("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
 })
