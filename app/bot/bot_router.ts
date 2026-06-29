@@ -5,17 +5,16 @@ import {
   checkOrCreateUser,
   getChannelByChannelId,
   getFollowByUserIdAndChannelId,
-  getFollowsByUserId
+  getFollowsByUserId,
+  getUserByUserId,
+  makeUserAdmin
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
-import {
-  subscribeToChannelOffline,
-  subscribeToChannelOnline,
-} from "../twitchAPI/subscriptions";
 import {
   homePageKeyboard,
   addConfirmationKeyboard,
   removeConfirmationKeyboard,
+  adminKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
@@ -29,11 +28,13 @@ router.command("start", async (ctx) => {
     "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал (можно использовать имя или URL Twitch)\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
     { reply_markup: homePageKeyboard },
   );
-  //@ts-ignore
-  if (await checkOrCreateUser(ctx.from?.id).isNew) {
-    log.info("user registered", { userId: ctx.message?.from.id });
-  } else {
-    log.info("used /start", { userId: ctx.message?.from.id });
+  const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
+  if (!newUser) {
+    ctx.reply("Упс, произошла ошибка при регистрации, пожалуйста обратитесь в поддержку")
+  } else if(!newUser.isNew) {
+    log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name});
+  } else if (newUser.isNew) {
+    log.info("user registered", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name });
   }
 });
 
@@ -81,7 +82,7 @@ router.command("add", async (ctx) => {
   const previewMessage =
     `Вы хотите добавить канал:\n\n` +
     `📺 Имя: ${display_name}\n` +
-    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
     `Продолжить добавление?`;
 
   await ctx.reply(previewMessage, {
@@ -167,3 +168,31 @@ router.command("list", async (ctx) => {
   }
   ctx.reply(reply_text);
 });
+
+router.command("admin", async (ctx) => {
+  if (!(await getUserByUserId(ctx.from?.id!)).is_admin) {
+    ctx.reply("Данная команда доступна только админам")
+    return
+  }
+  ctx.session.adminLogin = {
+    signed_in: true
+  }
+  log.warn(`${ctx.from?.id!} enter admin system`)
+  ctx.reply("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+})
+
+router.command("becomeAdmin", async (ctx) => {
+  if ((await getUserByUserId(ctx.from?.id!)).is_admin) {
+    return ctx.reply("Вы уже админ")
+  }
+  const key = ctx.match.trim();
+  if (!key) {
+    return
+  }
+  const user_id = ctx.from?.id!
+  const user = await makeUserAdmin(user_id, key)
+  if (user) {
+    log.warn(`User ${user_id} become admin with ${key}`)
+    return ctx.reply("Вы успешно использовали Админ-Ключ\nДля входа используйте /admin")
+  }
+})

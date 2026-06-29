@@ -17,6 +17,9 @@ interface SessionData {
     channelName: string;
     displayName: string;
   };
+  adminLogin?: {
+    signed_in: boolean;
+  }
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;

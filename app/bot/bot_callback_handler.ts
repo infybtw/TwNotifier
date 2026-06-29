@@ -1,17 +1,28 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, } from "./keyboards";
 import {
+  addAdminKey,
     checkOrCreateChannel,
   checkOrCreateFollow,
+  getAdmins,
   getChannelByChannelId,
+  getChannels,
+  getFollowCount,
+  getUsers,
 } from "../database/db";
 import {
+  deleteSubs,
+  getEventSubList,
+  subscribeAllStreamsOffline,
+  subscribeAllStreamsOnline,
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
 import logger from "../logger";
 import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
+import { randomBytes } from "node:crypto";
+import { sleep } from "bun";
 
 export const router = new Composer<MyContext>();
 
@@ -70,7 +81,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   const { channelId, channelName } = ctx.session.pendingAdd;
 
-  await checkOrCreateChannel(channelId, channelName)
+  await checkOrCreateChannel(channelId, displayName)
 
   // Subscribe to events
   const subOnlineResCode = await subscribeToChannelOnline(
@@ -187,3 +198,75 @@ router.callbackQuery("cancel_remove", async (ctx) => {
     await ctx.editMessageText("Нет активного процесса удаления канала.");
   }
 });
+
+//admin routes
+router.callbackQuery("admin_exit", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.session.adminLogin = undefined
+    await ctx.editMessageText("Вы вышли из системы администрирования")
+    log.warn(`${ctx.from.id} exit admin system`)
+  }
+})
+
+router.callbackQuery("admin_channels", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const channels = await getChannels()
+    let message = `Всего активно ${channels.length} каналов:\n`
+    for (const channel of channels) {
+      message += `${channel.channel_name} - ${channel.channel_id}\n`
+    }
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
+  }
+})
+
+router.callbackQuery("admin_users", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const users = await getUsers()
+    let message = `Зарегестрированно ${users.length} пользователей:\n`
+    for (const user of users) {
+      message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
+    }
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
+  }
+})
+
+router.callbackQuery("admin_admins", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const users = await getAdmins()
+    let message = `Зарегестрированно ${users.length} админов:\n`
+    for (const user of users) {
+      message += `${user.user_id} - ${user.first_name}(${user.username})\nДата регистрации: ${user.created}\n\n`
+    }
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
+  }
+})
+
+router.callbackQuery("admin_add", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const key = randomBytes(32).toString("base64url")
+    const adminKey = await addAdminKey(ctx.from.id, key)
+    if (!addAdminKey) {
+      return ctx.editMessageText("Произошла ошибка при гененрации Админ-Ключа")
+    }
+    ctx.editMessageText(`Админ ключ успешно сгененерирован\n\n<tg-spoiler>${adminKey.key}</tg-spoiler>`, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
+  }
+})
+
+router.callbackQuery("admin_back", async (ctx) => {
+  ctx.editMessageText("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+})
+
+router.callbackQuery("admin_eventsubreload", async (ctx) => {
+  ctx.editMessageText("Eventsub перезапускается, подождите")
+  const subs = await getEventSubList()
+  await deleteSubs(subs)
+  await sleep(2500)
+  await subscribeAllStreamsOnline()
+  await subscribeAllStreamsOffline()
+  ctx.editMessageText("Eventsub успешно перезапущен", {reply_markup: adminBackKeyboard})
+})
+
+router.callbackQuery("admin_follows", async (ctx) => {
+  const followCount = await getFollowCount()
+  ctx.editMessageText(`Всего ${followCount} подписок `,{reply_markup: adminBackKeyboard})
+})
