@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { admin_keys, AdminKey, Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, eq } from "drizzle-orm";
+import { and, count, count, eq } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
@@ -52,6 +52,11 @@ export async function getUsers(): Promise<User[]>{
 export async function getAdmins(): Promise<User[]>{
   const res = await db.select().from(users).where(eq(users.is_admin, true))
   return res
+}
+
+export async function getFollowCount(): Promise<Number>{
+  const [{count: followCount}] = await db.select({ count: count() }).from(users_follows);
+  return followCount
 }
 
 async function addUser(user_id: number, username: string, first_name: string): Promise<User> {

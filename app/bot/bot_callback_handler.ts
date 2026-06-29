@@ -7,6 +7,7 @@ import {
   getAdmins,
   getChannelByChannelId,
   getChannels,
+  getFollowCount,
   getUsers,
 } from "../database/db";
 import {
@@ -262,5 +263,10 @@ router.callbackQuery("admin_eventsubreload", async (ctx) => {
   await sleep(2500)
   await subscribeAllStreamsOnline()
   await subscribeAllStreamsOffline()
-  ctx.editMessageText("Eventsub успешно перезапущен")
+  ctx.editMessageText("Eventsub успешно перезапущен", {reply_markup: adminBackKeyboard})
+})
+
+router.callbackQuery("admin_follows", async (ctx) => {
+  const followCount = await getFollowCount()
+  ctx.editMessageText(`Всего ${followCount} подписок `,{reply_markup: adminBackKeyboard})
 })
