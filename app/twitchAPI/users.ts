@@ -4,9 +4,7 @@ import { TwitchUser } from "../models/twitch_user";
 
 const log = logger.getSubLogger({ name: "twitchAPI:users" });
 
-export async function getUserByLogin(
-  login: string,
-): Promise<TwitchUser | null> {
+export async function getUserByLogin(login: string): Promise<TwitchUser | null> {
   const url = new URL(TWITCH_HELIX + "/helix/users");
   url.searchParams.set("login", login);
 
@@ -19,7 +17,7 @@ export async function getUserByLogin(
   });
 
   const data = await res.json();
-  if (res.status === 200 && data.data && data.data.length > 0) {
+  if (res.status === 200 && data.data[0] && data.data.length > 0) {
     return data.data[0];
   }
   return null;

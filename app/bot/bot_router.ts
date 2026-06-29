@@ -15,9 +15,11 @@ import {
   addConfirmationKeyboard,
   removeConfirmationKeyboard,
   adminKeyboard,
+  platformSelectKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
+import { getKickChannelByUsername } from "../kickAPI/users";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -55,45 +57,106 @@ router.command("add", async (ctx) => {
   }
 
   const channel_name_lower = extractedUsername.toLowerCase();
-  const user = await getUserByLogin(channel_name_lower);
-  if (!user) {
+  const twitchChannel = await getUserByLogin(channel_name_lower);
+  const kickChannel = await getKickChannelByUsername(channel_name_lower);
+  if (!(twitchChannel || kickChannel)) {
     return ctx.reply("Канал с таким именем не найден");
   }
 
-  const channel_id = Number(user.id);
-  const display_name = user.display_name;
+  if (kickChannel.data[0] && twitchChannel) {
+    ctx.session.pendingPlatformSelect = {
+      kickData: kickChannel,
+      twitchData: twitchChannel,
+    }
 
-  if (!ctx.from) {
-    return ctx.reply("Ошибка: не удалось определить пользователя");
+    const message = `Канал с таким именем найден на 2 платформах.\n` +
+      `https://kick.com/${channel_name_lower}\n` +
+      `https://twitch.tv/${channel_name_lower}\n\n` +
+      `Выберите платформу для подписки:`
+
+    return ctx.reply(message ,{reply_markup: platformSelectKeyboard})
+  }
+  let platform = ""
+  if (kickChannel.data[0]) {
+    const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
+    const display_name = kickChannel.data[0].slug;
+
+    if (!ctx.from) {
+      return ctx.reply("Ошибка: не удалось определить пользователя");
+    }
+
+    if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
+      return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+    }
+
+    // Store pending channel in session
+    ctx.session.pendingAdd = {
+      channelId: channel_id,
+      channelName: channel_name_lower,
+      displayName: display_name,
+      platform: "kick"
+    };
+
+    // Show preview with confirmation buttons
+    const previewMessage =
+      `Вы хотите добавить канал:\n\n` +
+      `📺 Имя: ${display_name}\n` +
+      `🔗 Ссылка: https://kick.com/${display_name}\n\n` +
+      `Продолжить добавление?`;
+
+    log.info("showing channel preview", {
+      userId: ctx.from.id,
+      channel: display_name,
+      channelId: channel_id,
+      platform: "kick"
+    });
+
+    return await ctx.reply(previewMessage, {
+      reply_markup: addConfirmationKeyboard,
+    });
+  } else if (twitchChannel) {
+
+
+      const channel_id = Number(twitchChannel!.id);
+      const display_name = twitchChannel!.display_name;
+
+      if (!ctx.from) {
+        return ctx.reply("Ошибка: не удалось определить пользователя");
+      }
+
+      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
+        return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+      }
+
+      // Store pending channel in session
+      ctx.session.pendingAdd = {
+        channelId: channel_id,
+        channelName: channel_name_lower,
+        displayName: display_name,
+        platform: "twitch"
+      };
+
+      // Show preview with confirmation buttons
+      const previewMessage =
+        `Вы хотите добавить канал:\n\n` +
+        `📺 Имя: ${display_name}\n` +
+        `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
+        `Продолжить добавление?`;
+
+      await ctx.reply(previewMessage, {
+        reply_markup: addConfirmationKeyboard,
+      });
+
+      log.info("showing channel preview", {
+        userId: ctx.from.id,
+        channel: display_name,
+        channelId: channel_id,
+        platform: "twitch",
+      });
+  } else {
+    return ctx.reply("Канал с таким именем не найден")
   }
 
-  if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-    return ctx.reply(`Вы уже отслеживаете ${display_name}`);
-  }
-
-  // Store pending channel in session
-  ctx.session.pendingAdd = {
-    channelId: channel_id,
-    channelName: channel_name_lower,
-    displayName: display_name,
-  };
-
-  // Show preview with confirmation buttons
-  const previewMessage =
-    `Вы хотите добавить канал:\n\n` +
-    `📺 Имя: ${display_name}\n` +
-    `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
-    `Продолжить добавление?`;
-
-  await ctx.reply(previewMessage, {
-    reply_markup: addConfirmationKeyboard,
-  });
-
-  log.info("showing channel preview", {
-    userId: ctx.from.id,
-    channel: display_name,
-    channelId: channel_id,
-  });
 });
 
 router.command("remove", async (ctx) => {

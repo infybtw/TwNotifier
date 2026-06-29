@@ -3,6 +3,7 @@ import { BOT_TOKEN } from "../config";
 import { router as mRouter } from "./bot_router";
 import { router as cRouter } from "./bot_callback_handler";
 import logger from "../logger";
+import { TwitchUser } from "../models/twitch_user";
 
 const log = logger.getSubLogger({ name: "bot" });
 
@@ -11,12 +12,17 @@ interface SessionData {
     channelId: number;
     channelName: string;
     displayName: string;
+    platform: "kick" | "twitch",
   };
   pendingRemove?: {
     channelId: number;
     channelName: string;
     displayName: string;
   };
+  pendingPlatformSelect?: {
+    kickData: KickChannelResponse
+    twitchData: TwitchUser
+  }
   adminLogin?: {
     signed_in: boolean;
   }

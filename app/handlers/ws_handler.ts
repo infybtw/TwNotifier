@@ -1,6 +1,6 @@
 import {
-  sendStreamOfflineNotificationToUsers,
-  sendStreamOnlineNotificationToUsers,
+  sendTwitchStreamOfflineNotificationToUsers,
+  sendTwitchStreamOnlineNotificationToUsers,
 } from "../bot/bot_sender";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
@@ -22,17 +22,19 @@ export async function onNotification(payload: any) {
       const streamData = await getChannelInfo(
         payload.event.broadcaster_user_id,
       );
-      sendStreamOnlineNotificationToUsers(
+      sendTwitchStreamOnlineNotificationToUsers(
         Number(payload.event.broadcaster_user_id),
         payload.event.broadcaster_user_name,
         streamData,
+        "twitch"
       );
       break;
     case "stream.offline":
       log.info("stream offline", { payload: payload });
-      sendStreamOfflineNotificationToUsers(
+      sendTwitchStreamOfflineNotificationToUsers(
         Number(payload.event.broadcaster_user_id),
         payload.event.broadcaster_user_name,
+        "twitch"
       );
       break;
     default:

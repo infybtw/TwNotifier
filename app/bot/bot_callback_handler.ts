@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -7,6 +7,7 @@ import {
   getAdmins,
   getChannelByChannelId,
   getChannels,
+  getFollowByUserIdChannelIdAndPlatform,
   getFollowCount,
   getUsers,
 } from "../database/db";
@@ -73,21 +74,33 @@ router.callbackQuery("confirm_add", async (ctx) => {
     );
   }
 
-
-
   const { displayName } = ctx.session.pendingAdd;
 
   await ctx.answerCallbackQuery("Добавляем канал...");
 
-  const { channelId, channelName } = ctx.session.pendingAdd;
+  const { channelId, channelName, platform } = ctx.session.pendingAdd;
 
-  await checkOrCreateChannel(channelId, displayName)
+  await checkOrCreateChannel(channelId, displayName, platform)
 
-  // Subscribe to events
-  const subOnlineResCode = await subscribeToChannelOnline(
-    channelId,
-    displayName || channelName,
-  );
+  let subOnlineResCode = 100000
+  let subOfflineResCode = 100000
+
+  if (platform === "twitch") {
+    subOnlineResCode = await subscribeToChannelOnline(
+      channelId,
+      displayName || channelName,
+    );
+    subOfflineResCode = await subscribeToChannelOffline(
+      channelId,
+      displayName || channelName,
+    );
+  } else if (platform === "kick") {
+    console.log("kick sub")
+    subOnlineResCode = 200
+    subOfflineResCode = 200
+  }
+
+
   if (subOnlineResCode < 0) {
     log.error("subscribe error", { subResponseCode: subOnlineResCode });
     await ctx.editMessageText(
@@ -97,10 +110,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
     return;
   }
 
-  const subOfflineResCode = await subscribeToChannelOffline(
-    channelId,
-    displayName || channelName,
-  );
+
   if (subOfflineResCode < 0) {
     log.error("subscribe error", { subResponseCode: subOfflineResCode });
     await ctx.editMessageText(
@@ -113,7 +123,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
   // Add follow
   const now = new Date().toISOString();
   try {
-    const follow = (await checkOrCreateFollow(ctx.from.id, channelId))
+    const follow = (await checkOrCreateFollow(ctx.from.id, channelId, platform))
     ctx.session.pendingAdd = undefined;
     if (!follow.isNew) {
       return await ctx.editMessageText(`✅ Вы уже отслеживаете ${displayName}`);
@@ -122,11 +132,13 @@ router.callbackQuery("confirm_add", async (ctx) => {
     log.info("new follow", {
       userId: ctx.from.id,
       channel: displayName,
+      platform: platform,
     });
   } catch (err) {
     log.error("follow error", {
       userId: ctx.from.id,
       channelId: channelId,
+      platform: platform,
       error: err,
     })
     await ctx.editMessageText(`⛔ Упс, произошла ошибка. Уже работаем над ее исправлением!`)
@@ -269,4 +281,90 @@ router.callbackQuery("admin_eventsubreload", async (ctx) => {
 router.callbackQuery("admin_follows", async (ctx) => {
   const followCount = await getFollowCount()
   ctx.editMessageText(`Всего ${followCount} подписок `,{reply_markup: adminBackKeyboard})
+})
+
+router.callbackQuery("platform_back", async (ctx) => {
+  await ctx.editMessageText(
+    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
+    { reply_markup: homePageKeyboard },
+  );
+  ctx.session.pendingPlatformSelect = undefined
+});
+
+router.callbackQuery("platform_twitch", async (ctx) => {
+  const channel_id = Number(ctx.session.pendingPlatformSelect?.twitchData.id!)
+  const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name!
+
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
+  }
+
+  if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "twitch")) {
+    return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+  }
+
+  // Store pending channel in session
+  ctx.session.pendingAdd = {
+    channelId: channel_id,
+    channelName: display_name,
+    displayName: display_name,
+    platform: "twitch"
+  };
+
+  // Show preview with confirmation buttons
+  const previewMessage =
+    `Вы хотите добавить канал:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
+    `Продолжить добавление?`;
+
+  log.info("showing channel preview", {
+    userId: ctx.from.id,
+    channel: display_name,
+    channelId: channel_id,
+    platform: "twitch"
+  });
+
+  return await ctx.editMessageText(previewMessage, {
+    reply_markup: addConfirmationKeyboard,
+  });
+})
+
+router.callbackQuery("platform_kick", async (ctx) => {
+  const channel_id = Number(ctx.session.pendingPlatformSelect?.kickData.data[0].broadcaster_user_id!)
+  const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug!
+
+  if (!ctx.from) {
+    return ctx.reply("Ошибка: не удалось определить пользователя");
+  }
+
+  if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "kick")) {
+    return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+  }
+
+  // Store pending channel in session
+  ctx.session.pendingAdd = {
+    channelId: channel_id,
+    channelName: display_name,
+    displayName: display_name,
+    platform: "kick"
+  };
+
+  // Show preview with confirmation buttons
+  const previewMessage =
+    `Вы хотите добавить канал:\n\n` +
+    `📺 Имя: ${display_name}\n` +
+    `🔗 Ссылка: https://kick.com/${display_name}\n\n` +
+    `Продолжить добавление?`;
+
+  log.info("showing channel preview", {
+    userId: ctx.from.id,
+    channel: display_name,
+    channelId: channel_id,
+    platform: "kick"
+  });
+
+  return await ctx.editMessageText(previewMessage, {
+    reply_markup: addConfirmationKeyboard,
+  });
 })

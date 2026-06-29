@@ -19,7 +19,7 @@ async function getAppToken() {
   }
 
   await setAppToken(data.access_token);
-  console.log("App Access Token received successfully");
+  console.log("Twitch App Access Token received successfully");
 }
 
 export { getAppToken };

@@ -1,11 +1,11 @@
-import { getChannelFollowersByChannelId, getSettingsStateByUserId } from "../database/db";
+import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId } from "../database/db";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
 
-export async function sendStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, data: JSON) {
-    const followers = await getChannelFollowersByChannelId(channel_id);
+export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, data: JSON, platform: "kick" | "twitch") {
+    const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id);
       if (userSettings?.online_notification === 1) {
@@ -24,8 +24,8 @@ export async function sendStreamOnlineNotificationToUsers(channel_id: number, ch
     }
 }
 
-export async function sendStreamOfflineNotificationToUsers(channel_id: number,channel_name: string) {
-    const followers = await getChannelFollowersByChannelId(channel_id);
+export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number,channel_name: string, platform: "kick" | "twitch") {
+    const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, platform);
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id);
       if (userSettings?.offline_notification === 1) {

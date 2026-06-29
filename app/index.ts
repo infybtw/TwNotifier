@@ -8,12 +8,14 @@ import {
 } from "./twitchAPI/conduits";
 import { botStart } from "./bot/bot";
 import { migrateDB } from "./migrate";
+import { getKickAppToken } from "./kickAPI/auth";
 
 
 async function main(): Promise<void> {
   await migrateDB()
   await botStart();
   await getAppToken();
+  await getKickAppToken();
   await createConduit(SHARD_COUNT);
   await connectWebSocket(TWITCH_WS);
 }

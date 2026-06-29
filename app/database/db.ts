@@ -29,13 +29,18 @@ export async function getFollowByUserIdAndChannelId(user_id: number, channel_id:
   return follow
 }
 
+export async function getFollowByUserIdChannelIdAndPlatform(user_id: number, channel_id: number, platform: "kick" | "twitch"): Promise<UserFollow>{
+  const [follow] = await db.select().from(users_follows).where(and(eq(users_follows.user_id,user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
+  return follow
+}
+
 export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>{
   const follows = db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
   return follows
 }
 
-export async function getChannelFollowersByChannelId(channel_id: number): Promise<UserFollow[]>{
-  const follows = await db.select().from(users_follows).where(eq(users_follows.channel_id, channel_id))
+export async function getChannelFollowersByChannelIdAndPlatform(channel_id: number, platform: "kick"| "twitch"): Promise<UserFollow[]>{
+  const follows = await db.select().from(users_follows).where(and(eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform)))
   return follows
 }
 
@@ -83,16 +88,16 @@ async function addUser(user_id: number, username: string, first_name: string): P
   }
 }
 
-async function addChannel(channel_id: number, channel_name: string): Promise<Channel>{
-  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name }).returning()
+async function addChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<Channel>{
+  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name, platform: platform }).returning()
   if (!newChannel) {
     throw new Error(`Failed to add channel ${channel_id}`)
   }
   return newChannel
 }
 
-async function addFollow(user_id: number, channel_id: number): Promise<UserFollow>{
-  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString() }).returning()
+async function addFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<UserFollow>{
+  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString(), platform: platform }).returning()
   if (!userFollow) {
     throw new Error(`Failed to create follow ${user_id}-${channel_id}`)
   }
@@ -130,21 +135,21 @@ export async function checkOrCreateUser(user_id: number, username: string, first
   }
 }
 
-export async function checkOrCreateChannel(channel_id: number, channel_name: string): Promise<{ channel: Channel, isNew: boolean }>{
-  const [exist] = await db.select().from(channels).where(eq(channels.channel_id, channel_id)).limit(1)
+export async function checkOrCreateChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<{ channel: Channel, isNew: boolean }>{
+  const [exist] = await db.select().from(channels).where(and(eq(channels.channel_id, channel_id), eq(channels.platform, platform))).limit(1)
   if (exist) {
     return {channel: exist, isNew: false}
   }
-  const channel = await addChannel(channel_id, channel_name)
+  const channel = await addChannel(channel_id, channel_name, platform)
   return {channel, isNew: true}
 }
 
-export async function checkOrCreateFollow(user_id: number, channel_id: number): Promise<{follow: UserFollow, isNew: boolean}> {
-  const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id))).limit(1)
+export async function checkOrCreateFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<{follow: UserFollow, isNew: boolean}> {
+  const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
   if (exist) {
     return {follow: exist, isNew: false}
   }
-  const userFollow = await addFollow(user_id, channel_id)
+  const userFollow = await addFollow(user_id, channel_id, platform)
   return {follow: userFollow , isNew: true}
 }
 
