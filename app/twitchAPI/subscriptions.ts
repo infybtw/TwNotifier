@@ -1,3 +1,4 @@
+import { sleep } from "bun";
 import {
   APP_TOKEN,
   BOT_USER_ID,
@@ -8,6 +9,7 @@ import {
 } from "../config";
 import {getChannels } from "../database/db";
 import logger from "../logger";
+import { getAppToken } from "./auth";
 
 const log = logger.getSubLogger({ name: "twitchAPI:subscriptions" });
 
@@ -37,6 +39,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
   });
 
   const data = await res.json();
+
   if (res.status === 202) {
     log.info("subscribed to event", {
       type: subscription.type,
@@ -51,6 +54,25 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       broadcaster_name: broadcaster_name,
     });
     return 409;
+  } else if (res.status === 429) {
+    log.warn("eventsub error: rate limit", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+      error_message: data.message,
+    })
+    await sleep(10000)
+    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
+  } else if (res.status === 401) {
+    await getAppToken();
+    log.warn("eventsub error: unauthorized", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+      error_message: data.message,
+    } )
+    await sleep(10000);
+    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
   } else {
     log.error("subscription error", {
       type: subscription.type,
@@ -83,13 +105,13 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
     method: "POST",
     headers: {
       "Client-ID": CLIENT_ID,
-      Authorization: `Bearer ${APP_TOKEN}`, // <- App токен! <--
+      Authorization: `Bearer ${APP_TOKEN}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       ...subscription,
       transport: {
-        method: "conduit", // ← не websocket, а conduit!
+        method: "conduit",
         conduit_id: CONDUIT_ID,
       },
     }),
@@ -110,6 +132,25 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       broadcaster_name: broadcaster_name,
     });
     return 409;
+  } else if (res.status === 429) {
+    log.warn("eventsub error: rate limit", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+      error_message: data.message,
+    })
+    await sleep(10000)
+    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
+  } else if (res.status === 401) {
+    await getAppToken();
+    log.warn("eventsub error: unauthorized", {
+      type: subscription.type,
+      broadcaster_id: broadcasterId,
+      broadcaster_name: broadcaster_name,
+      error_message: data.message,
+    } )
+    await sleep(10000);
+    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
   } else {
     log.error("subscription error", {
       type: subscription.type,
@@ -127,4 +168,95 @@ export async function subscribeAllStreamsOffline() {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }
   log.info("subscribed to all channels offline");
+}
+
+export async function getEventSubList(cursor?: string): Promise<TwitchEventSubSubscription[]> {
+  const url = new URL(TWITCH_HELIX + "/helix/eventsub/subscriptions");
+  if (cursor) url.searchParams.set("after", cursor);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Client-ID": CLIENT_ID,
+        Authorization: `Bearer ${APP_TOKEN}`,
+      },
+    });
+  } catch (err) {
+    await sleep(10000);
+    return getEventSubList(cursor);
+  }
+
+  if (res.status === 401) {
+    await getAppToken();
+    await sleep(10000);
+    return getEventSubList(cursor);
+  }
+
+  if (res.status !== 200) {
+    await sleep(10000);
+    return getEventSubList(cursor);
+  }
+
+  const data: TwitchGetEventSubSubscriptionsResponse = await res.json();
+
+  if (data.pagination?.cursor) {
+    const nextPage = await getEventSubList(data.pagination.cursor);
+    return [...data.data, ...nextPage];
+  }
+
+  return data.data;
+}
+
+async function deleteSub(sub: TwitchEventSubSubscription) {
+  const url = new URL(TWITCH_HELIX + "/helix/eventsub/subscriptions");
+  url.searchParams.set("id", sub.id)
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "Client-ID": CLIENT_ID,
+        Authorization: `Bearer ${APP_TOKEN}`,
+      },
+    });
+  } catch (err) {
+    await sleep(10000);
+    return deleteSub(sub);
+  }
+
+  if (res.status === 204) {
+    log.info("sub deleted", {
+      type: sub.type,
+      broadcaster_id: sub.condition.broadcaster_user_id,
+      status: res.status,
+    })
+    return;
+  } else if (res.status === 401) {
+    log.warn("eventsub error: unauthorized", {
+      type: sub.type,
+      broadcaster_id: sub.condition.broadcaster_user_id,
+      status: res.status,
+    } )
+    await getAppToken();
+    await sleep(10000);
+    return deleteSub(sub);
+  } else if (res.status === 404) {
+    return;
+  } else {
+    log.error("failed to delete sub", {
+      type: sub.type,
+      broadcaster_id: sub.condition.broadcaster_user_id,
+      status: res.status,
+    })
+    return
+  }
+}
+
+export async function deleteSubs(subs: TwitchEventSubSubscription[]) {
+  console.log("get subs: " + subs.length)
+  for (const sub of subs) {
+    await deleteSub(sub)
+  }
 }

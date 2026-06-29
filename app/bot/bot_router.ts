@@ -82,7 +82,7 @@ router.command("add", async (ctx) => {
   const previewMessage =
     `Вы хотите добавить канал:\n\n` +
     `📺 Имя: ${display_name}\n` +
-    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
     `Продолжить добавление?`;
 
   await ctx.reply(previewMessage, {

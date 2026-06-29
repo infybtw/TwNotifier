@@ -10,6 +10,10 @@ import {
   getUsers,
 } from "../database/db";
 import {
+  deleteSubs,
+  getEventSubList,
+  subscribeAllStreamsOffline,
+  subscribeAllStreamsOnline,
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
@@ -17,6 +21,7 @@ import logger from "../logger";
 import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
+import { sleep } from "bun";
 
 export const router = new Composer<MyContext>();
 
@@ -75,7 +80,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   const { channelId, channelName } = ctx.session.pendingAdd;
 
-  await checkOrCreateChannel(channelId, channelName)
+  await checkOrCreateChannel(channelId, displayName)
 
   // Subscribe to events
   const subOnlineResCode = await subscribeToChannelOnline(
@@ -248,4 +253,14 @@ router.callbackQuery("admin_add", async (ctx) => {
 
 router.callbackQuery("admin_back", async (ctx) => {
   ctx.editMessageText("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+})
+
+router.callbackQuery("admin_eventsubreload", async (ctx) => {
+  ctx.editMessageText("Eventsub перезапускается, подождите")
+  const subs = await getEventSubList()
+  await deleteSubs(subs)
+  await sleep(2500)
+  await subscribeAllStreamsOnline()
+  await subscribeAllStreamsOffline()
+  ctx.editMessageText("Eventsub успешно перезапущен")
 })
