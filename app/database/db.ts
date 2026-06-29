@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { admin_keys, AdminKey, Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
