@@ -15,7 +15,7 @@ export function extractUsernameFromTwitchUrl(urlOrUsername: string): string | nu
     const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
 
     // Check if it's a Twitch URL
-    if (!url.hostname.includes('twitch.tv')) {
+    if (!url.hostname.includes('twitch.tv') && !url.hostname.includes("kick.com")) {
       return null;
     }
 

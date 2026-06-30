@@ -4,7 +4,9 @@ import logger from "../logger";
 import {
   checkOrCreateUser,
   getChannelByChannelId,
+  getChannelsByUsername,
   getFollowByUserIdAndChannelId,
+  getFollowByUserIdChannelIdAndPlatform,
   getFollowsByUserId,
   getFollowsByUserIdAndPlatform,
   getUserByUserId,
@@ -17,10 +19,13 @@ import {
   removeConfirmationKeyboard,
   adminKeyboard,
   platformSelectKeyboard,
+  removePlatformSelecteKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
+import { sleep } from "bun";
+import { Channel, UserFollow } from "../database/schema";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -176,37 +181,86 @@ router.command("remove", async (ctx) => {
     );
   }
 
-  const channel_name_lower = extractedUsername.toLowerCase();
-  const user = await getUserByLogin(channel_name_lower);
-  if (!user) {
-    return ctx.reply("Канал с таким именем не найден");
-  }
-
-  const channel_id = Number(user.id);
-  const display_name = user.display_name || extractedUsername;
-
   if (!ctx.from) {
     return ctx.reply("Ошибка: не удалось определить пользователя");
   }
 
-  // Check if user is following this channel
-  //@ts-ignore
-  if (!(await getFollowByUserIdAndChannelId(ctx.from.id, channel_id))) {
+  const channel_name_lower = extractedUsername.toLowerCase();
+  const usernameChannels = await getChannelsByUsername(channel_name_lower)
+
+  const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
+  const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
+
+  if (!kickChannel && !twitchChannel) {
+    return ctx.reply("Канал с таким именем не найден");
+  }
+
+  const kickFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel?.channel_id!, "kick")
+  const twitchFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel?.channel_id!, "twitch")
+
+  let bothFollow: boolean = false
+  let follow: UserFollow
+  let channel: Channel
+
+  if (kickFollow && twitchFollow) {
+    bothFollow = true
+  } else if (kickFollow || twitchFollow){
+    if (kickFollow) {
+      follow = kickFollow
+      channel = kickChannel!
+    } else {
+      follow = twitchFollow
+      channel = twitchChannel!
+    }
+  } else {
+    return ctx.reply("Вы не подписанны на этот канал")
+  }
+
+  if (usernameChannels.length < 1) {
+    return ctx.reply("Канал с таким именем не найден");
+  }
+
+  if (usernameChannels.length > 1 && bothFollow) {
+    if (!kickChannel || !twitchChannel) {
+      return ctx.reply("Канал с таким именем не найден")
+    } else {
+      const message = `Канал с таким именем найден на 2 платформах.\n` +
+        `https://kick.com/${channel_name_lower}\n` +
+        `https://twitch.tv/${channel_name_lower}\n\n` +
+        `Выберите платформу для удаления:`
+
+      ctx.session.removePendingPlatformSelect = {
+        kickChannel,
+        twitchChannel,
+      }
+      return ctx.reply(message, { reply_markup: removePlatformSelecteKeyboard })
+    }
+  }
+
+  const channelPlatform = follow!.platform === "twitch" ? "twitch" : "kick";
+  const channelPlatformUrl = follow!.platform === "twitch" ? "twitch.tv" : "kick.com";
+
+  const channel_id = Number(channel!.channel_id);
+  const display_name = channel!.channel_name || extractedUsername;
+
+
+
+  if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
     return ctx.reply(`Вы не подписаны на ${display_name}`);
   }
 
-  // Store pending removal in session
   ctx.session.pendingRemove = {
     channelId: channel_id,
     channelName: channel_name_lower,
     displayName: display_name,
+    platform: channelPlatform,
   };
 
   // Show preview with confirmation buttons
   const previewMessage =
     `Вы хотите удалить канал из отслеживаемых:\n\n` +
     `📺 Имя: ${display_name}\n` +
-    `🔗 Ссылка: https://twitch.tv/${channel_name_lower}\n\n` +
+    `🔗 Ссылка: https://${channelPlatformUrl}/${channel_name_lower}\n\n` +
     `Подтвердите удаление?`;
 
   await ctx.reply(previewMessage, {

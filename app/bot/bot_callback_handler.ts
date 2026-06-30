@@ -10,6 +10,7 @@ import {
   getFollowByUserIdChannelIdAndPlatform,
   getFollowCount,
   getUsers,
+  removeFollowByUserIdChannelIdAndPlatfrom,
 } from "../database/db";
 import {
   deleteSubs,
@@ -25,6 +26,7 @@ import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateBy
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
 import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
+import { platform } from "node:process";
 
 export const router = new Composer<MyContext>();
 
@@ -148,14 +150,14 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
 router.callbackQuery("cancel_add", async (ctx) => {
   if (ctx.session.pendingAdd) {
-    const { displayName } = ctx.session.pendingAdd;
-    ctx.session.pendingAdd = undefined;
     await ctx.answerCallbackQuery("Добавление отменено");
-    await ctx.editMessageText(`❌ Добавление канала ${displayName} отменено.`);
+    await ctx.editMessageText(`❌ Добавление канала ${ctx.session.pendingAdd.displayName} отменено.`);
     log.info("channel addition cancelled", {
       userId: ctx.from.id,
-      channel: displayName,
+      channel: ctx.session.pendingAdd.displayName,
+      platform: ctx.session.pendingAdd.platform,
     });
+    ctx.session.pendingAdd = undefined;
   } else {
     await ctx.answerCallbackQuery("Нет активного добавления");
     await ctx.editMessageText("Нет активного процесса добавления канала.");
@@ -173,38 +175,34 @@ router.callbackQuery("confirm_remove", async (ctx) => {
     return;
   }
 
-  const { displayName, channelId } = ctx.session.pendingRemove;
+  const { displayName, channelId, platform } = ctx.session.pendingRemove;
 
   await ctx.answerCallbackQuery("Удаляем канал...");
 
-  // Import required functions
-  const { removeFollowByUserIdAndChannelId } = await import("../database/db");
-  const log = logger.getSubLogger({ name: "bot:callback_handler" });
-
-  // Remove the follow
-  //@ts-ignore
-  await removeFollowByUserIdAndChannelId(ctx.from.id, channelId);
+  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, channelId, platform);
 
   // Clear pending removal
   ctx.session.pendingRemove = undefined;
 
   await ctx.editMessageText(`✅ Канал ${displayName} удален из отслеживаемых.`);
-  log.info("channel removed", {
+  log.info("follow removed", {
     userId: ctx.from.id,
     channel: displayName,
     channelId: channelId,
+    platform: platform
   });
 });
 
 router.callbackQuery("cancel_remove", async (ctx) => {
   if (ctx.session.pendingRemove) {
-    const { displayName } = ctx.session.pendingRemove;
+    const { displayName, platform } = ctx.session.pendingRemove;
     ctx.session.pendingRemove = undefined;
     await ctx.answerCallbackQuery("Удаление отменено");
     await ctx.editMessageText(`❌ Удаление канала ${displayName} отменено.`);
     log.info("channel removal cancelled", {
       userId: ctx.from.id,
       channel: displayName,
+      platform
     });
   } else {
     await ctx.answerCallbackQuery("Нет активного удаления");
@@ -294,7 +292,7 @@ router.callbackQuery("platform_back", async (ctx) => {
 
 router.callbackQuery("platform_twitch", async (ctx) => {
   const channel_id = Number(ctx.session.pendingPlatformSelect?.twitchData.id!)
-  const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name!
+  const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name.toLowerCase()!
 
   if (!ctx.from) {
     return ctx.reply("Ошибка: не удалось определить пользователя");
@@ -333,7 +331,7 @@ router.callbackQuery("platform_twitch", async (ctx) => {
 
 router.callbackQuery("platform_kick", async (ctx) => {
   const channel_id = Number(ctx.session.pendingPlatformSelect?.kickData.data[0].broadcaster_user_id!)
-  const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug!
+  const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug.toLowerCase()!
 
   if (!ctx.from) {
     return ctx.reply("Ошибка: не удалось определить пользователя");
@@ -369,3 +367,78 @@ router.callbackQuery("platform_kick", async (ctx) => {
     reply_markup: addConfirmationKeyboard,
   });
 })
+
+router.callbackQuery("remove_platform_kick", async (ctx) => {
+  if (!ctx.session.removePendingPlatformSelect) {
+    await ctx.answerCallbackQuery(
+      "Сессия истекла. Пожалуйста, начните удаление заново.",
+    );
+    await ctx.editMessageText(
+      "Сессия истекла. Используйте /remove для удаления канала.",
+    );
+    return;
+  }
+
+  const { kickChannel } = ctx.session.removePendingPlatformSelect;
+
+  await ctx.answerCallbackQuery("Удаляем канал...");
+
+  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, kickChannel.channel_id, "kick");
+
+  // Clear pending removal
+  ctx.session.removePendingPlatformSelect = undefined;
+
+  await ctx.editMessageText(`✅ Канал ${kickChannel.channel_name} удален из отслеживаемых.`);
+  log.info("follow removed", {
+    userId: ctx.from.id,
+    channel: kickChannel.channel_name,
+    channelId: kickChannel.channel_id,
+    platform: "kick"
+  });
+})
+
+router.callbackQuery("remove_platform_twitch", async (ctx) => {
+  if (!ctx.session.removePendingPlatformSelect) {
+    await ctx.answerCallbackQuery(
+      "Сессия истекла. Пожалуйста, начните удаление заново.",
+    );
+    await ctx.editMessageText(
+      "Сессия истекла. Используйте /remove для удаления канала.",
+    );
+    return;
+  }
+
+  const { twitchChannel } = ctx.session.removePendingPlatformSelect;
+
+  await ctx.answerCallbackQuery("Удаляем канал...");
+
+  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, twitchChannel.channel_id, "twitch");
+
+  // Clear pending removal
+  ctx.session.removePendingPlatformSelect = undefined;
+
+  await ctx.editMessageText(`✅ Канал ${twitchChannel.channel_name} удален из отслеживаемых.`);
+  log.info("follow removed", {
+    userId: ctx.from.id,
+    channel: twitchChannel.channel_name,
+    channelId: twitchChannel.channel_id,
+    platform: "twitch"
+  });
+})
+
+router.callbackQuery("remove_platform_back", async (ctx) => {
+  if (ctx.session.removePendingPlatformSelect) {
+    const { twitchChannel, kickChannel } = ctx.session.removePendingPlatformSelect;
+    ctx.session.pendingRemove = undefined;
+    await ctx.answerCallbackQuery("Удаление отменено");
+    await ctx.editMessageText(`❌ Удаление канала ${twitchChannel.channel_name} отменено.`);
+    log.info("channel removal cancelled", {
+      userId: ctx.from.id,
+      twithchChannel: twitchChannel.channel_name,
+      kickChannel: kickChannel.channel_name
+    });
+  } else {
+    await ctx.answerCallbackQuery("Нет активного удаления");
+    await ctx.editMessageText("Нет активного процесса удаления канала.");
+  }
+});

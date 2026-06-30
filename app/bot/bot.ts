@@ -4,6 +4,7 @@ import { router as mRouter } from "./bot_router";
 import { router as cRouter } from "./bot_callback_handler";
 import logger from "../logger";
 import { TwitchUser } from "../models/twitch_user";
+import { Channel } from "../database/schema";
 
 const log = logger.getSubLogger({ name: "bot" });
 
@@ -12,17 +13,22 @@ interface SessionData {
     channelId: number;
     channelName: string;
     displayName: string;
-    platform: "kick" | "twitch",
+    platform: "kick" | "twitch";
   };
   pendingRemove?: {
     channelId: number;
     channelName: string;
     displayName: string;
+    platform: "kick" | "twitch";
   };
   pendingPlatformSelect?: {
-    kickData: KickChannelResponse
-    twitchData: TwitchUser
-  }
+    kickData: KickChannelResponse;
+    twitchData: TwitchUser;
+  };
+  removePendingPlatformSelect?: {
+    kickChannel: Channel,
+    twitchChannel: Channel,
+  };
   adminLogin?: {
     signed_in: boolean;
   }

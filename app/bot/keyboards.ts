@@ -50,3 +50,7 @@ export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_
 export const platformSelectKeyboard = new InlineKeyboard()
   .text("Kick", "platform_kick").text("Twitch", "platform_twitch").row()
   .text("Отмена", "platform_back")
+
+export const removePlatformSelecteKeyboard = new InlineKeyboard()
+  .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
+  .text("Отмена", "remove_platform_back")

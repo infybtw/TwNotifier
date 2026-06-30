@@ -54,6 +54,11 @@ export async function getChannels(): Promise<Channel[]>{
   return res
 }
 
+export async function getChannelsByUsername(username: string): Promise<Channel[]> {
+  const res = await db.select().from(channels).where(eq(channels.channel_name, username))
+  return res
+}
+
 export async function getUsers(): Promise<User[]>{
   const res = await db.select().from(users)
   return res
@@ -122,6 +127,13 @@ export async function getAdminKeyByKey(key: string): Promise<AdminKey> {
 export async function removeFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
   const [follow] = await db.delete(users_follows)
     .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id)))
+    .returning()
+  return follow
+}
+
+export async function removeFollowByUserIdChannelIdAndPlatfrom(user_id: number, channel_id: number, platfrom: "kick" | "twitch"): Promise<UserFollow>{
+  const [follow] = await db.delete(users_follows)
+    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platfrom)))
     .returning()
   return follow
 }
