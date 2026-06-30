@@ -7,8 +7,10 @@ import {
   getAdmins,
   getChannelByChannelId,
   getChannels,
+  getChannelsByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
   getFollowCount,
+  getFollowsByPlatform,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
 } from "../database/db";
@@ -25,8 +27,7 @@ import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
-import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
-import { platform } from "node:process";
+import { deleteKickSubscription, getKickSubscriptions, subscribeToKickChannelOnline } from "../kickAPI/subscription";
 
 export const router = new Composer<MyContext>();
 
@@ -98,7 +99,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
       displayName || channelName,
     );
   } else if (platform === "kick") {
-    await subscribeToKickChannelOnline(channelId, displayName)
+    await subscribeToKickChannelOnline(channelId)
     subOnlineResCode = 200
     subOfflineResCode = 200
   }
@@ -264,22 +265,45 @@ router.callbackQuery("admin_add", async (ctx) => {
 })
 
 router.callbackQuery("admin_back", async (ctx) => {
-  ctx.editMessageText("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+  if (ctx.session.adminLogin) {
+    ctx.editMessageText("Вы вошли в систему администрирования", { reply_markup: adminKeyboard })
+  }
 })
 
 router.callbackQuery("admin_eventsubreload", async (ctx) => {
-  ctx.editMessageText("Eventsub перезапускается, подождите")
-  const subs = await getEventSubList()
-  await deleteSubs(subs)
-  await sleep(2500)
-  await subscribeAllStreamsOnline()
-  await subscribeAllStreamsOffline()
-  ctx.editMessageText("Eventsub успешно перезапущен", {reply_markup: adminBackKeyboard})
+  if (ctx.session.adminLogin) {
+    ctx.editMessageText("Eventsub перезапускается, подождите")
+    const subs = await getEventSubList()
+    await deleteSubs(subs)
+    await sleep(2500)
+    await subscribeAllStreamsOnline()
+    await subscribeAllStreamsOffline()
+    ctx.editMessageText("Eventsub успешно перезапущен", { reply_markup: adminBackKeyboard })
+  }
 })
 
 router.callbackQuery("admin_follows", async (ctx) => {
-  const followCount = await getFollowCount()
-  ctx.editMessageText(`Всего ${followCount} подписок `,{reply_markup: adminBackKeyboard})
+  if (ctx.session.adminLogin) {
+    const followCount = await getFollowCount()
+    ctx.editMessageText(`Всего ${followCount} подписок `, { reply_markup: adminBackKeyboard })
+  }
+})
+
+router.callbackQuery("admin_webhookreload", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.editMessageText("Webhooks перезапускаются, подождите")
+    const subs = await getKickSubscriptions()
+    const dbSubs = await getChannelsByPlatform("kick")
+    if (subs.length > 0) {
+      for (const sub of subs) {
+        await deleteKickSubscription(sub)
+      }
+      for (const sub of dbSubs) {
+        await subscribeToKickChannelOnline(sub.channel_id!)
+      }
+    }
+    ctx.editMessageText("Webhooks успешно перезапущены.", {reply_markup: adminBackKeyboard})
+  }
 })
 
 router.callbackQuery("platform_back", async (ctx) => {

@@ -7,7 +7,7 @@ import {
   TWITCH_HELIX,
   TWITCH_OAUTH,
 } from "../config";
-import {getChannels } from "../database/db";
+import {getChannels, getChannelsByPlatform } from "../database/db";
 import logger from "../logger";
 import { getAppToken } from "./auth";
 
@@ -85,7 +85,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
 }
 
 export async function subscribeAllStreamsOnline() {
-  const channels = await getChannels();
+  const channels = await getChannelsByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
   }
@@ -163,7 +163,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
 }
 
 export async function subscribeAllStreamsOffline() {
-  const channels = await getChannels();
+  const channels = await getChannelsByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }

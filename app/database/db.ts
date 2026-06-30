@@ -39,6 +39,11 @@ export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>
   return follows
 }
 
+export async function getFollowsByPlatform(platform: "kick" | "twitch"): Promise<UserFollow[]>{
+  const res = await db.select().from(users_follows).where(eq(users_follows.platform, platform))
+  return res
+}
+
 export async function getFollowsByUserIdAndPlatform(user_id: number, platform: "kick" | "twitch"): Promise<UserFollow[]>{
   const follows = db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id), eq(users_follows.platform, platform)))
   return follows
@@ -56,6 +61,11 @@ export async function getChannels(): Promise<Channel[]>{
 
 export async function getChannelsByUsername(username: string): Promise<Channel[]> {
   const res = await db.select().from(channels).where(eq(channels.channel_name, username))
+  return res
+}
+
+export async function getChannelsByPlatform(platform: "kick" | "twitch"): Promise<Channel[]>{
+  const res = await db.select().from(channels).where(eq(channels.platform, platform))
   return res
 }
 
