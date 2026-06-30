@@ -1,6 +1,7 @@
 import { KICK_CLIENT_ID, KICK_CLIENT_SECRET, KICK_OAUTH, setKickAppToken} from "../config";
 
 export async function getKickAppToken() {
+  const startTime = Bun.nanoseconds();
   const res = await fetch(KICK_OAUTH + "/oauth/token", {
     method: "POST",
     headers: {
@@ -19,5 +20,6 @@ export async function getKickAppToken() {
   }
 
   await setKickAppToken(data.access_token);
-  console.log("Kick App Access Token received successfully");
+  const elapsedMs = (Bun.nanoseconds() - startTime) / 1_000_000;
+  console.log(`Kick App Access Token received successfully (${elapsedMs.toFixed(2)}ms)`);
 }

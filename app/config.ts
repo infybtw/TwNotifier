@@ -4,6 +4,9 @@ export const BOT_USER_ID: string = String(process.env.BOT_USER_ID);
 
 export const KICK_CLIENT_ID: string = String(process.env.KICK_CLIENT_ID)
 export const KICK_CLIENT_SECRET: string = String(process.env.KICK_CLIENT_SECRET)
+export const KICK_WEBHOOK_PATH: string = String(process.env.KICK_WEBHOOK_PATH)
+
+export const HTTP_SERVER_PORT: number = Number(process.env.HTTP_SERVER_PORT)
 
 export const SHARD_COUNT: number = Number(process.env.SHARD_COUNT);
 export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);

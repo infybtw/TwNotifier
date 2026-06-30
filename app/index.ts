@@ -9,6 +9,7 @@ import {
 import { botStart } from "./bot/bot";
 import { migrateDB } from "./migrate";
 import { getKickAppToken } from "./kickAPI/auth";
+import { startHTTPServer } from "./handlers/http_handler";
 
 
 async function main(): Promise<void> {
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
   await getKickAppToken();
   await createConduit(SHARD_COUNT);
   await connectWebSocket(TWITCH_WS);
+  startHTTPServer(3000)
 }
 
 main().catch(console.error);

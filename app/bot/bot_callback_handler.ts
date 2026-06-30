@@ -24,6 +24,7 @@ import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
+import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
 
 export const router = new Composer<MyContext>();
 
@@ -95,7 +96,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
       displayName || channelName,
     );
   } else if (platform === "kick") {
-    console.log("kick sub")
+    await subscribeToKickChannelOnline(channelId, displayName)
     subOnlineResCode = 200
     subOfflineResCode = 200
   }
