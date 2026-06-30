@@ -28,7 +28,6 @@ export async function subscribeToKickChannelOnline(broadcasterId: number, broadc
 
   const data = await res.json();
 
-  console.log(data)
 
   if (res.status === 200) {
     log.info("subscribed to event", {
