@@ -30,18 +30,12 @@ export async function subscribeToKickChannelOnline(broadcasterId: number, broadc
 
   console.log(data)
 
-  if (res.status === 202) {
+  if (res.status === 200) {
     log.info("subscribed to event", {
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
     });
     return 202;
-  } else if (res.status === 409) {
-    log.info("allready subscribed", {
-      broadcaster_id: broadcasterId,
-      broadcaster_name: broadcaster_name,
-    });
-    return 409;
   } else if (res.status === 429) {
     log.warn("eventsub error: rate limit", {
       broadcaster_id: broadcasterId,

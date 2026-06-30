@@ -227,9 +227,9 @@ router.command("list", async (ctx) => {
   let reply_text = "Ваши подписки:\n";
   for (const sub of follows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
-      reply_text += `${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
+      reply_text += `<b>${channel.platform}</b>/${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
   }
-  ctx.reply(reply_text);
+  ctx.reply(reply_text, {parse_mode: "HTML"});
 });
 
 router.command("admin", async (ctx) => {

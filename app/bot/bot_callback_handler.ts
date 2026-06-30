@@ -226,9 +226,9 @@ router.callbackQuery("admin_channels", async (ctx) => {
     const channels = await getChannels()
     let message = `Всего активно ${channels.length} каналов:\n`
     for (const channel of channels) {
-      message += `${channel.channel_name} - ${channel.channel_id}\n`
+      message += `<b>${channel.platform}</b>/${channel.channel_name} - ${channel.channel_id}\n`
     }
-    ctx.editMessageText(message, {reply_markup: adminBackKeyboard})
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
   }
 })
 
