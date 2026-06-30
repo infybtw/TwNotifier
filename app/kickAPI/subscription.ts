@@ -32,7 +32,7 @@ export async function subscribeToKickChannelOnline(broadcasterId: number, broadc
 
   if (res.status === 200) {
     log.info("subscribed to event", {
-      event: "livestream.status.updated"
+      event: "livestream.status.updated",
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
     });
