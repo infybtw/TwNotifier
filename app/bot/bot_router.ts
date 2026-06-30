@@ -6,6 +6,7 @@ import {
   getChannelByChannelId,
   getFollowByUserIdAndChannelId,
   getFollowsByUserId,
+  getFollowsByUserIdAndPlatform,
   getUserByUserId,
   makeUserAdmin
 } from "../database/db";
@@ -220,15 +221,28 @@ router.command("remove", async (ctx) => {
 });
 
 router.command("list", async (ctx) => {
-  const follows = await getFollowsByUserId(ctx.message?.from.id!);
-  if (follows.length < 1) {
+  const user_id = ctx.from?.id
+  const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick")
+  const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch")
+  if (kickFollows.length < 1 && twitchFollows.length < 1) {
     return ctx.reply("У вас пока нет подписок");
   }
   let reply_text = "Ваши подписки:\n";
-  for (const sub of follows) {
-      const channel = await getChannelByChannelId(sub.channel_id!);
-      reply_text += `<b>${channel.platform}</b>/${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
+  if (kickFollows.length >= 1) {
+    reply_text += "\n<b>Kick:</b>\n"
+    for (const sub of kickFollows) {
+        const channel = await getChannelByChannelId(sub.channel_id!);
+        reply_text += `${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
+    }
   }
+  if (twitchFollows.length >= 1) {
+    reply_text += "\nTwitch:\n"
+    for (const sub of twitchFollows) {
+        const channel = await getChannelByChannelId(sub.channel_id!);
+        reply_text += `${channel?.channel_name || `ID:${sub.channel_id}`} - c ${sub.created.slice(0, 10)}\n`;
+    }
+  }
+
   ctx.reply(reply_text, {parse_mode: "HTML"});
 });
 

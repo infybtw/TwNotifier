@@ -11,7 +11,7 @@ export async function subscribeToKickChannelOnline(broadcasterId: number, broadc
   const res = await fetch("https://api.kick.com/public/v1/events/subscriptions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${KICK_APP_TOKEN}`, // <- App токен! <--
+      Authorization: `Bearer ${KICK_APP_TOKEN}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
