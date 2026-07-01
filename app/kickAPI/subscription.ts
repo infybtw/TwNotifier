@@ -1,5 +1,5 @@
 import { sleep } from "bun";
-import { KICK_APP_TOKEN, KICK_OAUTH } from "../config";
+import { KICK_APP_TOKEN, KICK_API, KICK_OAUTH } from "../config";
 import logger from "../logger";
 import { getKickAppToken } from "./auth";
 
@@ -24,7 +24,7 @@ interface KickSubscriptionData {
 
 export async function subscribeToKickChannelOnline(broadcasterId: number): Promise<number> {
 
-  const res = await fetch("https://api.kick.com/public/v1/events/subscriptions", {
+  const res = await fetch(`${KICK_API}/public/v1/events/subscriptions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${KICK_APP_TOKEN}`,
@@ -73,7 +73,7 @@ export async function subscribeToKickChannelOnline(broadcasterId: number): Promi
 }
 
 export async function getKickSubscriptions(): Promise<KickSubscriptionData[]> {
-  const res = await fetch("https://api.kick.com/public/v1/events/subscriptions", {
+  const res = await fetch(`${KICK_API}/public/v1/events/subscriptions`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${KICK_APP_TOKEN}`,
@@ -98,7 +98,7 @@ export async function getKickSubscriptions(): Promise<KickSubscriptionData[]> {
 }
 
 export async function deleteKickSubscription(sub: KickSubscriptionData): Promise<void>{
-  const url = new URL("https://api.kick.com/public/v1/events/subscriptions")
+  const url = new URL(`${KICK_API}/public/v1/events/subscriptions`)
   url.searchParams.set("id", sub.id)
 
   const res = await fetch(url, {

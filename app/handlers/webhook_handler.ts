@@ -36,10 +36,9 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
   const timestamp = headers.get("kick-event-message-timestamp");
   const signature = headers.get("kick-event-signature");
   const eventType = headers.get("kick-event-type");
-
-  if (!messageId || !timestamp || !signature || !eventType) {
-    return { status: 400, body: { error: "Missing required Kick headers" } };
-  }
+    if (!messageId || !timestamp || !signature || !eventType) {
+      return { status: 400, body: { error: "Missing required Kick headers" } };
+    }
 
   const publicKey = await getKickPublicKey();
 

@@ -1,5 +1,5 @@
 import { sleep } from "bun"
-import { KICK_APP_TOKEN } from "../config"
+import { KICK_APP_TOKEN, KICK_API } from "../config"
 import logger from "../logger"
 import { getKickAppToken } from "./auth"
 
@@ -7,7 +7,7 @@ const log = logger.getSubLogger({ name: "kickAPI:users"})
 
 
 export async function getKickChannelByUsername(username: string): Promise<KickChannelResponse> {
-  const url = new URL("https://api.kick.com/public/v1/channels")
+  const url = new URL(`${KICK_API}/public/v1/channels`)
   url.searchParams.set("slug", username)
 
   const res = await fetch(url, {
