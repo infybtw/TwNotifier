@@ -298,6 +298,7 @@ router.callbackQuery("admin_webhookreload", async (ctx) => {
       for (const sub of subs) {
         await deleteKickSubscription(sub)
       }
+      await sleep(2500)
       for (const sub of dbSubs) {
         await subscribeToKickChannelOnline(sub.channel_id!)
       }
