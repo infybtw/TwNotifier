@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -29,6 +29,7 @@ import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateBy
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
 import { deleteKickSubscription, getKickSubscriptions, subscribeToKickChannelOnline } from "../kickAPI/subscription";
+import { sendBroadcastMessage } from "./bot_sender";
 
 export const router = new Composer<MyContext>();
 
@@ -502,9 +503,30 @@ router.callbackQuery("admin_broadcast", async (ctx) => {
 });
 
 router.callbackQuery("admin_broadcast_cancel", async (ctx) => {
-  if (ctx.session.adminLogin && ctx.session.broadcastPending) {
+  if (ctx.session.adminLogin && (ctx.session.broadcastPending || ctx.session.broadcastMessage)) {
     ctx.session.broadcastPending = undefined;
+    ctx.session.broadcastMessage = undefined;
     log.warn(`${ctx.from.id} cancelled broadcast`);
     await ctx.editMessageText("Рассылка отменена", { reply_markup: adminBackKeyboard });
   }
+});
+
+router.callbackQuery("admin_broadcast_confirm", async (ctx) => {
+  if (!ctx.session.adminLogin || !ctx.session.broadcastMessage) {
+    return;
+  }
+
+  const { text, photoFileId } = ctx.session.broadcastMessage;
+  ctx.session.broadcastMessage = undefined;
+
+  log.warn(`${ctx.from.id} confirmed broadcast`, { has_photo: !!photoFileId, text_preview: (text || "").slice(0, 100) });
+  await ctx.editMessageText("Рассылка началась...");
+
+  const { sent, failed } = await sendBroadcastMessage(text, photoFileId);
+
+  log.warn(`${ctx.from.id} broadcast completed`, { sent, failed });
+  await ctx.reply(
+    `Рассылка завершена.\n✅ Успешно: ${sent}\n❌ Ошибок: ${failed}`,
+    { reply_markup: adminBackKeyboard },
+  );
 });

@@ -21,13 +21,13 @@ import {
   platformSelectKeyboard,
   removePlatformSelecteKeyboard,
   adminBackKeyboard,
+  broadcastConfirmKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
 import { sleep } from "bun";
 import { Channel, UserFollow } from "../database/schema";
-import { sendBroadcastMessage } from "./bot_sender";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -350,14 +350,15 @@ router.on("message", async (ctx) => {
   const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;
   const messageText = text || caption;
 
-  log.warn(`${ctx.from.id} started broadcast`, { has_photo: !!photoFileId, text_preview: (messageText || "").slice(0, 100) });
-  await ctx.reply("Рассылка началась...");
+  ctx.session.broadcastMessage = { text: messageText, photoFileId };
 
-  const { sent, failed } = await sendBroadcastMessage(messageText, photoFileId);
+  let preview = "Предпросмотр рассылки:\n\n";
+  if (messageText) {
+    preview += messageText.length > 500 ? messageText.slice(0, 500) + "..." : messageText;
+  }
+  if (photoFileId) {
+    preview += messageText ? "\n📷 Фото" : "📷 Фото";
+  }
 
-  log.warn(`${ctx.from.id} broadcast completed`, { sent, failed });
-  await ctx.reply(
-    `Рассылка завершена.\n✅ Успешно: ${sent}\n❌ Ошибок: ${failed}`,
-    { reply_markup: adminBackKeyboard },
-  );
+  await ctx.reply(preview, { reply_markup: broadcastConfirmKeyboard });
 });

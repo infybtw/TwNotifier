@@ -33,6 +33,10 @@ interface SessionData {
     signed_in: boolean;
   }
   broadcastPending?: boolean;
+  broadcastMessage?: {
+    text?: string;
+    photoFileId?: string;
+  };
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;
