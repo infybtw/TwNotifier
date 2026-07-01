@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { admin_keys, AdminKey, Channel, channels, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
@@ -82,6 +82,23 @@ export async function getAdmins(): Promise<User[]>{
 export async function getFollowCount(): Promise<Number>{
   const [{count: followCount}] = await db.select({ count: count() }).from(users_follows);
   return followCount
+}
+
+export async function getAllFollowsWithDetails() {
+  const result = await db
+    .select({
+      user_id: users_follows.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      channel_id: users_follows.channel_id,
+      channel_name: channels.channel_name,
+      platform: users_follows.platform,
+      created: users_follows.created,
+    })
+    .from(users_follows)
+    .innerJoin(users, eq(users_follows.user_id, users.user_id))
+    .innerJoin(channels, eq(users_follows.channel_id, channels.channel_id));
+  return result;
 }
 
 async function addUser(user_id: number, username: string, first_name: string): Promise<User> {

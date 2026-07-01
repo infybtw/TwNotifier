@@ -4,6 +4,7 @@ import {
   addAdminKey,
     checkOrCreateChannel,
   checkOrCreateFollow,
+  getAllFollowsWithDetails,
   getAdmins,
   getChannelByChannelId,
   getChannels,
@@ -284,8 +285,30 @@ router.callbackQuery("admin_eventsubreload", async (ctx) => {
 
 router.callbackQuery("admin_follows", async (ctx) => {
   if (ctx.session.adminLogin) {
-    const followCount = await getFollowCount()
-    ctx.editMessageText(`Всего ${followCount} подписок `, { reply_markup: adminBackKeyboard })
+    const follows = await getAllFollowsWithDetails()
+    if (follows.length < 1) {
+      return ctx.editMessageText("Нет активных подписок", { reply_markup: adminBackKeyboard })
+    }
+
+    const grouped = new Map<string, typeof follows>()
+    for (const follow of follows) {
+      const key = `${follow.platform}:${follow.channel_name}`
+      const arr = grouped.get(key) || []
+      arr.push(follow)
+      grouped.set(key, arr)
+    }
+
+    let message = `Всего ${follows.length} подписок, ${grouped.size} каналов:\n`
+    for (const [key, subs] of grouped) {
+      const platform = subs[0].platform
+      const channel = subs[0].channel_name
+      const platformIcon = platform === "twitch" ? "🟣" : "🟢"
+      message += `\n${platformIcon} <b>${channel}</b> (${platform})\n`
+      for (const sub of subs) {
+        message += `   👤 ${sub.first_name || "Unknown"} (@${sub.username || "unknown"}) - ${sub.created.slice(0, 10)}\n`
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
