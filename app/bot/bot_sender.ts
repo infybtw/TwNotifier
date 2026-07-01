@@ -1,4 +1,4 @@
-import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId } from "../database/db";
+import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers } from "../database/db";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
@@ -81,4 +81,35 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
         });
       }
     }
+}
+
+export async function sendBroadcastMessage(
+  messageText: string | undefined,
+  photoFileId: string | undefined,
+): Promise<{ sent: number; failed: number }> {
+  const users = await getUsers();
+  let sent = 0;
+  let failed = 0;
+  for (const user of users) {
+    try {
+      if (photoFileId) {
+        await bot.api.sendPhoto(
+          user.user_id,
+          photoFileId,
+          { caption: messageText || undefined, parse_mode: "HTML" },
+        );
+      } else if (messageText) {
+        await bot.api.sendMessage(
+          user.user_id,
+          messageText,
+          { parse_mode: "HTML" },
+        );
+      }
+      sent++;
+    } catch (err) {
+      failed++;
+      log.error("broadcast send failed", { user_id: user.user_id, error: err });
+    }
+  }
+  return { sent, failed };
 }

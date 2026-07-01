@@ -20,12 +20,14 @@ import {
   adminKeyboard,
   platformSelectKeyboard,
   removePlatformSelecteKeyboard,
+  adminBackKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
 import { sleep } from "bun";
 import { Channel, UserFollow } from "../database/schema";
+import { sendBroadcastMessage } from "./bot_sender";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -329,3 +331,31 @@ router.command("becomeAdmin", async (ctx) => {
     return ctx.reply("Вы успешно использовали Админ-Ключ\nДля входа используйте /admin")
   }
 })
+
+router.on("message", async (ctx) => {
+  if (!ctx.session.adminLogin || !ctx.session.broadcastPending) {
+    return;
+  }
+
+  ctx.session.broadcastPending = undefined;
+
+  const text = ctx.message?.text;
+  const photo = ctx.message?.photo;
+  const caption = ctx.message?.caption;
+
+  if (!text && (!photo || photo.length === 0)) {
+    return ctx.reply("Не удалось распознать сообщение. Отправьте текст или фото.", { reply_markup: adminBackKeyboard });
+  }
+
+  const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;
+  const messageText = text || caption;
+
+  await ctx.reply("Рассылка началась...");
+
+  const { sent, failed } = await sendBroadcastMessage(messageText, photoFileId);
+
+  await ctx.reply(
+    `Рассылка завершена.\n✅ Успешно: ${sent}\n❌ Ошибок: ${failed}`,
+    { reply_markup: adminBackKeyboard },
+  );
+});
