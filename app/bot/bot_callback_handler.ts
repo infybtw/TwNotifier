@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -487,5 +487,24 @@ router.callbackQuery("remove_platform_back", async (ctx) => {
   } else {
     await ctx.answerCallbackQuery("Нет активного удаления");
     await ctx.editMessageText("Нет активного процесса удаления канала.");
+  }
+});
+
+router.callbackQuery("admin_broadcast", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.session.broadcastPending = true;
+    log.warn(`${ctx.from.id} initiated broadcast`);
+    await ctx.editMessageText(
+      "Отправьте сообщение для рассылки (текст или фото с подписью)",
+      { reply_markup: broadcastCancelKeyboard },
+    );
+  }
+});
+
+router.callbackQuery("admin_broadcast_cancel", async (ctx) => {
+  if (ctx.session.adminLogin && ctx.session.broadcastPending) {
+    ctx.session.broadcastPending = undefined;
+    log.warn(`${ctx.from.id} cancelled broadcast`);
+    await ctx.editMessageText("Рассылка отменена", { reply_markup: adminBackKeyboard });
   }
 });

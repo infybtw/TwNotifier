@@ -32,6 +32,7 @@ interface SessionData {
   adminLogin?: {
     signed_in: boolean;
   }
+  broadcastPending?: boolean;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;
