@@ -17,13 +17,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # DEV ONLY — NEVER IN PRODUCTION
   twitch-mock:
     container_name: twitch-mock
-    build:
-      context: .
-      dockerfile: twitch-mock/Dockerfile
-      network: host
+    image: ghcr.io/infybtw/twitchkickmock
+    network_mode: host
     ports:
       - "7777:7777" # HTTP (OAuth + Helix)
       - "8081:8081" # WebSocket EventSub
