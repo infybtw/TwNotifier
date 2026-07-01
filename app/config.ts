@@ -22,6 +22,7 @@ export const TWITCH_OAUTH: string = String(process.env.TWITCH_OAUTH);
 
 export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
+export const ALLOW_KICK_INSECURE: boolean = Boolean(process.env.ALLOW_KICK_INSECURE)
 
 
 export async function setAppToken(appToken: string): Promise<void> {
