@@ -97,13 +97,12 @@ export async function sendBroadcastMessage(
         await bot.api.sendPhoto(
           user.user_id,
           photoFileId,
-          { caption: messageText || undefined, parse_mode: "HTML" },
+          { caption: messageText || undefined },
         );
       } else if (messageText) {
         await bot.api.sendMessage(
           user.user_id,
           messageText,
-          { parse_mode: "HTML" },
         );
       }
       sent++;
