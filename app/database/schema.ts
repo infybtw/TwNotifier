@@ -7,12 +7,15 @@ import {
   varchar,
   bigint,
   primaryKey,
-  serial
+  serial,
+  pgEnum
 } from "drizzle-orm/pg-core";
+
 
 export const channels = pgTable("channels", {
   channel_id: bigint({mode: "number"}).unique().notNull(),
   channel_name: varchar({ length: 64 }).notNull(),
+  platform: varchar({length: 16})
 });
 
 export type Channel = typeof channels.$inferSelect
@@ -32,7 +35,8 @@ export type NewUser = typeof users.$inferInsert
 export const users_follows = pgTable("users_follows", {
   user_id: bigint({mode: "number"}).references(() => users.user_id),
   channel_id: bigint({mode: "number"}).references(() => channels.channel_id),
-  created: text().notNull()
+  created: text().notNull(),
+  platform: varchar({length: 16})
 })
 
 export type UserFollow = typeof users_follows.$inferSelect

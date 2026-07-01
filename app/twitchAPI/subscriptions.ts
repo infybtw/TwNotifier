@@ -7,7 +7,7 @@ import {
   TWITCH_HELIX,
   TWITCH_OAUTH,
 } from "../config";
-import {getChannels } from "../database/db";
+import {getChannels, getChannelsByPlatform } from "../database/db";
 import logger from "../logger";
 import { getAppToken } from "./auth";
 
@@ -85,7 +85,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
 }
 
 export async function subscribeAllStreamsOnline() {
-  const channels = await getChannels();
+  const channels = await getChannelsByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
   }
@@ -140,7 +140,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       error_message: data.message,
     })
     await sleep(10000)
-    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
+    return subscribeToChannelOffline(broadcasterId, broadcaster_name)
   } else if (res.status === 401) {
     await getAppToken();
     log.warn("eventsub error: unauthorized", {
@@ -150,7 +150,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       error_message: data.message,
     } )
     await sleep(10000);
-    return subscribeToChannelOnline(broadcasterId, broadcaster_name)
+    return subscribeToChannelOffline(broadcasterId, broadcaster_name)
   } else {
     log.error("subscription error", {
       type: subscription.type,
@@ -163,14 +163,14 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
 }
 
 export async function subscribeAllStreamsOffline() {
-  const channels = await getChannels();
+  const channels = await getChannelsByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }
   log.info("subscribed to all channels offline");
 }
 
-export async function getEventSubList(cursor?: string): Promise<TwitchEventSubSubscription[]> {
+export async function getEventSubList(cursor?: string, retries = 3): Promise<TwitchEventSubSubscription[]> {
   const url = new URL(TWITCH_HELIX + "/helix/eventsub/subscriptions");
   if (cursor) url.searchParams.set("after", cursor);
 
@@ -184,19 +184,22 @@ export async function getEventSubList(cursor?: string): Promise<TwitchEventSubSu
       },
     });
   } catch (err) {
+    if (retries <= 0) throw new Error("getEventSubList: network error after retries");
     await sleep(10000);
-    return getEventSubList(cursor);
+    return getEventSubList(cursor, retries - 1);
   }
 
   if (res.status === 401) {
     await getAppToken();
+    if (retries <= 0) throw new Error("getEventSubList: unauthorized after retries");
     await sleep(10000);
-    return getEventSubList(cursor);
+    return getEventSubList(cursor, retries - 1);
   }
 
   if (res.status !== 200) {
+    if (retries <= 0) throw new Error(`getEventSubList: status ${res.status} after retries`);
     await sleep(10000);
-    return getEventSubList(cursor);
+    return getEventSubList(cursor, retries - 1);
   }
 
   const data: TwitchGetEventSubSubscriptionsResponse = await res.json();
@@ -209,7 +212,7 @@ export async function getEventSubList(cursor?: string): Promise<TwitchEventSubSu
   return data.data;
 }
 
-async function deleteSub(sub: TwitchEventSubSubscription) {
+async function deleteSub(sub: TwitchEventSubSubscription, retries = 3) {
   const url = new URL(TWITCH_HELIX + "/helix/eventsub/subscriptions");
   url.searchParams.set("id", sub.id)
   let res: Response;
@@ -222,8 +225,9 @@ async function deleteSub(sub: TwitchEventSubSubscription) {
       },
     });
   } catch (err) {
+    if (retries <= 0) throw new Error("deleteSub: network error after retries");
     await sleep(10000);
-    return deleteSub(sub);
+    return deleteSub(sub, retries - 1);
   }
 
   if (res.status === 204) {
@@ -240,8 +244,9 @@ async function deleteSub(sub: TwitchEventSubSubscription) {
       status: res.status,
     } )
     await getAppToken();
+    if (retries <= 0) throw new Error("deleteSub: unauthorized after retries");
     await sleep(10000);
-    return deleteSub(sub);
+    return deleteSub(sub, retries - 1);
   } else if (res.status === 404) {
     return;
   } else {

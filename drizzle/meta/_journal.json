@@ -43,6 +43,13 @@
       "when": 1782651681857,
       "tag": "0005_familiar_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782754926921,
+      "tag": "0006_massive_inertia",
+      "breakpoints": true
     }
   ]
 }

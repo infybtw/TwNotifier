@@ -1,6 +1,7 @@
 import { CLIENT_ID, CLIENT_SECRET, setAppToken, TWITCH_OAUTH } from "../config";
 
 async function getAppToken() {
+    const startTime = Bun.nanoseconds();
   const res = await fetch(TWITCH_OAUTH + "/oauth2/token", {
     method: "POST",
     headers: {
@@ -19,7 +20,8 @@ async function getAppToken() {
   }
 
   await setAppToken(data.access_token);
-  console.log("App Access Token received successfully");
+  const elapsedMs = (Bun.nanoseconds() - startTime) / 1_000_000;
+  console.log(`Twitch App Access Token received successfully (${elapsedMs.toFixed(2)}ms)`);
 }
 
 export { getAppToken };

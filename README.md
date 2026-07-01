@@ -1,24 +1,27 @@
 # TwitchNotifierBot
 
-A Telegram bot that sends real-time notifications when Twitch streamers go live. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub WebSocket API.
+A Telegram bot that sends real-time notifications when Twitch/Kick streamers go live. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub WebSocket API and Kick webhooks.
 
 ## Project Description
 
-TwitchNotifierBot is a notification system that connects to Twitch's EventSub WebSocket API to monitor streamers and sends Telegram notifications when they start streaming. The bot maintains persistent WebSocket connections to Twitch, handles authentication, and manages user subscriptions through a Telegram interface.
+TwitchNotifierBot is a notification system that connects to Twitch's EventSub WebSocket API and Kick's webhook system to monitor streamers and sends Telegram notifications when they start streaming. The bot maintains persistent WebSocket connections to Twitch, handles authentication, and manages user subscriptions through a Telegram interface.
 
 ### Key Features
-- Real-time Twitch stream notifications via Telegram
+- Real-time Twitch and Kick stream notifications via Telegram
 - Twitch EventSub WebSocket integration for efficient streaming
-- PostgreSQL(SQLite deprecated) database for persistent user preferences
+- Kick webhook integration for stream notifications
+- PostgreSQL database for persistent user preferences
 - Grammy.js framework for Telegram bot interactions
-- Development mode with localhost API mocking support
+- Development mode with Twitch API mocking support
 
 ## Quickstart
 
 ### Prerequisites
 - [Bun](https://bun.sh/) runtime (v1.0+)
+- PostgreSQL database
 - Telegram Bot Token from [@BotFather](https://t.me/botfather)
 - Twitch API credentials (Client ID and Client Secret)
+- Kick API credentials (optional, for Kick stream notifications)
 
 ### Installation
 
@@ -36,22 +39,25 @@ TwitchNotifierBot is a notification system that connects to Twitch's EventSub We
 3. Configure environment variables:
    ```bash
    cp .env.example .env
-   cp .env.example .env.dev
    ```
 
-4. Edit the environment files:
-   - `.env` - Production configuration with real Twitch endpoints
-   - `.env.dev` - Development configuration with localhost endpoints
+4. Edit `.env` with your configuration (see `.env.example` for all required variables)
 
 ### Environment Variables
 
-Create `.env` and `.env.dev` files with the following structure:
+Create a `.env` file with the following structure (see `.env.example`):
 
 ```bash
 # Twitch API Credentials
 CLIENT_ID=TWITCH_CLIENT_ID
 CLIENT_SECRET=TWITCH_CLIENT_SECRET
-BOT_USER_ID=BOT_USER_ID(not required)
+BOT_USER_ID=BOT_USER_ID
+
+# Kick API Credentials (optional)
+KICK_CLIENT_ID=
+KICK_CLIENT_SECRET=
+KICK_WEBHOOK_PATH=
+HTTP_SERVER_PORT=
 
 # Twitch EventSub Configuration
 SHARD_COUNT=1
@@ -59,30 +65,32 @@ SHARD_COUNT=1
 # Telegram Bot Token
 BOT_TOKEN=TELEGRAM_BOT_TOKEN
 
-# Production endpoints (use in .env):
+# Database
+DATABASE_URL=DATABASE_URL
+
+# Twitch endpoints
 TWITCH_WS=TWITCH_WS_URL
 TWITCH_HELIX=TWITCH_HELIX_URL
 TWITCH_OAUTH=TWITCH_OAUTH_URL
-DATABASE_URL=DATABASE_URL
+```
 
-# DEV ONLY — NEVER IN PRODUCTION
-# Development endpoints (use in .env.dev):
-# TWITCH_WS=ws://localhost:8081/ws
-# TWITCH_HELIX=localhost:7777
-# TWITCH_OAUTH=localhost:7777
-
+For development with twitch-mock, use localhost endpoints:
+```bash
+TWITCH_WS=ws://localhost:8081/ws
+TWITCH_HELIX=localhost:7777
+TWITCH_OAUTH=localhost:7777
 ```
 
 ### Running the Bot
 
-**Development mode** (with file watching and localhost endpoints):
+**Development mode** (with `.env` file):
 ```bash
 bun run dev
 ```
 
-**Production mode** (with real Twitch endpoints):
+**Production mode** (via Docker):
 ```bash
-bun run start
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Testing
@@ -95,23 +103,41 @@ bun test
 ```
 app/
 ├── index.ts              # Main entry point
-├── config.ts            # Environment configuration
-├── logger.ts            # Logging setup
-├── bot/                 # Telegram bot handlers
-│   ├── bot.ts           # Bot initialization
-│   ├── bot_router.ts    # Message routing
-│   └── bot_callback_handler.ts # Callback handlers
-├── twitchAPI/           # Twitch API integration
-│   ├── auth.ts          # Authentication
-│   ├── shards.ts        # WebSocket connection management
-│   ├── conduits.ts      # Conduit management
-│   └── subscriptions.ts # Event subscriptions
-├── handlers/            # WebSocket handlers
-│   └── ws_handler.ts    # WebSocket message processing
-└── models/              # Database models
-    ├── user.ts          # User data
-    ├── channel.ts       # Channel tracking
-    └── follow.ts        # Follow relationships
+├── config.ts             # Environment configuration
+├── logger.ts             # Logging setup
+├── migrate.ts            # Database migration runner
+├── bot/                  # Telegram bot handlers
+│   ├── bot.ts            # Bot initialization
+│   ├── bot_router.ts     # Message routing
+│   ├── bot_callback_handler.ts # Callback handlers
+│   ├── bot_sender.ts     # Notification sending
+│   └── keyboards.ts      # Keyboard layouts
+├── twitchAPI/            # Twitch API integration
+│   ├── auth.ts           # Authentication
+│   ├── shards.ts         # WebSocket connection management
+│   ├── conduits.ts       # Conduit management
+│   ├── subscriptions.ts  # Event subscriptions
+│   └── users.ts          # User lookups
+├── kickAPI/              # Kick API integration
+│   ├── auth.ts           # Kick authentication
+│   ├── subscription.ts   # Kick subscription management
+│   ├── users.ts          # Kick user lookups
+│   ├── publicKey.ts      # Webhook signature verification
+│   └── verifyWebhook.ts  # Webhook verification
+├── handlers/             # Event handlers
+│   ├── ws_handler.ts     # Twitch WebSocket message processing
+│   ├── http_handler.ts   # Elysia HTTP server (Kick webhooks)
+│   └── webhook_handler.ts # Kick webhook processing
+├── database/             # Database layer
+│   ├── db.ts             # Database queries
+│   └── schema.ts         # Drizzle ORM schema
+├── models/               # Type definitions
+│   ├── twitch_user.ts
+│   ├── twitch_subscription.ts
+│   └── kick_user.ts
+└── utils/                # Utilities
+    ├── settings.ts       # User settings helpers
+    └── urlParser.ts      # URL parsing
 ```
 
 ## Libraries Used
@@ -120,21 +146,25 @@ app/
 - **[grammy](https://grammy.dev/)** (^1.42.0) - Telegram Bot Framework
 - **[@grammyjs/conversations](https://grammy.dev/plugins/conversations)** (^2.1.1) - Conversation management for Telegram bots
 - **[@grammyjs/storage-file](https://grammy.dev/plugins/storage-file)** (^2.5.1) - File-based session storage
-- **[tslog](https://tslog.js.org/)** (^4.10.2) - TypeScript logging with rich features
+- **[drizzle-orm](https://orm.drizzle.team/)** (^0.45.2) - TypeScript ORM for PostgreSQL
+- **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework (Kick webhooks)
+- **[pg](https://node-postgres.com/)** (^8.22.0) - PostgreSQL client
+- **[pino](https://getpino.io/)** (^10.3.1) - Logger
 
 ### Development Dependencies
 - **[@types/bun](https://bun.sh/docs/typescript)** - TypeScript definitions for Bun
 - **[typescript](https://www.typescriptlang.org/)** (^5) - TypeScript compiler
+- **[drizzle-kit](https://orm.drizzle.team/kit-docs/overview)** (^0.31.10) - Database migration tooling
 - **[TwitchMock](https://github.com/twirapp/twir/tree/main/apps/twitch-mock)** - Twitch mock by Satont
 
 ### Runtime
 - **[Bun](https://bun.sh/)** - JavaScript runtime and package manager
-- **PostgreSQL** - Embedded database for persistence
+- **[PostgreSQL](https://www.postgresql.org/)** - Database for persistence
 
 ## Development
 
 ### TypeScript Configuration
 - Target: ES2020
-- Module: CommonJS
+- Module: ES modules (`"type": "module"` in package.json)
 - Source directory: `app/`
 - Output directory: `dist/`

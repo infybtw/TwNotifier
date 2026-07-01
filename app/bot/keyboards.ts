@@ -42,7 +42,16 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
 export const adminKeyboard = new InlineKeyboard()
   .text("Каналы", "admin_channels").text("Пользователи", "admin_users").row()
   .text("Администраторы","admin_admins").text("Добавить администратора", "admin_add").row()
-  .text("Подписки","admin_follows").text("Перезапуск EventSub","admin_eventsubreload").row()
+  .text("Подписки", "admin_follows").row()
+  .text("Перезапуск EventSub", "admin_eventsubreload").text("Перезапуск Webhook", "admin_webhookreload").row()
   .text("Выйти", "admin_exit")
 
 export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")
+
+export const platformSelectKeyboard = new InlineKeyboard()
+  .text("Kick", "platform_kick").text("Twitch", "platform_twitch").row()
+  .text("Отмена", "platform_back")
+
+export const removePlatformSelecteKeyboard = new InlineKeyboard()
+  .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
+  .text("Отмена", "remove_platform_back")

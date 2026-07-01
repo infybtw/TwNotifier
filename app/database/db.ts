@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, Channel, channels, NewChannel, NewUser, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, eq } from "drizzle-orm";
+import { admin_keys, AdminKey, Channel, channels, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { and, count, eq, sql } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
@@ -29,18 +29,43 @@ export async function getFollowByUserIdAndChannelId(user_id: number, channel_id:
   return follow
 }
 
+export async function getFollowByUserIdChannelIdAndPlatform(user_id: number, channel_id: number, platform: "kick" | "twitch"): Promise<UserFollow>{
+  const [follow] = await db.select().from(users_follows).where(and(eq(users_follows.user_id,user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
+  return follow
+}
+
 export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>{
-  const follows = db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
+  const follows = await db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
   return follows
 }
 
-export async function getChannelFollowersByChannelId(channel_id: number): Promise<UserFollow[]>{
-  const follows = await db.select().from(users_follows).where(eq(users_follows.channel_id, channel_id))
+export async function getFollowsByPlatform(platform: "kick" | "twitch"): Promise<UserFollow[]>{
+  const res = await db.select().from(users_follows).where(eq(users_follows.platform, platform))
+  return res
+}
+
+export async function getFollowsByUserIdAndPlatform(user_id: number, platform: "kick" | "twitch"): Promise<UserFollow[]>{
+  const follows = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id), eq(users_follows.platform, platform)))
+  return follows
+}
+
+export async function getChannelFollowersByChannelIdAndPlatform(channel_id: number, platform: "kick"| "twitch"): Promise<UserFollow[]>{
+  const follows = await db.select().from(users_follows).where(and(eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform)))
   return follows
 }
 
 export async function getChannels(): Promise<Channel[]>{
   const res = await db.select().from(channels)
+  return res
+}
+
+export async function getChannelsByUsername(username: string): Promise<Channel[]> {
+  const res = await db.select().from(channels).where(eq(channels.channel_name, username))
+  return res
+}
+
+export async function getChannelsByPlatform(platform: "kick" | "twitch"): Promise<Channel[]>{
+  const res = await db.select().from(channels).where(eq(channels.platform, platform))
   return res
 }
 
@@ -57,6 +82,23 @@ export async function getAdmins(): Promise<User[]>{
 export async function getFollowCount(): Promise<Number>{
   const [{count: followCount}] = await db.select({ count: count() }).from(users_follows);
   return followCount
+}
+
+export async function getAllFollowsWithDetails() {
+  const result = await db
+    .select({
+      user_id: users_follows.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      channel_id: users_follows.channel_id,
+      channel_name: channels.channel_name,
+      platform: users_follows.platform,
+      created: users_follows.created,
+    })
+    .from(users_follows)
+    .innerJoin(users, eq(users_follows.user_id, users.user_id))
+    .innerJoin(channels, eq(users_follows.channel_id, channels.channel_id));
+  return result;
 }
 
 async function addUser(user_id: number, username: string, first_name: string): Promise<User> {
@@ -83,16 +125,16 @@ async function addUser(user_id: number, username: string, first_name: string): P
   }
 }
 
-async function addChannel(channel_id: number, channel_name: string): Promise<Channel>{
-  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name }).returning()
+async function addChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<Channel>{
+  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name, platform: platform }).returning()
   if (!newChannel) {
     throw new Error(`Failed to add channel ${channel_id}`)
   }
   return newChannel
 }
 
-async function addFollow(user_id: number, channel_id: number): Promise<UserFollow>{
-  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString() }).returning()
+async function addFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<UserFollow>{
+  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString(), platform: platform }).returning()
   if (!userFollow) {
     throw new Error(`Failed to create follow ${user_id}-${channel_id}`)
   }
@@ -116,6 +158,13 @@ export async function removeFollowByUserIdAndChannelId(user_id: number, channel_
   return follow
 }
 
+export async function removeFollowByUserIdChannelIdAndPlatfrom(user_id: number, channel_id: number, platfrom: "kick" | "twitch"): Promise<UserFollow>{
+  const [follow] = await db.delete(users_follows)
+    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platfrom)))
+    .returning()
+  return follow
+}
+
 export async function checkOrCreateUser(user_id: number, username: string, first_name: string): Promise<{ user: User, isNew: boolean } | undefined> {
   const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   if (exist) {
@@ -130,33 +179,33 @@ export async function checkOrCreateUser(user_id: number, username: string, first
   }
 }
 
-export async function checkOrCreateChannel(channel_id: number, channel_name: string): Promise<{ channel: Channel, isNew: boolean }>{
-  const [exist] = await db.select().from(channels).where(eq(channels.channel_id, channel_id)).limit(1)
+export async function checkOrCreateChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<{ channel: Channel, isNew: boolean }>{
+  const [exist] = await db.select().from(channels).where(and(eq(channels.channel_id, channel_id), eq(channels.platform, platform))).limit(1)
   if (exist) {
     return {channel: exist, isNew: false}
   }
-  const channel = await addChannel(channel_id, channel_name)
+  const channel = await addChannel(channel_id, channel_name, platform)
   return {channel, isNew: true}
 }
 
-export async function checkOrCreateFollow(user_id: number, channel_id: number): Promise<{follow: UserFollow, isNew: boolean}> {
-  const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id))).limit(1)
+export async function checkOrCreateFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<{follow: UserFollow, isNew: boolean}> {
+  const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
   if (exist) {
     return {follow: exist, isNew: false}
   }
-  const userFollow = await addFollow(user_id, channel_id)
+  const userFollow = await addFollow(user_id, channel_id, platform)
   return {follow: userFollow , isNew: true}
 }
 
 export async function makeUserAdmin(user_id: number, key: string): Promise<User | undefined> {
   try {
     const result = await db.transaction(async (tx) => {
-      const adminKey = await getAdminKeyByKey(key)
+      const adminKey = await tx.select().from(admin_keys).where(eq(admin_keys.key, key)).limit(1).then(r => r[0])
       if (!adminKey || adminKey.used) {
         return undefined
       }
-      await setAdminKeyUsedById(adminKey.id, user_id)
-      const user = await setUserAdmin(user_id, true)
+      await tx.update(admin_keys).set({ used: true, used_date: new Date().toISOString(), used_by: user_id }).where(eq(admin_keys.id, adminKey.id))
+      const [user] = await tx.update(users).set({ is_admin: true }).where(eq(users.user_id, user_id)).returning()
       return user
     })
     return result
