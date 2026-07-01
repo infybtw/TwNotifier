@@ -88,6 +88,7 @@ export async function sendBroadcastMessage(
   photoFileId: string | undefined,
 ): Promise<{ sent: number; failed: number }> {
   const users = await getUsers();
+  log.info("broadcast started", { total_users: users.length, has_photo: !!photoFileId });
   let sent = 0;
   let failed = 0;
   for (const user of users) {
@@ -111,5 +112,6 @@ export async function sendBroadcastMessage(
       log.error("broadcast send failed", { user_id: user.user_id, error: err });
     }
   }
+  log.info("broadcast finished", { sent, failed, total: users.length });
   return { sent, failed };
 }

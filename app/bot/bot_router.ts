@@ -350,10 +350,12 @@ router.on("message", async (ctx) => {
   const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;
   const messageText = text || caption;
 
+  log.warn(`${ctx.from.id} started broadcast`, { has_photo: !!photoFileId, text_preview: (messageText || "").slice(0, 100) });
   await ctx.reply("Рассылка началась...");
 
   const { sent, failed } = await sendBroadcastMessage(messageText, photoFileId);
 
+  log.warn(`${ctx.from.id} broadcast completed`, { sent, failed });
   await ctx.reply(
     `Рассылка завершена.\n✅ Успешно: ${sent}\n❌ Ошибок: ${failed}`,
     { reply_markup: adminBackKeyboard },
