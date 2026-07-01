@@ -126,7 +126,6 @@ router.callbackQuery("confirm_add", async (ctx) => {
   }
 
   // Add follow
-  const now = new Date().toISOString();
   try {
     const follow = (await checkOrCreateFollow(ctx.from.id, channelId, platform))
     ctx.session.pendingAdd = undefined;
@@ -258,7 +257,7 @@ router.callbackQuery("admin_add", async (ctx) => {
   if (ctx.session.adminLogin) {
     const key = randomBytes(32).toString("base64url")
     const adminKey = await addAdminKey(ctx.from.id, key)
-    if (!addAdminKey) {
+    if (!adminKey) {
       return ctx.editMessageText("Произошла ошибка при гененрации Админ-Ключа")
     }
     ctx.editMessageText(`Админ ключ успешно сгененерирован\n\n<tg-spoiler>${adminKey.key}</tg-spoiler>`, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
@@ -477,7 +476,7 @@ router.callbackQuery("remove_platform_twitch", async (ctx) => {
 router.callbackQuery("remove_platform_back", async (ctx) => {
   if (ctx.session.removePendingPlatformSelect) {
     const { twitchChannel, kickChannel } = ctx.session.removePendingPlatformSelect;
-    ctx.session.pendingRemove = undefined;
+    ctx.session.removePendingPlatformSelect = undefined;
     await ctx.answerCallbackQuery("Удаление отменено");
     await ctx.editMessageText(`❌ Удаление канала ${twitchChannel.channel_name} отменено.`);
     log.info("channel removal cancelled", {

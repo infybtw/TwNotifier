@@ -54,7 +54,7 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
   }
 
   const payload: KickWebhookPayload = JSON.parse(rawBody);
-  processKickEvent(eventType, payload);
+  await processKickEvent(eventType, payload);
 
   return { status: 200, body: { ok: true } };
 }

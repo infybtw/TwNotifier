@@ -7,10 +7,10 @@ const log = logger.getSubLogger({ name: "bot:sender" });
 export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, data: JSON) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
-      const userSettings = await getSettingsStateByUserId(follower.user_id);
+      const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1) {
         await bot.api.sendMessage(
-          follower.user_id,
+          follower.user_id!,
           //@ts-ignore
           `<b>${channel_name}</b> ведет прямую трансляцию.\n${data.title}\n<i>${data.game_name}</i>\n\n<a href="https://twitch.tv/${channel_name}">Twitch</a>`,
           { parse_mode: "HTML" },
@@ -27,10 +27,10 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
 export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number,channel_name: string) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
-      const userSettings = await getSettingsStateByUserId(follower.user_id);
+      const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1) {
         await bot.api.sendMessage(
-          follower.user_id,
+          follower.user_id!,
           `<b>${channel_name}</b> завершил прямую трансляцию.`,
           { parse_mode: "HTML" },
         );

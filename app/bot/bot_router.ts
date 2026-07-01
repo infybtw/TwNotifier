@@ -195,8 +195,8 @@ router.command("remove", async (ctx) => {
     return ctx.reply("Канал с таким именем не найден");
   }
 
-  const kickFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel?.channel_id!, "kick")
-  const twitchFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel?.channel_id!, "twitch")
+  const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
+  const twitchFollow = twitchChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel.channel_id!, "twitch") : undefined
 
   let bothFollow: boolean = false
   let follow: UserFollow
@@ -209,7 +209,7 @@ router.command("remove", async (ctx) => {
       follow = kickFollow
       channel = kickChannel!
     } else {
-      follow = twitchFollow
+      follow = twitchFollow!
       channel = twitchChannel!
     }
   } else {
@@ -301,7 +301,8 @@ router.command("list", async (ctx) => {
 });
 
 router.command("admin", async (ctx) => {
-  if (!(await getUserByUserId(ctx.from?.id!)).is_admin) {
+  const user = await getUserByUserId(ctx.from?.id!)
+  if (!user?.is_admin) {
     ctx.reply("Данная команда доступна только админам")
     return
   }
@@ -313,7 +314,8 @@ router.command("admin", async (ctx) => {
 })
 
 router.command("becomeAdmin", async (ctx) => {
-  if ((await getUserByUserId(ctx.from?.id!)).is_admin) {
+  const user = await getUserByUserId(ctx.from?.id!)
+  if (user?.is_admin) {
     return ctx.reply("Вы уже админ")
   }
   const key = ctx.match.trim();
@@ -321,8 +323,8 @@ router.command("becomeAdmin", async (ctx) => {
     return
   }
   const user_id = ctx.from?.id!
-  const user = await makeUserAdmin(user_id, key)
-  if (user) {
+  const updatedUser = await makeUserAdmin(user_id, key)
+  if (updatedUser) {
     log.warn(`User ${user_id} become admin with ${key}`)
     return ctx.reply("Вы успешно использовали Админ-Ключ\nДля входа используйте /admin")
   }

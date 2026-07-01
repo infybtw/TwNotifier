@@ -35,7 +35,7 @@ export async function getFollowByUserIdChannelIdAndPlatform(user_id: number, cha
 }
 
 export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>{
-  const follows = db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
+  const follows = await db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
   return follows
 }
 
@@ -45,7 +45,7 @@ export async function getFollowsByPlatform(platform: "kick" | "twitch"): Promise
 }
 
 export async function getFollowsByUserIdAndPlatform(user_id: number, platform: "kick" | "twitch"): Promise<UserFollow[]>{
-  const follows = db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id), eq(users_follows.platform, platform)))
+  const follows = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id), eq(users_follows.platform, platform)))
   return follows
 }
 
@@ -200,12 +200,12 @@ export async function checkOrCreateFollow(user_id: number, channel_id: number, p
 export async function makeUserAdmin(user_id: number, key: string): Promise<User | undefined> {
   try {
     const result = await db.transaction(async (tx) => {
-      const adminKey = await getAdminKeyByKey(key)
+      const adminKey = await tx.select().from(admin_keys).where(eq(admin_keys.key, key)).limit(1).then(r => r[0])
       if (!adminKey || adminKey.used) {
         return undefined
       }
-      await setAdminKeyUsedById(adminKey.id, user_id)
-      const user = await setUserAdmin(user_id, true)
+      await tx.update(admin_keys).set({ used: true, used_date: new Date().toISOString(), used_by: user_id }).where(eq(admin_keys.id, adminKey.id))
+      const [user] = await tx.update(users).set({ is_admin: true }).where(eq(users.user_id, user_id)).returning()
       return user
     })
     return result

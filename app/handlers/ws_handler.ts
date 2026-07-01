@@ -26,7 +26,6 @@ export async function onNotification(payload: any) {
         Number(payload.event.broadcaster_user_id),
         payload.event.broadcaster_user_name,
         streamData,
-        "twitch"
       );
       break;
     case "stream.offline":
@@ -34,7 +33,6 @@ export async function onNotification(payload: any) {
       sendTwitchStreamOfflineNotificationToUsers(
         Number(payload.event.broadcaster_user_id),
         payload.event.broadcaster_user_name,
-        "twitch"
       );
       break;
     default:
