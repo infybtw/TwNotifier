@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -46,6 +46,23 @@ router.callbackQuery("settingsBACK", async (ctx) => {
   await ctx.editMessageText(
     "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
     { reply_markup: homePageKeyboard },
+  );
+});
+
+router.callbackQuery("infoCMD", async (ctx) => {
+  await ctx.editMessageText(
+    "*TwNotifier* — бот для отслеживания стримов\n\n" +
+    "Поддерживаемые платформы:\n" +
+    "🟣 _Twitch_\n" +
+    "🟢 _Kick_\n\n" +
+    "Команды:\n" +
+    "`/add` _<имя канала>_ — добавить канал\n" +
+    "`/remove` _<имя канала>_ — удалить канал\n" +
+    "`/list` — мои подписки\n\n" +
+    "Бот пришлёт уведомление, когда стример выйдет в эфир или завершит трансляцию.\n\n" +
+    "Настройки уведомлений — в разделе «Настройки».\n\n" +
+    "[GitHub](https://github.com/infybtw/twnotifier)",
+    { reply_markup: infoBackKeyboard, parse_mode: "Markdown", disable_web_page_preview: true },
   );
 });
 

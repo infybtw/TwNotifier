@@ -55,6 +55,8 @@ export const broadcastConfirmKeyboard = new InlineKeyboard()
 
 export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")
 
+export const infoBackKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
+
 export const platformSelectKeyboard = new InlineKeyboard()
   .text("Kick", "platform_kick").text("Twitch", "platform_twitch").row()
   .text("Отмена", "platform_back")
