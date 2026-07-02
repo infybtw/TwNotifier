@@ -163,7 +163,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
     if (!follow.isNew) {
       return await ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${displayName}`, { parse_mode: "Markdown" });
     }
-    await ctx.editMessageText(`✅ *Канал добавлен*\n\nТеперь вы отслеживаете ${displayName}`, { parse_mode: "Markdown" });
+    await ctx.editMessageText(`✅ *Канал добавлен*\n\nТеперь вы отслеживаете ${displayName}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
     log.info("new follow", {
       userId: ctx.from.id,
       channel: displayName,
@@ -217,7 +217,7 @@ router.callbackQuery("confirm_remove", async (ctx) => {
   // Clear pending removal
   ctx.session.pendingRemove = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${displayName} удалён из отслеживаемых.`, { parse_mode: "Markdown" });
+  await ctx.editMessageText(`✅ *Канал удалён*\n\n${displayName} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: displayName,
@@ -625,7 +625,7 @@ router.callbackQuery("remove_platform_kick", async (ctx) => {
   // Clear pending removal
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${kickChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown" });
+  await ctx.editMessageText(`✅ *Канал удалён*\n\n${kickChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: kickChannel.channel_name,
@@ -655,7 +655,7 @@ router.callbackQuery("remove_platform_twitch", async (ctx) => {
   // Clear pending removal
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${twitchChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown" });
+  await ctx.editMessageText(`✅ *Канал удалён*\n\n${twitchChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: twitchChannel.channel_name,
