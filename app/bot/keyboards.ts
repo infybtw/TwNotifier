@@ -55,6 +55,8 @@ export const broadcastConfirmKeyboard = new InlineKeyboard()
 
 export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")
 
+export const backHomeKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
+
 export const infoBackKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
 
 export const platformSelectKeyboard = new InlineKeyboard()

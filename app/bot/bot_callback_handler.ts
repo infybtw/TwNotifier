@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -527,11 +527,11 @@ router.callbackQuery("platform_twitch", async (ctx) => {
   const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name.toLowerCase()!
 
   if (!ctx.from) {
-    return ctx.reply("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown" });
+    return ctx.editMessageText("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   }
 
   if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "twitch")) {
-    return ctx.reply(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown" });
+    return ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   }
 
   // Store pending channel in session
@@ -568,11 +568,11 @@ router.callbackQuery("platform_kick", async (ctx) => {
   const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug.toLowerCase()!
 
   if (!ctx.from) {
-    return ctx.reply("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown" });
+    return ctx.editMessageText("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   }
 
   if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "kick")) {
-    return ctx.reply(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown" });
+    return ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
   }
 
   // Store pending channel in session

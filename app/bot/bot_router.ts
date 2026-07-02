@@ -34,10 +34,14 @@ const log = logger.getSubLogger({ name: "bot:router" });
 export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
-  ctx.reply(
-    "Добро пожаловать в TwNotifier\n\nИспользование:\n/add <канал> - Добавить канал (можно использовать имя или URL Twitch)\n/remove <канал> - Удалить канал из отслеживаемых\n/list - Список моих каналов",
-    { reply_markup: homePageKeyboard },
-  );
+  let message = `🏠 *TwNotifier*\n`
+  message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+  message += `Бот для отслеживания стримов\n\n`
+  message += `📌 *Команды:*\n`
+  message += `• /add _<канал>_ — добавить канал\n`
+  message += `• /remove _<канал>_ — удалить канал\n`
+  message += `• /list — мои подписки`
+  ctx.reply(message, { reply_markup: homePageKeyboard, parse_mode: "Markdown" });
   const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
   if (!newUser) {
     ctx.reply("Упс, произошла ошибка при регистрации, пожалуйста обратитесь в поддержку")
