@@ -18,8 +18,8 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
   if (!user_settings) {
     return new InlineKeyboard().text("Назад", "settingsBACK");
   }
-  let onlineNotificationText = "Уведомления о начале трансляции ";
-  let offlineNotificationText = "Уведомления об окончании трансляции ";
+  let onlineNotificationText = "Старт трансляции ";
+  let offlineNotificationText = "Окончание трансляции ";
   if (user_settings?.online_notification === 1) {
     onlineNotificationText += "✅";
   } else {
