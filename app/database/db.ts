@@ -146,6 +146,29 @@ export async function addAdminKey(user_id: number, key: string): Promise<AdminKe
   return adminKey
 }
 
+export async function getAllAdminKeys() {
+  const result = await db
+    .select({
+      id: admin_keys.id,
+      key: admin_keys.key,
+      issue_date: admin_keys.issue_date,
+      issued_by: admin_keys.issued_by,
+      issued_by_name: users.first_name,
+      issued_by_username: users.username,
+      used: admin_keys.used,
+      used_date: admin_keys.used_date,
+      used_by: admin_keys.used_by,
+    })
+    .from(admin_keys)
+    .leftJoin(users, eq(admin_keys.issued_by, users.user_id));
+  return result;
+}
+
+export async function revokeAdminKey(id: number): Promise<AdminKey | undefined> {
+  const [deleted] = await db.delete(admin_keys).where(eq(admin_keys.id, id)).returning()
+  return deleted
+}
+
 export async function getAdminKeyByKey(key: string): Promise<AdminKey> {
   const [res] = await db.select().from(admin_keys).where(eq(admin_keys.key, key)).limit(1)
   return res

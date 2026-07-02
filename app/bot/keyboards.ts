@@ -41,7 +41,7 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
 
 export const adminKeyboard = new InlineKeyboard()
   .text("Каналы", "admin_channels").text("Пользователи", "admin_users").row()
-  .text("Администраторы","admin_admins").text("Добавить администратора", "admin_add").row()
+  .text("Администраторы","admin_admins").text("Ключи", "admin_keys").row()
   .text("Подписки", "admin_follows").row()
   .text("Рассылка", "admin_broadcast").row()
   .text("Перезапуск EventSub", "admin_eventsubreload").text("Перезапуск Webhook", "admin_webhookreload").row()
@@ -72,3 +72,7 @@ export const eventsubReloadConfirmKeyboard = new InlineKeyboard()
 export const webhookReloadConfirmKeyboard = new InlineKeyboard()
   .text("Подтвердить", "admin_webhookreload_confirm")
   .text("Отмена", "admin_webhookreload_cancel")
+
+export const adminAddConfirmKeyboard = new InlineKeyboard()
+  .text("Подтвердить", "admin_add_confirm")
+  .text("Отмена", "admin_back")
