@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -290,6 +290,12 @@ router.callbackQuery("admin_back", async (ctx) => {
 
 router.callbackQuery("admin_eventsubreload", async (ctx) => {
   if (ctx.session.adminLogin) {
+    ctx.editMessageText("Вы уверены, что хотите перезапустить EventSub?", { reply_markup: eventsubReloadConfirmKeyboard })
+  }
+})
+
+router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
+  if (ctx.session.adminLogin) {
     ctx.editMessageText("Eventsub перезапускается, подождите")
     const subs = await getEventSubList()
     await deleteSubs(subs)
@@ -297,6 +303,12 @@ router.callbackQuery("admin_eventsubreload", async (ctx) => {
     await subscribeAllStreamsOnline()
     await subscribeAllStreamsOffline()
     ctx.editMessageText("Eventsub успешно перезапущен", { reply_markup: adminBackKeyboard })
+  }
+})
+
+router.callbackQuery("admin_eventsubreload_cancel", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.editMessageText("Перезапуск EventSub отменён", { reply_markup: adminBackKeyboard })
   }
 })
 
@@ -331,6 +343,12 @@ router.callbackQuery("admin_follows", async (ctx) => {
 
 router.callbackQuery("admin_webhookreload", async (ctx) => {
   if (ctx.session.adminLogin) {
+    ctx.editMessageText("Вы уверены, что хотите перезапустить Webhooks?", { reply_markup: webhookReloadConfirmKeyboard })
+  }
+})
+
+router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
+  if (ctx.session.adminLogin) {
     ctx.editMessageText("Webhooks перезапускаются, подождите")
     const subs = await getKickSubscriptions()
     const dbSubs = await getChannelsByPlatform("kick")
@@ -344,6 +362,12 @@ router.callbackQuery("admin_webhookreload", async (ctx) => {
       }
     }
     ctx.editMessageText("Webhooks успешно перезапущены.", {reply_markup: adminBackKeyboard})
+  }
+})
+
+router.callbackQuery("admin_webhookreload_cancel", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    ctx.editMessageText("Перезапуск Webhooks отменён", { reply_markup: adminBackKeyboard })
   }
 })
 

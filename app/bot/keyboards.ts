@@ -64,3 +64,11 @@ export const platformSelectKeyboard = new InlineKeyboard()
 export const removePlatformSelecteKeyboard = new InlineKeyboard()
   .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
   .text("Отмена", "remove_platform_back")
+
+export const eventsubReloadConfirmKeyboard = new InlineKeyboard()
+  .text("Подтвердить", "admin_eventsubreload_confirm")
+  .text("Отмена", "admin_eventsubreload_cancel")
+
+export const webhookReloadConfirmKeyboard = new InlineKeyboard()
+  .text("Подтвердить", "admin_webhookreload_confirm")
+  .text("Отмена", "admin_webhookreload_cancel")
