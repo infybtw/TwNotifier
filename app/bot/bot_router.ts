@@ -305,20 +305,25 @@ router.command("list", async (ctx) => {
 router.command("admin", async (ctx) => {
   const user = await getUserByUserId(ctx.from?.id!)
   if (!user?.is_admin) {
-    ctx.reply("Данная команда доступна только админам")
+    ctx.reply("🚫 <b>Доступ запрещён</b>\n\nДанная команда доступна только администраторам.", {parse_mode: "HTML"})
     return
   }
   ctx.session.adminLogin = {
     signed_in: true
   }
   log.warn(`${ctx.from?.id!} enter admin system`)
-  ctx.reply("Вы вошли в систему администрирования", {reply_markup: adminKeyboard})
+  const firstName = ctx.from?.first_name || "Admin"
+  let message = `🛡️ <b>Панель управления</b>\n`
+  message += `━━━━━━━━━━━━━━━━━━━━\n`
+  message += `Добро пожаловать, ${firstName}!\n\n`
+  message += `Выберите раздел для управления:`
+  ctx.reply(message, {reply_markup: adminKeyboard, parse_mode: "HTML"})
 })
 
 router.command("becomeAdmin", async (ctx) => {
   const user = await getUserByUserId(ctx.from?.id!)
   if (user?.is_admin) {
-    return ctx.reply("Вы уже админ")
+    return ctx.reply("ℹ️ <b>Вы уже администратор</b>\n\nИспользуйте /admin для входа в панель.", {parse_mode: "HTML"})
   }
   const key = ctx.match.trim();
   if (!key) {
@@ -328,7 +333,11 @@ router.command("becomeAdmin", async (ctx) => {
   const updatedUser = await makeUserAdmin(user_id, key)
   if (updatedUser) {
     log.warn(`User ${user_id} become admin with ${key}`)
-    return ctx.reply("Вы успешно использовали Админ-Ключ\nДля входа используйте /admin")
+    let message = `✅ <b>Админ-ключ активирован</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `Вы успешно получили права администратора.\n\n`
+    message += `📌 Используйте /admin для входа в панель управления.`
+    return ctx.reply(message, {parse_mode: "HTML"})
   }
 })
 
@@ -344,7 +353,11 @@ router.on("message", async (ctx) => {
   const caption = ctx.message?.caption;
 
   if (!text && (!photo || photo.length === 0)) {
-    return ctx.reply("Не удалось распознать сообщение. Отправьте текст или фото.", { reply_markup: adminBackKeyboard });
+    let errorMessage = `⚠️ <b>Ошибка формата</b>\n`
+    errorMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    errorMessage += `Не удалось распознать сообщение.\n\n`
+    errorMessage += `📝 Отправьте текст или фото.`
+    return ctx.reply(errorMessage, { reply_markup: adminBackKeyboard, parse_mode: "HTML" });
   }
 
   const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;
@@ -352,13 +365,16 @@ router.on("message", async (ctx) => {
 
   ctx.session.broadcastMessage = { text: messageText, photoFileId };
 
-  let preview = "Предпросмотр рассылки:\n\n";
+  let preview = `📨 <b>Предпросмотр рассылки</b>\n`
+  preview += `━━━━━━━━━━━━━━━━━━━━\n\n`;
   if (messageText) {
     preview += messageText.length > 500 ? messageText.slice(0, 500) + "..." : messageText;
   }
   if (photoFileId) {
-    preview += messageText ? "\n📷 Фото" : "📷 Фото";
+    preview += messageText ? "\n\n📷 Фото" : "📷 Фото";
   }
+  preview += `\n\n━━━━━━━━━━━━━━━━━━━━\n`;
+  preview += `Подтвердите отправку или отмените.`
 
-  await ctx.reply(preview, { reply_markup: broadcastConfirmKeyboard });
+  await ctx.reply(preview, { reply_markup: broadcastConfirmKeyboard, parse_mode: "HTML" });
 });
