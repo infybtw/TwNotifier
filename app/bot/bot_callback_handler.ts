@@ -320,6 +320,8 @@ router.callbackQuery("admin_exit", async (ctx) => {
     message += `Вы успешно вышли из панели управления.`
     ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: await buildHomeKeyboard(ctx.from.id)})
     log.warn(`${ctx.from.id} exit admin system`)
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -335,6 +337,8 @@ router.callbackQuery("admin_channels", async (ctx) => {
       message += `   ID: <code>${channel.channel_id}</code>\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -350,6 +354,8 @@ router.callbackQuery("admin_users", async (ctx) => {
       message += `   📅 ${user.created}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -365,6 +371,8 @@ router.callbackQuery("admin_admins", async (ctx) => {
       message += `   📅 ${user.created}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -375,6 +383,8 @@ router.callbackQuery("admin_add", async (ctx) => {
     message += `Вы собираетесь создать новый ключ администратора.\n\n`
     message += `⚠️ Ключ будет сгенерирован однократно.`
     ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminAddConfirmKeyboard})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -391,6 +401,8 @@ router.callbackQuery("admin_add_confirm", async (ctx) => {
     message += `📤 Передайте ключ новому администратору\n`
     message += `📌 Используйте: /becomeAdmin ключ`
     ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -434,6 +446,8 @@ router.callbackQuery("admin_keys", async (ctx) => {
     kb.text("Назад", "admin_back")
 
     ctx.editMessageText(message, { reply_markup: kb, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -448,6 +462,8 @@ router.callbackQuery(/^admin_key_revoke_confirm_(\d+)$/, async (ctx) => {
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Ключ <code>${revoked.key.slice(0, 12)}...</code> успешно удалён.`
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -458,6 +474,8 @@ router.callbackQuery("admin_back", async (ctx) => {
     message += `Добро пожаловать, ${ctx.from.first_name}!\n\n`
     message += `Выберите раздел для управления:`
     ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -481,6 +499,8 @@ router.callbackQuery("admin_eventsub", async (ctx) => {
       }
     }
     ctx.editMessageText(message, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -503,6 +523,8 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Подписок до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
     ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -519,6 +541,8 @@ router.callbackQuery("admin_eventsub_disconnect", async (ctx) => {
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Удалено подписок: <b>${subs.length}</b>`
     ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -548,6 +572,8 @@ router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
     successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
     successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
     ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -568,6 +594,8 @@ router.callbackQuery("admin_webhook", async (ctx) => {
       }
     }
     ctx.editMessageText(message, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -594,6 +622,8 @@ router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Вебхуков до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
     ctx.editMessageText(successMessage, {reply_markup: webhookResultKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -612,6 +642,8 @@ router.callbackQuery("admin_webhook_disconnect", async (ctx) => {
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Удалено вебхуков: <b>${subs.length}</b>`
     ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -641,6 +673,8 @@ router.callbackQuery("admin_webhook_cleanup", async (ctx) => {
     successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
     successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
     ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -674,6 +708,8 @@ router.callbackQuery("admin_follows", async (ctx) => {
       }
     }
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -859,6 +895,8 @@ router.callbackQuery("admin_broadcast", async (ctx) => {
     message += `• Текстовое сообщение\n`
     message += `• Фото с подписью`
     await ctx.editMessageText(message, { reply_markup: broadcastCancelKeyboard, parse_mode: "Markdown" });
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 });
 
