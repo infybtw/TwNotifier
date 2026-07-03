@@ -6,6 +6,37 @@ import { getKickAppToken } from "./auth"
 const log = logger.getSubLogger({ name: "kickAPI:users"})
 
 
+export interface KickOnlineChannel {
+  slug: string;
+  is_live: boolean;
+  stream_title: string;
+  viewer_count: number;
+  category: { name: string } | null;
+}
+
+export async function getKickChannelsOnline(usernames: string[]): Promise<KickOnlineChannel[]> {
+  if (usernames.length === 0) return [];
+  const results = await Promise.all(
+    usernames.map(async (username) => {
+      try {
+        const res = await getKickChannelByUsername(username);
+        const ch = res.data?.[0];
+        if (!ch) return null;
+        return {
+          slug: ch.slug,
+          is_live: ch.stream?.is_live ?? false,
+          stream_title: ch.stream_title ?? "",
+          viewer_count: ch.stream?.viewer_count ?? 0,
+          category: ch.stream ? { name: ch.category?.name ?? "" } : null,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return results.filter((r): r is KickOnlineChannel => r !== null);
+}
+
 export async function getKickChannelByUsername(username: string): Promise<KickChannelResponse> {
   const url = new URL(`${KICK_API}/public/v1/channels`)
   url.searchParams.set("slug", username)
