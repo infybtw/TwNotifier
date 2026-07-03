@@ -24,6 +24,9 @@ export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 export const ALLOW_KICK_INSECURE: boolean = Boolean(process.env.ALLOW_KICK_INSECURE)
 
+export const ADMINER_URL: string = String(process.env.ADMINER_URL)
+export const PGBACKWEB_URL: string = String(process.env.PGBACKWEB_URL)
+
 
 export async function setAppToken(appToken: string): Promise<void> {
   APP_TOKEN = appToken;

@@ -1,4 +1,4 @@
-import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers } from "../database/db";
+import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
@@ -22,6 +22,7 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
         });
       }
     }
+    await insertStreamLog(channel_id, "twitch", "online")
 }
 
 export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number,channel_name: string) {
@@ -41,6 +42,7 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
         });
       }
     }
+    await insertStreamLog(channel_id, "twitch", "offline")
 }
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
@@ -61,6 +63,7 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         });
       }
     }
+    await insertStreamLog(channel_id, "kick", "online")
 }
 
 export async function sendKickStreamfflineNotificationToUsers(channel_id: number, channel_name: string) {
@@ -81,6 +84,7 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
         });
       }
     }
+    await insertStreamLog(channel_id, "kick", "offline")
 }
 
 export async function sendBroadcastMessage(

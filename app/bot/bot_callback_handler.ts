@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, buildHomeKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, buildHomeKeyboard, buildAdminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
 import { getUserByUserId } from "../database/db";
 import {
   addAdminKey,
@@ -15,6 +15,7 @@ import {
   getChannelsWithFollowersByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
   getFollowsByUserIdAndPlatform,
+  getRecentStreamLogs,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
   revokeAdminKey,
@@ -73,7 +74,7 @@ router.callbackQuery("adminCMD", async (ctx) => {
   message += `━━━━━━━━━━━━━━━━━━━━\n`;
   message += `Добро пожаловать, ${firstName}!\n\n`;
   message += `Выберите раздел для управления:`;
-  await ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" });
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
@@ -474,7 +475,7 @@ router.callbackQuery("admin_back", async (ctx) => {
     message += `━━━━━━━━━━━━━━━━━━━━\n`
     message += `Добро пожаловать, ${ctx.from.first_name}!\n\n`
     message += `Выберите раздел для управления:`
-    ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" })
+    ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" })
   } else {
     await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
@@ -706,6 +707,29 @@ router.callbackQuery("admin_follows", async (ctx) => {
       for (const sub of subs) {
         message += `   👤 ${sub.first_name || "Unknown"} (@${sub.username || "unknown"})\n`
         message += `      📅 ${sub.created.slice(0, 10)}\n`
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_logs", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const logs = await getRecentStreamLogs(10)
+    let message = `📋 <b>Последние события</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    if (logs.length === 0) {
+      message += `Пока нет записей.`
+    } else {
+      for (const entry of logs) {
+        const platformIcon = entry.platform === "twitch" ? "🟣" : "🟢"
+        const eventIcon = entry.event === "online" ? "🟢 Стрим начался" : "🔴 Стрим окончен"
+        message += `${platformIcon} <b>${entry.channel_name || `ID:${entry.channel_id}`}</b>\n`
+        message += `   ${eventIcon}\n`
+        message += `   👥 Подписчиков: ${entry.follower_count ?? 0}\n`
+        message += `   📅 ${entry.created}\n\n`
       }
     }
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })

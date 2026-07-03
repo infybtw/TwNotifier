@@ -1,6 +1,6 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, Channel, channels, NewUserSettings, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { admin_keys, AdminKey, Channel, channels, NewUserSettings, StreamLog, stream_logs, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
 import { and, count, eq, sql } from "drizzle-orm";
 import logger from "../logger";
 
@@ -267,4 +267,32 @@ async function setAdminKeyUsedById(id: number, used_by: number): Promise<AdminKe
 async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
   const [user] = await db.update(users).set({is_admin}).where(eq(users.user_id, user_id)).returning()
   return user
+}
+
+export async function insertStreamLog(channel_id: number, platform: string, event: string): Promise<void> {
+  await db.insert(stream_logs).values({
+    channel_id,
+    platform,
+    event,
+    created: new Date().toISOString(),
+  })
+}
+
+export async function getRecentStreamLogs(limit: number = 10): Promise<(StreamLog & { channel_name?: string | null, follower_count?: number })[]> {
+  const result = await db.select({
+    id: stream_logs.id,
+    channel_id: stream_logs.channel_id,
+    platform: stream_logs.platform,
+    event: stream_logs.event,
+    created: stream_logs.created,
+    channel_name: channels.channel_name,
+    follower_count: count(users_follows.user_id),
+  })
+    .from(stream_logs)
+    .leftJoin(channels, eq(stream_logs.channel_id, channels.channel_id))
+    .leftJoin(users_follows, and(eq(stream_logs.channel_id, users_follows.channel_id), eq(stream_logs.platform, users_follows.platform)))
+    .groupBy(stream_logs.id, channels.channel_name)
+    .orderBy(sql`${stream_logs.id} DESC`)
+    .limit(limit)
+  return result
 }

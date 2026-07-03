@@ -63,3 +63,14 @@ export const admin_keys = pgTable("admin_keys", {
 
 export type AdminKey = typeof admin_keys.$inferSelect
 export type NewAdminKey = typeof admin_keys.$inferInsert
+
+export const stream_logs = pgTable("stream_logs", {
+  id: serial("id").primaryKey(),
+  channel_id: bigint({mode: "number"}).references(() => channels.channel_id).notNull(),
+  platform: varchar({length: 16}).notNull(),
+  event: varchar({length: 16}).notNull(),
+  created: text().notNull(),
+})
+
+export type StreamLog = typeof stream_logs.$inferSelect
+export type NewStreamLog = typeof stream_logs.$inferInsert

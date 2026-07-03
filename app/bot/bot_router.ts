@@ -16,7 +16,7 @@ import {
   buildHomeKeyboard,
   addConfirmationKeyboard,
   removeConfirmationKeyboard,
-  adminKeyboard,
+  buildAdminKeyboard,
   platformSelectKeyboard,
   removePlatformSelecteKeyboard,
   adminBackKeyboard,
@@ -326,7 +326,7 @@ router.command("admin", async (ctx) => {
   message += `━━━━━━━━━━━━━━━━━━━━\n`
   message += `Добро пожаловать, ${firstName}!\n\n`
   message += `Выберите раздел для управления:`
-  ctx.reply(message, {reply_markup: adminKeyboard, parse_mode: "HTML"})
+  ctx.reply(message, {reply_markup: buildAdminKeyboard(), parse_mode: "HTML"})
 })
 
 router.command("becomeAdmin", async (ctx) => {
