@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -61,13 +61,15 @@ router.callbackQuery("settingsBACK", async (ctx) => {
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
+  ctx.session.awaitingAddInput = undefined;
+  ctx.session.awaitingRemoveInput = undefined;
   const user_id = ctx.from?.id;
   const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
   const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
   if (kickFollows.length < 1 && twitchFollows.length < 1) {
     await ctx.editMessageText("📭 *Нет подписок*\n\nВы пока не отслеживаете ни одного канала.", {
       parse_mode: "Markdown",
-      reply_markup: backHomeKeyboard,
+      reply_markup: mySubscriptionsEmptyKeyboard,
     });
     return;
   }
@@ -80,7 +82,7 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
     for (const sub of twitchFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+      reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
     }
   }
   if (kickFollows.length >= 1) {
@@ -88,10 +90,26 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
     for (const sub of kickFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+      reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
     }
   }
-  await ctx.editMessageText(reply_text, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+  await ctx.editMessageText(reply_text, { parse_mode: "Markdown", reply_markup: mySubscriptionsKeyboard });
+});
+
+router.callbackQuery("mySubscriptionsAdd", async (ctx) => {
+  ctx.session.awaitingAddInput = true;
+  await ctx.editMessageText(
+    "➕ *Добавление канала*\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку:\n\nПример: `xqc` или `https://twitch.tv/xqc`",
+    { parse_mode: "Markdown", reply_markup: mySubscriptionsAddBackKeyboard },
+  );
+});
+
+router.callbackQuery("mySubscriptionsRemove", async (ctx) => {
+  ctx.session.awaitingRemoveInput = true;
+  await ctx.editMessageText(
+    "🗑 *Удаление канала*\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку для удаления:\n\nПример: `xqc` или `https://twitch.tv/xqc`",
+    { parse_mode: "Markdown", reply_markup: mySubscriptionsAddBackKeyboard },
+  );
 });
 
 router.callbackQuery("infoCMD", async (ctx) => {

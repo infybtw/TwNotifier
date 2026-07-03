@@ -23,6 +23,7 @@ import {
   adminBackKeyboard,
   broadcastConfirmKeyboard,
   backHomeKeyboard,
+  mySubscriptionsAddBackKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
@@ -350,6 +351,221 @@ router.command("becomeAdmin", async (ctx) => {
     return ctx.reply(message, {parse_mode: "Markdown"})
   }
 })
+
+router.on("message", async (ctx, next) => {
+  if (ctx.session.awaitingAddInput && ctx.message.text) {
+    ctx.session.awaitingAddInput = undefined;
+    const input = ctx.message.text.trim();
+
+    const extractedUsername = extractUsernameFromTwitchUrl(input);
+    if (!extractedUsername) {
+      return ctx.reply(
+        "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
+        { reply_markup: mySubscriptionsAddBackKeyboard },
+      );
+    }
+
+    const channel_name_lower = extractedUsername.toLowerCase();
+    const twitchChannel = await getUserByLogin(channel_name_lower);
+    const kickChannel = await getKickChannelByUsername(channel_name_lower);
+    if (!(twitchChannel || kickChannel)) {
+      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+
+    if (kickChannel.data[0] && twitchChannel) {
+      ctx.session.pendingPlatformSelect = {
+        kickData: kickChannel,
+        twitchData: twitchChannel,
+      }
+
+      const message = `Канал с таким именем найден на 2 платформах.\n` +
+        `https://kick.com/${channel_name_lower}\n` +
+        `https://twitch.tv/${channel_name_lower}\n\n` +
+        `Выберите платформу для подписки:`
+
+      return ctx.reply(message, { reply_markup: platformSelectKeyboard })
+    }
+
+    if (kickChannel.data[0]) {
+      const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
+      const display_name = kickChannel.data[0].slug;
+
+      if (!ctx.from) {
+        return ctx.reply("Ошибка: не удалось определить пользователя");
+      }
+
+      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
+        return ctx.reply(`Вы уже отслеживаете ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+      }
+
+      ctx.session.pendingAdd = {
+        channelId: channel_id,
+        channelName: channel_name_lower,
+        displayName: display_name,
+        platform: "kick"
+      };
+
+      const previewMessage =
+        `Вы хотите добавить канал:\n\n` +
+        `📺 Имя: ${display_name}\n` +
+        `🔗 Ссылка: https://kick.com/${display_name}\n\n` +
+        `Продолжить добавление?`;
+
+      log.info("showing channel preview", {
+        userId: ctx.from.id,
+        channel: display_name,
+        channelId: channel_id,
+        platform: "kick"
+      });
+
+      return await ctx.reply(previewMessage, {
+        reply_markup: addConfirmationKeyboard,
+      });
+    } else if (twitchChannel) {
+      const channel_id = Number(twitchChannel!.id);
+      const display_name = twitchChannel!.display_name;
+
+      if (!ctx.from) {
+        return ctx.reply("Ошибка: не удалось определить пользователя");
+      }
+
+      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
+        return ctx.reply(`Вы уже отслеживаете ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+      }
+
+      ctx.session.pendingAdd = {
+        channelId: channel_id,
+        channelName: channel_name_lower,
+        displayName: display_name,
+        platform: "twitch"
+      };
+
+      const previewMessage =
+        `Вы хотите добавить канал:\n\n` +
+        `📺 Имя: ${display_name}\n` +
+        `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
+        `Продолжить добавление?`;
+
+      log.info("showing channel preview", {
+        userId: ctx.from.id,
+        channel: display_name,
+        channelId: channel_id,
+        platform: "twitch",
+      });
+
+      return await ctx.reply(previewMessage, {
+        reply_markup: addConfirmationKeyboard,
+      });
+    } else {
+      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+  }
+
+  if (ctx.session.awaitingRemoveInput && ctx.message.text) {
+    ctx.session.awaitingRemoveInput = undefined;
+    const input = ctx.message.text.trim();
+
+    const extractedUsername = extractUsernameFromTwitchUrl(input);
+    if (!extractedUsername) {
+      return ctx.reply(
+        "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
+        { reply_markup: mySubscriptionsAddBackKeyboard },
+      );
+    }
+
+    if (!ctx.from) {
+      return ctx.reply("Ошибка: не удалось определить пользователя");
+    }
+
+    const channel_name_lower = extractedUsername.toLowerCase();
+    const usernameChannels = await getChannelsByUsername(channel_name_lower)
+
+    const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
+    const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
+
+    if (!kickChannel && !twitchChannel) {
+      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+
+    const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
+    const twitchFollow = twitchChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel.channel_id!, "twitch") : undefined
+
+    let bothFollow: boolean = false
+    let follow: UserFollow
+    let channel: Channel
+
+    if (kickFollow && twitchFollow) {
+      bothFollow = true
+    } else if (kickFollow || twitchFollow){
+      if (kickFollow) {
+        follow = kickFollow
+        channel = kickChannel!
+      } else {
+        follow = twitchFollow!
+        channel = twitchChannel!
+      }
+    } else {
+      return ctx.reply("Вы не подписанны на этот канал", { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+
+    if (usernameChannels.length < 1) {
+      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+
+    if (usernameChannels.length > 1 && bothFollow) {
+      if (!kickChannel || !twitchChannel) {
+        return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+      } else {
+        const message = `Канал с таким именем найден на 2 платформах.\n` +
+          `https://kick.com/${channel_name_lower}\n` +
+          `https://twitch.tv/${channel_name_lower}\n\n` +
+          `Выберите платформу для удаления:`
+
+        ctx.session.removePendingPlatformSelect = {
+          kickChannel,
+          twitchChannel,
+        }
+        return ctx.reply(message, { reply_markup: removePlatformSelecteKeyboard })
+      }
+    }
+
+    const channelPlatform = follow!.platform === "twitch" ? "twitch" : "kick";
+    const channelPlatformUrl = follow!.platform === "twitch" ? "twitch.tv" : "kick.com";
+
+    const channel_id = Number(channel!.channel_id);
+    const display_name = channel!.channel_name || extractedUsername;
+
+    if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
+      return ctx.reply(`Вы не подписаны на ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+    }
+
+    ctx.session.pendingRemove = {
+      channelId: channel_id,
+      channelName: channel_name_lower,
+      displayName: display_name,
+      platform: channelPlatform,
+    };
+
+    const previewMessage =
+      `Вы хотите удалить канал из отслеживаемых:\n\n` +
+      `📺 Имя: ${display_name}\n` +
+      `🔗 Ссылка: https://${channelPlatformUrl}/${channel_name_lower}\n\n` +
+      `Подтвердите удаление?`;
+
+    await ctx.reply(previewMessage, {
+      reply_markup: removeConfirmationKeyboard,
+    });
+
+    log.info("showing remove preview", {
+      userId: ctx.from.id,
+      channel: display_name,
+      channelId: channel_id,
+    });
+    return;
+  }
+
+  return next();
+});
 
 router.on("message", async (ctx) => {
   if (!ctx.session.adminLogin || !ctx.session.broadcastPending) {
