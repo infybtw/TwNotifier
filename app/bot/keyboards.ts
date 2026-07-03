@@ -2,8 +2,10 @@ import { InlineKeyboard } from "grammy";
 import { getSettingsStateByUserId } from "../database/db";
 
 export const homePageKeyboard = new InlineKeyboard()
+  .text("Мои подписки", "mySubscriptionsCMD")
+  .row()
   .text("Настройки", "settingsCMD")
-  .text("Инфо", "infoCMD");
+  .text("Инфо", "infoCMD")
 
 export const addConfirmationKeyboard = new InlineKeyboard()
   .text("Продолжить", "confirm_add")
@@ -18,8 +20,8 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
   if (!user_settings) {
     return new InlineKeyboard().text("Назад", "settingsBACK");
   }
-  let onlineNotificationText = "Уведомления о начале трансляции ";
-  let offlineNotificationText = "Уведомления об окончании трансляции ";
+  let onlineNotificationText = "Старт трансляции ";
+  let offlineNotificationText = "Окончание трансляции ";
   if (user_settings?.online_notification === 1) {
     onlineNotificationText += "✅";
   } else {
@@ -55,6 +57,8 @@ export const broadcastConfirmKeyboard = new InlineKeyboard()
 
 export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")
 
+export const backHomeKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
+
 export const infoBackKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
 
 export const platformSelectKeyboard = new InlineKeyboard()
@@ -76,3 +80,15 @@ export const webhookReloadConfirmKeyboard = new InlineKeyboard()
 export const adminAddConfirmKeyboard = new InlineKeyboard()
   .text("Подтвердить", "admin_add_confirm")
   .text("Отмена", "admin_back")
+
+export const mySubscriptionsEmptyKeyboard = new InlineKeyboard()
+  .text("Добавить", "mySubscriptionsAdd").row()
+  .text("Назад", "settingsBACK")
+
+export const mySubscriptionsKeyboard = new InlineKeyboard()
+  .text("Добавить", "mySubscriptionsAdd")
+  .text("Удалить", "mySubscriptionsRemove").row()
+  .text("Назад", "settingsBACK")
+
+export const mySubscriptionsAddBackKeyboard = new InlineKeyboard()
+  .text("Назад", "mySubscriptionsCMD")

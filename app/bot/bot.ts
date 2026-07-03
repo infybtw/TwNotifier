@@ -37,6 +37,8 @@ interface SessionData {
     text?: string;
     photoFileId?: string;
   };
+  awaitingAddInput?: boolean;
+  awaitingRemoveInput?: boolean;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;

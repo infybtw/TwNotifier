@@ -12,13 +12,13 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
-          `<b>${channel_name}</b> ведет прямую трансляцию.\n${data.title}\n<i>${data.game_name}</i>\n\n<a href="https://twitch.tv/${channel_name}">Twitch</a>`,
-          { parse_mode: "HTML" },
+          `*${channel_name}* ведет прямую трансляцию.\n${data.title}\n_${data.game_name}_\n\n[Twitch](https://twitch.tv/${channel_name})`,
+          { parse_mode: "Markdown" },
         );
         log.info("message sent", {
           user_id: follower.user_id,
           //@ts-ignore
-          text: `<b>${channel_name}</b> ведет прямую трансляцию.\n${data.title}\n<i>${data.game_name}</i>\n\n<a href="https://twitch.tv/${channel_name}">Twitch</a>`,
+          text: `*${channel_name}* ведет прямую трансляцию.\n${data.title}\n_${data.game_name}_\n\n[Twitch](https://twitch.tv/${channel_name})`,
         });
       }
     }
@@ -31,13 +31,13 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
       if (userSettings?.offline_notification === 1) {
         await bot.api.sendMessage(
           follower.user_id!,
-          `<b>${channel_name}</b> завершил прямую трансляцию.`,
-          { parse_mode: "HTML" },
+          `*${channel_name}* завершил прямую трансляцию.`,
+          { parse_mode: "Markdown" },
         );
         log.info("message sent", {
           user_id: follower.user_id,
           //@ts-ignore
-          text: `<b>${channel_name}</b> завершил прямую трансляцию.`,
+          text: `*${channel_name}* завершил прямую трансляцию.`,
         });
       }
     }
@@ -51,13 +51,13 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
-          `<b>${channel_name}</b> ведет прямую трансляцию.\n${title}\n\n<a href="https://kick.com/${channel_name}">Kick</a>`,
-          { parse_mode: "HTML" },
+          `*${channel_name}* ведет прямую трансляцию.\n${title}\n\n[Kick](https://kick.com/${channel_name})`,
+          { parse_mode: "Markdown" },
         );
         log.info("message sent", {
           user_id: follower.user_id,
           //@ts-ignore
-          text: `<b>${channel_name}</b> ведет прямую трансляцию.\n${title}\n\n<a href="https://kick.com/${channel_name}">Kick</a>`,
+          text: `*${channel_name}* ведет прямую трансляцию.\n${title}\n\n[Kick](https://kick.com/${channel_name})`,
         });
       }
     }
@@ -71,13 +71,13 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
-          `<b>${channel_name}</b> завершил прямую трансляцию.\n`,
-          { parse_mode: "HTML" },
+          `*${channel_name}* завершил прямую трансляцию.\n`,
+          { parse_mode: "Markdown" },
         );
         log.info("message sent", {
           user_id: follower.user_id,
           //@ts-ignore
-          text: `<b>${channel_name}</b> завершил прямую трансляцию.\n`,
+          text: `*${channel_name}* завершил прямую трансляцию.\n`,
         });
       }
     }
