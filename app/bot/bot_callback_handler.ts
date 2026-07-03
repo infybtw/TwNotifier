@@ -1,5 +1,5 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, buildHomeKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, buildHomeKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
 import { getUserByUserId } from "../database/db";
 import {
   addAdminKey,
@@ -9,6 +9,7 @@ import {
   getAllFollowsWithDetails,
   getAdmins,
   getChannelByChannelId,
+  getChannelFollowersByChannelIdAndPlatform,
   getChannels,
   getChannelsByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
@@ -460,13 +461,25 @@ router.callbackQuery("admin_back", async (ctx) => {
   }
 })
 
-router.callbackQuery("admin_eventsubreload", async (ctx) => {
+router.callbackQuery("admin_eventsub", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔄 <b>Перезапуск EventSub</b>\n`
+    const subs = await getEventSubList()
+    let message = `🟣 <b>EventSub Control</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Вы уверены, что хотите перезапустить Twitch EventSub?\n\n`
-    message += `⚠️ Это отключит текущие подписки и создаст новые.`
-    ctx.editMessageText(message, { reply_markup: eventsubReloadConfirmKeyboard, parse_mode: "HTML" })
+    message += `Активных событий: <b>${subs.length}</b>\n`
+    if (subs.length > 0) {
+      message += `\n`
+      for (const sub of subs) {
+        const icon = sub.status === "enabled" ? "✅" : "⚠️"
+        message += `${icon} <code>${sub.type}</code>\n`
+        message += `   ID: <code>${sub.id.slice(0, 16)}...</code>\n`
+        message += `   Статус: ${sub.status}\n`
+        if (sub.condition.broadcaster_user_id) {
+          message += `   Канал ID: <code>${sub.condition.broadcaster_user_id}</code>\n`
+        }
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
   }
 })
 
@@ -483,19 +496,141 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     await sleep(2500)
     await subscribeAllStreamsOnline()
     await subscribeAllStreamsOffline()
+    const newSubs = await getEventSubList()
     let successMessage = `✅ <b>EventSub перезапущен</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    successMessage += `Все подписки успешно обновлены.`
-    ctx.editMessageText(successMessage, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+    successMessage += `Подписок до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
   }
 })
 
-router.callbackQuery("admin_eventsubreload_cancel", async (ctx) => {
+router.callbackQuery("admin_eventsub_disconnect", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🚫 <b>Действие отменено</b>\n`
+    let message = `❌ <b>Отключение EventSub</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Перезапуск EventSub отменён.`
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+    message += `⏳ Удаление всех подписок...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getEventSubList()
+    await deleteSubs(subs)
+    let successMessage = `✅ <b>EventSub отключён</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Удалено подписок: <b>${subs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  }
+})
+
+router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🧹 <b>Очистка EventSub</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Поиск неиспользуемых событий...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getEventSubList()
+    const orphaned = []
+    for (const sub of subs) {
+      const channelId = sub.condition.broadcaster_user_id
+      if (!channelId) continue
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(channelId), "twitch")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    if (orphaned.length === 0) {
+      return ctx.editMessageText(`✅ <b>Нет неиспользуемых событий</b>\n\nВсе ${subs.length} событий имеют активные подписки.`, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
+    }
+    await deleteSubs(orphaned)
+    let successMessage = `✅ <b>Очистка завершена</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Всего событий: <b>${subs.length}</b>\n`
+    successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
+    successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  }
+})
+
+router.callbackQuery("admin_webhook", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const subs = await getKickSubscriptions()
+    let message = `🟢 <b>Webhook Control</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `Активных вебхуков: <b>${subs.length}</b>\n`
+    if (subs.length > 0) {
+      message += `\n`
+      for (const sub of subs) {
+        message += `📌 <code>${sub.event}</code>\n`
+        message += `   ID: <code>${sub.id}</code>\n`
+        message += `   Канал ID: <code>${sub.broadcaster_user_id}</code>\n`
+        message += `   Создан: ${sub.created_at}\n`
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
+  }
+})
+
+router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🔄 <b>Перезапуск Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Выполняется перезапуск...\n\n`
+    message += `• Удаление текущих вебхуков\n`
+    message += `• Создание новых вебхуков`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    const dbSubs = await getChannelsByPlatform("kick")
+    for (const sub of subs) {
+      await deleteKickSubscription(sub)
+    }
+    await sleep(2500)
+    for (const sub of dbSubs) {
+      await subscribeToKickChannelOnline(sub.channel_id!)
+    }
+    const newSubs = await getKickSubscriptions()
+    let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Вебхуков до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
+    ctx.editMessageText(successMessage, {reply_markup: webhookResultKeyboard, parse_mode: "HTML"})
+  }
+})
+
+router.callbackQuery("admin_webhook_disconnect", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `❌ <b>Отключение Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Удаление всех вебхуков...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    for (const sub of subs) {
+      await deleteKickSubscription(sub)
+    }
+    let successMessage = `✅ <b>Webhooks отключены</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Удалено вебхуков: <b>${subs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
+  }
+})
+
+router.callbackQuery("admin_webhook_cleanup", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🧹 <b>Очистка Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Поиск неиспользуемых вебхуков...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    const orphaned = []
+    for (const sub of subs) {
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(sub.broadcaster_user_id), "kick")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    if (orphaned.length === 0) {
+      return ctx.editMessageText(`✅ <b>Нет неиспользуемых вебхуков</b>\n\nВсе ${subs.length} вебхуков имеют активные подписки.`, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
+    }
+    for (const sub of orphaned) {
+      await deleteKickSubscription(sub)
+    }
+    let successMessage = `✅ <b>Очистка завершена</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Всего вебхуков: <b>${subs.length}</b>\n`
+    successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
+    successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
   }
 })
 
@@ -528,51 +663,6 @@ router.callbackQuery("admin_follows", async (ctx) => {
         message += `      📅 ${sub.created.slice(0, 10)}\n`
       }
     }
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
-  }
-})
-
-router.callbackQuery("admin_webhookreload", async (ctx) => {
-  if (ctx.session.adminLogin) {
-    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Вы уверены, что хотите перезапустить Kick Webhooks?\n\n`
-    message += `⚠️ Это переподключит все вебхуки Kick.`
-    ctx.editMessageText(message, { reply_markup: webhookReloadConfirmKeyboard, parse_mode: "HTML" })
-  }
-})
-
-router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
-  if (ctx.session.adminLogin) {
-    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `⏳ Выполняется перезапуск...\n\n`
-    message += `• Удаление текущих вебхуков\n`
-    message += `• Создание новых вебхуков`
-    ctx.editMessageText(message, {parse_mode: "HTML"})
-    const subs = await getKickSubscriptions()
-    const dbSubs = await getChannelsByPlatform("kick")
-    if (subs.length > 0) {
-      for (const sub of subs) {
-        await deleteKickSubscription(sub)
-      }
-      await sleep(2500)
-      for (const sub of dbSubs) {
-        await subscribeToKickChannelOnline(sub.channel_id!)
-      }
-    }
-    let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
-    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    successMessage += `Все вебхуки Kick успешно обновлены.`
-    ctx.editMessageText(successMessage, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
-  }
-})
-
-router.callbackQuery("admin_webhookreload_cancel", async (ctx) => {
-  if (ctx.session.adminLogin) {
-    let message = `🚫 <b>Действие отменено</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Перезапуск Webhooks отменён.`
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
