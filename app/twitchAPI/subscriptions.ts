@@ -7,7 +7,7 @@ import {
   TWITCH_HELIX,
   TWITCH_OAUTH,
 } from "../config";
-import {getChannels, getChannelsByPlatform } from "../database/db";
+import { getChannelsWithFollowersByPlatform } from "../database/db";
 import logger from "../logger";
 import { getAppToken } from "./auth";
 
@@ -85,11 +85,11 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
 }
 
 export async function subscribeAllStreamsOnline() {
-  const channels = await getChannelsByPlatform("twitch");
+  const channels = await getChannelsWithFollowersByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOnline(channel.channel_id, channel.channel_name);
   }
-  log.info("subscribed to all channels online");
+  log.info("subscribed to all channels online", { count: channels.length });
 }
 
 export async function subscribeToChannelOffline(broadcasterId: number, broadcaster_name: string): Promise<number> {
@@ -163,11 +163,11 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
 }
 
 export async function subscribeAllStreamsOffline() {
-  const channels = await getChannelsByPlatform("twitch");
+  const channels = await getChannelsWithFollowersByPlatform("twitch");
   for (const channel of channels) {
     await subscribeToChannelOffline(channel.channel_id, channel.channel_name);
   }
-  log.info("subscribed to all channels offline");
+  log.info("subscribed to all channels offline", { count: channels.length });
 }
 
 export async function getEventSubList(cursor?: string, retries = 3): Promise<TwitchEventSubSubscription[]> {

@@ -59,6 +59,18 @@ export async function getChannels(): Promise<Channel[]>{
   return res
 }
 
+export async function getChannelsWithFollowersByPlatform(platform: "kick" | "twitch"): Promise<Channel[]>{
+  const res = await db.selectDistinct({
+    channel_id: channels.channel_id,
+    channel_name: channels.channel_name,
+    platform: channels.platform,
+  })
+    .from(channels)
+    .innerJoin(users_follows, eq(channels.channel_id, users_follows.channel_id))
+    .where(eq(channels.platform, platform))
+  return res
+}
+
 export async function getChannelsByUsername(username: string): Promise<Channel[]> {
   const res = await db.select().from(channels).where(eq(channels.channel_name, username))
   return res
