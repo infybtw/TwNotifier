@@ -464,6 +464,7 @@ router.callbackQuery("admin_back", async (ctx) => {
 router.callbackQuery("admin_eventsub", async (ctx) => {
   if (ctx.session.adminLogin) {
     const subs = await getEventSubList()
+    log.info(`${ctx.from.id} opened EventSub control`, { total: subs.length })
     let message = `🟣 <b>EventSub Control</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Активных событий: <b>${subs.length}</b>\n`
@@ -497,6 +498,7 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     await subscribeAllStreamsOnline()
     await subscribeAllStreamsOffline()
     const newSubs = await getEventSubList()
+    log.warn(`${ctx.from.id} reloaded EventSub`, { before: subs.length, after: newSubs.length })
     let successMessage = `✅ <b>EventSub перезапущен</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Подписок до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
@@ -512,6 +514,7 @@ router.callbackQuery("admin_eventsub_disconnect", async (ctx) => {
     ctx.editMessageText(message, {parse_mode: "HTML"})
     const subs = await getEventSubList()
     await deleteSubs(subs)
+    log.warn(`${ctx.from.id} disconnected EventSub`, { deleted: subs.length })
     let successMessage = `✅ <b>EventSub отключён</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Удалено подписок: <b>${subs.length}</b>`
@@ -534,9 +537,11 @@ router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
       if (follows.length === 0) orphaned.push(sub)
     }
     if (orphaned.length === 0) {
+      log.info(`${ctx.from.id} EventSub cleanup - nothing to remove`, { total: subs.length })
       return ctx.editMessageText(`✅ <b>Нет неиспользуемых событий</b>\n\nВсе ${subs.length} событий имеют активные подписки.`, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
     }
     await deleteSubs(orphaned)
+    log.warn(`${ctx.from.id} EventSub cleanup`, { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length })
     let successMessage = `✅ <b>Очистка завершена</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Всего событий: <b>${subs.length}</b>\n`
@@ -549,6 +554,7 @@ router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
 router.callbackQuery("admin_webhook", async (ctx) => {
   if (ctx.session.adminLogin) {
     const subs = await getKickSubscriptions()
+    log.info(`${ctx.from.id} opened Webhook control`, { total: subs.length })
     let message = `🟢 <b>Webhook Control</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Активных вебхуков: <b>${subs.length}</b>\n`
@@ -583,6 +589,7 @@ router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
       await subscribeToKickChannelOnline(sub.channel_id!)
     }
     const newSubs = await getKickSubscriptions()
+    log.warn(`${ctx.from.id} reloaded Webhooks`, { before: subs.length, after: newSubs.length })
     let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Вебхуков до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
@@ -600,6 +607,7 @@ router.callbackQuery("admin_webhook_disconnect", async (ctx) => {
     for (const sub of subs) {
       await deleteKickSubscription(sub)
     }
+    log.warn(`${ctx.from.id} disconnected Webhooks`, { deleted: subs.length })
     let successMessage = `✅ <b>Webhooks отключены</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Удалено вебхуков: <b>${subs.length}</b>`
@@ -620,11 +628,13 @@ router.callbackQuery("admin_webhook_cleanup", async (ctx) => {
       if (follows.length === 0) orphaned.push(sub)
     }
     if (orphaned.length === 0) {
+      log.info(`${ctx.from.id} Webhook cleanup - nothing to remove`, { total: subs.length })
       return ctx.editMessageText(`✅ <b>Нет неиспользуемых вебхуков</b>\n\nВсе ${subs.length} вебхуков имеют активные подписки.`, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
     }
     for (const sub of orphaned) {
       await deleteKickSubscription(sub)
     }
+    log.warn(`${ctx.from.id} Webhook cleanup`, { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length })
     let successMessage = `✅ <b>Очистка завершена</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Всего вебхуков: <b>${subs.length}</b>\n`
