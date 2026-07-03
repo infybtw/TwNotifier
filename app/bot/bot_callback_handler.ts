@@ -91,7 +91,7 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
       reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
     }
   }
-  await ctx.editMessageText(reply_text, { parse_mode: "Markdown", reply_markup: mySubscriptionsKeyboard });
+  await ctx.editMessageText(reply_text.trimEnd(), { parse_mode: "Markdown", reply_markup: mySubscriptionsKeyboard });
 });
 
 router.callbackQuery("mySubscriptionsAdd", async (ctx) => {
