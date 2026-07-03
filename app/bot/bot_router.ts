@@ -1,5 +1,4 @@
 import { Composer } from "grammy";
-import { InlineKeyboard } from "grammy";
 import logger from "../logger";
 import {
   checkOrCreateUser,
@@ -28,7 +27,6 @@ import {
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
-import { sleep } from "bun";
 import { Channel, UserFollow } from "../database/schema";
 
 const log = logger.getSubLogger({ name: "bot:router" });

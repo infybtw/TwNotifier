@@ -11,8 +11,6 @@ import {
   getChannels,
   getChannelsByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
-  getFollowCount,
-  getFollowsByPlatform,
   getFollowsByUserIdAndPlatform,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
