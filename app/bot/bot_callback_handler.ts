@@ -1,5 +1,6 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, buildHomeKeyboard, buildAdminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { getUserByUserId } from "../database/db";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -8,10 +9,13 @@ import {
   getAllFollowsWithDetails,
   getAdmins,
   getChannelByChannelId,
+  getChannelFollowersByChannelIdAndPlatform,
   getChannels,
   getChannelsByPlatform,
+  getChannelsWithFollowersByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
   getFollowsByUserIdAndPlatform,
+  getRecentStreamLogs,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
   revokeAdminKey,
@@ -55,7 +59,22 @@ router.callbackQuery("settingsBACK", async (ctx) => {
   message += `• /add канал — добавить канал\n`
   message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: await buildHomeKeyboard(ctx.from.id), parse_mode: "HTML" });
+});
+
+router.callbackQuery("adminCMD", async (ctx) => {
+  const user = await getUserByUserId(ctx.from?.id!);
+  if (!user?.is_admin) {
+    return ctx.answerCallbackQuery({ text: "Доступ запрещён", show_alert: true });
+  }
+  ctx.session.adminLogin = { signed_in: true };
+  log.warn(`${ctx.from?.id} enter admin system`);
+  const firstName = ctx.from?.first_name || "Admin";
+  let message = `🛡️ <b>Панель управления</b>\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `Добро пожаловать, ${firstName}!\n\n`;
+  message += `Выберите раздел для управления:`;
+  await ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" });
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
@@ -301,8 +320,10 @@ router.callbackQuery("admin_exit", async (ctx) => {
     let message = `👋 <b>Выход из панели</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы успешно вышли из панели управления.`
-    ctx.editMessageText(message, {parse_mode: "HTML"})
+    ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: await buildHomeKeyboard(ctx.from.id)})
     log.warn(`${ctx.from.id} exit admin system`)
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -318,6 +339,8 @@ router.callbackQuery("admin_channels", async (ctx) => {
       message += `   ID: <code>${channel.channel_id}</code>\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -333,6 +356,8 @@ router.callbackQuery("admin_users", async (ctx) => {
       message += `   📅 ${user.created}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -348,6 +373,8 @@ router.callbackQuery("admin_admins", async (ctx) => {
       message += `   📅 ${user.created}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -358,6 +385,8 @@ router.callbackQuery("admin_add", async (ctx) => {
     message += `Вы собираетесь создать новый ключ администратора.\n\n`
     message += `⚠️ Ключ будет сгенерирован однократно.`
     ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminAddConfirmKeyboard})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -374,6 +403,8 @@ router.callbackQuery("admin_add_confirm", async (ctx) => {
     message += `📤 Передайте ключ новому администратору\n`
     message += `📌 Используйте: /becomeAdmin ключ`
     ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -417,6 +448,8 @@ router.callbackQuery("admin_keys", async (ctx) => {
     kb.text("Назад", "admin_back")
 
     ctx.editMessageText(message, { reply_markup: kb, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -431,6 +464,8 @@ router.callbackQuery(/^admin_key_revoke_confirm_(\d+)$/, async (ctx) => {
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Ключ <code>${revoked.key.slice(0, 12)}...</code> успешно удалён.`
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -440,17 +475,34 @@ router.callbackQuery("admin_back", async (ctx) => {
     message += `━━━━━━━━━━━━━━━━━━━━\n`
     message += `Добро пожаловать, ${ctx.from.first_name}!\n\n`
     message += `Выберите раздел для управления:`
-    ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" })
+    ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
-router.callbackQuery("admin_eventsubreload", async (ctx) => {
+router.callbackQuery("admin_eventsub", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔄 <b>Перезапуск EventSub</b>\n`
+    const subs = await getEventSubList()
+    log.info(`${ctx.from.id} opened EventSub control`, { total: subs.length })
+    let message = `🟣 <b>EventSub Control</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Вы уверены, что хотите перезапустить Twitch EventSub?\n\n`
-    message += `⚠️ Это отключит текущие подписки и создаст новые.`
-    ctx.editMessageText(message, { reply_markup: eventsubReloadConfirmKeyboard, parse_mode: "HTML" })
+    message += `Активных событий: <b>${subs.length}</b>\n`
+    if (subs.length > 0) {
+      message += `\n`
+      for (const sub of subs) {
+        const icon = sub.status === "enabled" ? "✅" : "⚠️"
+        message += `${icon} <code>${sub.type}</code>\n`
+        message += `   ID: <code>${sub.id.slice(0, 16)}...</code>\n`
+        message += `   Статус: ${sub.status}\n`
+        if (sub.condition.broadcaster_user_id) {
+          message += `   Канал ID: <code>${sub.condition.broadcaster_user_id}</code>\n`
+        }
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -467,19 +519,164 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     await sleep(2500)
     await subscribeAllStreamsOnline()
     await subscribeAllStreamsOffline()
+    const newSubs = await getEventSubList()
+    log.warn(`${ctx.from.id} reloaded EventSub`, { before: subs.length, after: newSubs.length })
     let successMessage = `✅ <b>EventSub перезапущен</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    successMessage += `Все подписки успешно обновлены.`
-    ctx.editMessageText(successMessage, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+    successMessage += `Подписок до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
-router.callbackQuery("admin_eventsubreload_cancel", async (ctx) => {
+router.callbackQuery("admin_eventsub_disconnect", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🚫 <b>Действие отменено</b>\n`
+    let message = `❌ <b>Отключение EventSub</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Перезапуск EventSub отменён.`
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+    message += `⏳ Удаление всех подписок...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getEventSubList()
+    await deleteSubs(subs)
+    log.warn(`${ctx.from.id} disconnected EventSub`, { deleted: subs.length })
+    let successMessage = `✅ <b>EventSub отключён</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Удалено подписок: <b>${subs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🧹 <b>Очистка EventSub</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Поиск неиспользуемых событий...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getEventSubList()
+    const orphaned = []
+    for (const sub of subs) {
+      const channelId = sub.condition.broadcaster_user_id
+      if (!channelId) continue
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(channelId), "twitch")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    if (orphaned.length === 0) {
+      log.info(`${ctx.from.id} EventSub cleanup - nothing to remove`, { total: subs.length })
+      return ctx.editMessageText(`✅ <b>Нет неиспользуемых событий</b>\n\nВсе ${subs.length} событий имеют активные подписки.`, { reply_markup: eventsubControlKeyboard, parse_mode: "HTML" })
+    }
+    await deleteSubs(orphaned)
+    log.warn(`${ctx.from.id} EventSub cleanup`, { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length })
+    let successMessage = `✅ <b>Очистка завершена</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Всего событий: <b>${subs.length}</b>\n`
+    successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
+    successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: eventsubResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_webhook", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const subs = await getKickSubscriptions()
+    log.info(`${ctx.from.id} opened Webhook control`, { total: subs.length })
+    let message = `🟢 <b>Webhook Control</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `Активных вебхуков: <b>${subs.length}</b>\n`
+    if (subs.length > 0) {
+      message += `\n`
+      for (const sub of subs) {
+        message += `📌 <code>${sub.event}</code>\n`
+        message += `   ID: <code>${sub.id}</code>\n`
+        message += `   Канал ID: <code>${sub.broadcaster_user_id}</code>\n`
+        message += `   Создан: ${sub.created_at}\n`
+      }
+    }
+    ctx.editMessageText(message, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🔄 <b>Перезапуск Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Выполняется перезапуск...\n\n`
+    message += `• Удаление текущих вебхуков\n`
+    message += `• Создание новых вебхуков`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    const dbSubs = await getChannelsWithFollowersByPlatform("kick")
+    for (const sub of subs) {
+      await deleteKickSubscription(sub)
+    }
+    await sleep(2500)
+    for (const sub of dbSubs) {
+      await subscribeToKickChannelOnline(sub.channel_id!)
+    }
+    const newSubs = await getKickSubscriptions()
+    log.warn(`${ctx.from.id} reloaded Webhooks`, { before: subs.length, after: newSubs.length })
+    let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Вебхуков до: <b>${subs.length}</b> → после: <b>${newSubs.length}</b>`
+    ctx.editMessageText(successMessage, {reply_markup: webhookResultKeyboard, parse_mode: "HTML"})
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_webhook_disconnect", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `❌ <b>Отключение Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Удаление всех вебхуков...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    for (const sub of subs) {
+      await deleteKickSubscription(sub)
+    }
+    log.warn(`${ctx.from.id} disconnected Webhooks`, { deleted: subs.length })
+    let successMessage = `✅ <b>Webhooks отключены</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Удалено вебхуков: <b>${subs.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_webhook_cleanup", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🧹 <b>Очистка Webhooks</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⏳ Поиск неиспользуемых вебхуков...`
+    ctx.editMessageText(message, {parse_mode: "HTML"})
+    const subs = await getKickSubscriptions()
+    const orphaned = []
+    for (const sub of subs) {
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(sub.broadcaster_user_id), "kick")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    if (orphaned.length === 0) {
+      log.info(`${ctx.from.id} Webhook cleanup - nothing to remove`, { total: subs.length })
+      return ctx.editMessageText(`✅ <b>Нет неиспользуемых вебхуков</b>\n\nВсе ${subs.length} вебхуков имеют активные подписки.`, { reply_markup: webhookControlKeyboard, parse_mode: "HTML" })
+    }
+    for (const sub of orphaned) {
+      await deleteKickSubscription(sub)
+    }
+    log.warn(`${ctx.from.id} Webhook cleanup`, { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length })
+    let successMessage = `✅ <b>Очистка завершена</b>\n`
+    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    successMessage += `Всего вебхуков: <b>${subs.length}</b>\n`
+    successMessage += `Удалено неиспользуемых: <b>${orphaned.length}</b>\n`
+    successMessage += `Осталось: <b>${subs.length - orphaned.length}</b>`
+    ctx.editMessageText(successMessage, { reply_markup: webhookResultKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -513,51 +710,31 @@ router.callbackQuery("admin_follows", async (ctx) => {
       }
     }
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
-router.callbackQuery("admin_webhookreload", async (ctx) => {
+router.callbackQuery("admin_logs", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
+    const logs = await getRecentStreamLogs(10)
+    let message = `📋 <b>Последние события</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Вы уверены, что хотите перезапустить Kick Webhooks?\n\n`
-    message += `⚠️ Это переподключит все вебхуки Kick.`
-    ctx.editMessageText(message, { reply_markup: webhookReloadConfirmKeyboard, parse_mode: "HTML" })
-  }
-})
-
-router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
-  if (ctx.session.adminLogin) {
-    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `⏳ Выполняется перезапуск...\n\n`
-    message += `• Удаление текущих вебхуков\n`
-    message += `• Создание новых вебхуков`
-    ctx.editMessageText(message, {parse_mode: "HTML"})
-    const subs = await getKickSubscriptions()
-    const dbSubs = await getChannelsByPlatform("kick")
-    if (subs.length > 0) {
-      for (const sub of subs) {
-        await deleteKickSubscription(sub)
-      }
-      await sleep(2500)
-      for (const sub of dbSubs) {
-        await subscribeToKickChannelOnline(sub.channel_id!)
+    if (logs.length === 0) {
+      message += `Пока нет записей.`
+    } else {
+      for (const entry of logs) {
+        const platformIcon = entry.platform === "twitch" ? "🟣" : "🟢"
+        const eventIcon = entry.event === "online" ? "🟢 Стрим начался" : "🔴 Стрим окончен"
+        message += `${platformIcon} <b>${entry.channel_name || `ID:${entry.channel_id}`}</b>\n`
+        message += `   ${eventIcon}\n`
+        message += `   👥 Подписчиков: ${entry.follower_count ?? 0}\n`
+        message += `   📅 ${entry.created}\n\n`
       }
     }
-    let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
-    successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    successMessage += `Все вебхуки Kick успешно обновлены.`
-    ctx.editMessageText(successMessage, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
-  }
-})
-
-router.callbackQuery("admin_webhookreload_cancel", async (ctx) => {
-  if (ctx.session.adminLogin) {
-    let message = `🚫 <b>Действие отменено</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Перезапуск Webhooks отменён.`
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 })
 
@@ -569,7 +746,7 @@ router.callbackQuery("platform_back", async (ctx) => {
   message += `• /add канал — добавить канал\n`
   message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: await buildHomeKeyboard(ctx.from.id), parse_mode: "HTML" });
   ctx.session.pendingPlatformSelect = undefined
 });
 
@@ -743,6 +920,8 @@ router.callbackQuery("admin_broadcast", async (ctx) => {
     message += `• Текстовое сообщение\n`
     message += `• Фото с подписью`
     await ctx.editMessageText(message, { reply_markup: broadcastCancelKeyboard, parse_mode: "Markdown" });
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
 });
 

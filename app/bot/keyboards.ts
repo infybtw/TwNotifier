@@ -1,11 +1,19 @@
 import { InlineKeyboard } from "grammy";
-import { getSettingsStateByUserId } from "../database/db";
+import { getSettingsStateByUserId, getUserByUserId } from "../database/db";
+import { ADMINER_URL, PGBACKWEB_URL } from "../config";
 
-export const homePageKeyboard = new InlineKeyboard()
-  .text("Мои подписки", "mySubscriptionsCMD")
-  .row()
-  .text("Настройки", "settingsCMD")
-  .text("Инфо", "infoCMD")
+export async function buildHomeKeyboard(user_id: number): Promise<InlineKeyboard> {
+  const user = await getUserByUserId(user_id);
+  const kb = new InlineKeyboard()
+    .text("Мои подписки", "mySubscriptionsCMD")
+    .row()
+    .text("Настройки", "settingsCMD")
+    .text("Инфо", "infoCMD");
+  if (user?.is_admin) {
+    kb.row().text("Управление", "adminCMD");
+  }
+  return kb;
+}
 
 export const addConfirmationKeyboard = new InlineKeyboard()
   .text("Продолжить", "confirm_add")
@@ -41,13 +49,20 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
     .text("Назад", "settingsBACK");
 }
 
-export const adminKeyboard = new InlineKeyboard()
-  .text("Каналы", "admin_channels").text("Пользователи", "admin_users").row()
-  .text("Администраторы", "admin_admins").row()
-  .text("Ключи", "admin_keys").text("Добавить ключ", "admin_add").row()
-  .text("Подписки", "admin_follows").text("Рассылка", "admin_broadcast").row()
-  .text("Перезапуск EventSub", "admin_eventsubreload").text("Перезапуск Webhook", "admin_webhookreload").row()
-  .text("Выйти", "admin_exit")
+export function buildAdminKeyboard(): InlineKeyboard {
+  const kb = new InlineKeyboard()
+    .text("📺 Каналы", "admin_channels").text("👥 Пользователи", "admin_users").row()
+    .text("🛡 Администраторы", "admin_admins").row()
+    .text("🔑 Ключи", "admin_keys").text("➕ Добавить ключ", "admin_add").row()
+    .text("📋 Подписки", "admin_follows").text("📨 Рассылка", "admin_broadcast").row()
+    .text("🟣 EventSub Control", "admin_eventsub").text("🟢 Webhook Control", "admin_webhook").row()
+    .text("📝 Логи", "admin_logs").row()
+  if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
+  if (PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.url("💾 pgbackweb", PGBACKWEB_URL)
+  if (ADMINER_URL && ADMINER_URL !== "undefined" && PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.row()
+  kb.text("🚪 Выйти", "admin_exit")
+  return kb
+}
 
 export const broadcastCancelKeyboard = new InlineKeyboard().text("Отмена", "admin_broadcast_cancel")
 
@@ -69,13 +84,23 @@ export const removePlatformSelecteKeyboard = new InlineKeyboard()
   .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
   .text("Отмена", "remove_platform_back")
 
-export const eventsubReloadConfirmKeyboard = new InlineKeyboard()
-  .text("Подтвердить", "admin_eventsubreload_confirm")
-  .text("Отмена", "admin_eventsubreload_cancel")
+export const eventsubControlKeyboard = new InlineKeyboard()
+  .text("🔄 Перезапуск", "admin_eventsubreload_confirm")
+  .text("❌ Отключить", "admin_eventsub_disconnect").row()
+  .text("🧹 Очистить неиспольз.", "admin_eventsub_cleanup").row()
+  .text("Назад", "admin_back")
 
-export const webhookReloadConfirmKeyboard = new InlineKeyboard()
-  .text("Подтвердить", "admin_webhookreload_confirm")
-  .text("Отмена", "admin_webhookreload_cancel")
+export const eventsubResultKeyboard = new InlineKeyboard()
+  .text("Назад", "admin_eventsub")
+
+export const webhookControlKeyboard = new InlineKeyboard()
+  .text("🔄 Перезапуск", "admin_webhookreload_confirm")
+  .text("❌ Отключить", "admin_webhook_disconnect").row()
+  .text("🧹 Очистить неиспольз.", "admin_webhook_cleanup").row()
+  .text("Назад", "admin_back")
+
+export const webhookResultKeyboard = new InlineKeyboard()
+  .text("Назад", "admin_webhook")
 
 export const adminAddConfirmKeyboard = new InlineKeyboard()
   .text("Подтвердить", "admin_add_confirm")

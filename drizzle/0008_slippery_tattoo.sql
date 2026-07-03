@@ -1,0 +1,1 @@
+ALTER TABLE "stream_logs" ADD CONSTRAINT "stream_logs_channel_id_channels_channel_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."channels"("channel_id") ON DELETE no action ON UPDATE no action;

@@ -50,6 +50,20 @@
       "when": 1782754926921,
       "tag": "0006_massive_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783114061402,
+      "tag": "0007_stale_mandroid",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783114138617,
+      "tag": "0008_slippery_tattoo",
+      "breakpoints": true
     }
   ]
 }
