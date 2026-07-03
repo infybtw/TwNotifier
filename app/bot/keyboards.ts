@@ -2,8 +2,10 @@ import { InlineKeyboard } from "grammy";
 import { getSettingsStateByUserId } from "../database/db";
 
 export const homePageKeyboard = new InlineKeyboard()
+  .text("Мои подписки", "mySubscriptionsCMD")
+  .row()
   .text("Настройки", "settingsCMD")
-  .text("Инфо", "infoCMD");
+  .text("Инфо", "infoCMD")
 
 export const addConfirmationKeyboard = new InlineKeyboard()
   .text("Продолжить", "confirm_add")

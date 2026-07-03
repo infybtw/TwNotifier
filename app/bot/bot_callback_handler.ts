@@ -13,6 +13,7 @@ import {
   getFollowByUserIdChannelIdAndPlatform,
   getFollowCount,
   getFollowsByPlatform,
+  getFollowsByUserIdAndPlatform,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
   revokeAdminKey,
@@ -57,6 +58,40 @@ router.callbackQuery("settingsBACK", async (ctx) => {
   message += `• /remove _<канал>_ — удалить канал\n`
   message += `• /list — мои подписки`
   await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "Markdown" });
+});
+
+router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
+  const user_id = ctx.from?.id;
+  const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
+  const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
+  if (kickFollows.length < 1 && twitchFollows.length < 1) {
+    await ctx.editMessageText("📭 *Нет подписок*\n\nВы пока не отслеживаете ни одного канала.", {
+      parse_mode: "Markdown",
+      reply_markup: backHomeKeyboard,
+    });
+    return;
+  }
+  const total = kickFollows.length + twitchFollows.length;
+  let reply_text = `📊 *Мои подписки*\n`;
+  reply_text += `━━━━━━━━━━━━━━━━━━━━\n`;
+  reply_text += `Всего: *${total}*\n`;
+  if (twitchFollows.length >= 1) {
+    reply_text += `\n🟣 *Twitch*\n`;
+    for (const sub of twitchFollows) {
+      const channel = await getChannelByChannelId(sub.channel_id!);
+      reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
+      reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+    }
+  }
+  if (kickFollows.length >= 1) {
+    reply_text += `\n🟢 *Kick*\n`;
+    for (const sub of kickFollows) {
+      const channel = await getChannelByChannelId(sub.channel_id!);
+      reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
+      reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+    }
+  }
+  await ctx.editMessageText(reply_text, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
 });
 
 router.callbackQuery("infoCMD", async (ctx) => {
