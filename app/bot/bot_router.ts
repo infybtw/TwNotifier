@@ -13,7 +13,7 @@ import {
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
 import {
-  homePageKeyboard,
+  buildHomeKeyboard,
   addConfirmationKeyboard,
   removeConfirmationKeyboard,
   adminKeyboard,
@@ -41,7 +41,7 @@ router.command("start", async (ctx) => {
   message += `• /add канал — добавить канал\n`
   message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  ctx.reply(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
+  ctx.reply(message, { reply_markup: await buildHomeKeyboard(ctx.from?.id!), parse_mode: "HTML" });
   const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
   if (!newUser) {
     ctx.reply("Упс, произошла ошибка при регистрации, пожалуйста обратитесь в поддержку")

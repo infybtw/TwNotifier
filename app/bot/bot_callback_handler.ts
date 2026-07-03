@@ -1,5 +1,6 @@
 import { Composer } from "grammy";
-import { buildSettingsKeyboard, homePageKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, buildHomeKeyboard,  adminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubReloadConfirmKeyboard, webhookReloadConfirmKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { getUserByUserId } from "../database/db";
 import {
   addAdminKey,
     checkOrCreateChannel,
@@ -55,7 +56,22 @@ router.callbackQuery("settingsBACK", async (ctx) => {
   message += `• /add канал — добавить канал\n`
   message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: await buildHomeKeyboard(ctx.from.id), parse_mode: "HTML" });
+});
+
+router.callbackQuery("adminCMD", async (ctx) => {
+  const user = await getUserByUserId(ctx.from?.id!);
+  if (!user?.is_admin) {
+    return ctx.answerCallbackQuery({ text: "Доступ запрещён", show_alert: true });
+  }
+  ctx.session.adminLogin = { signed_in: true };
+  log.warn(`${ctx.from?.id} enter admin system`);
+  const firstName = ctx.from?.first_name || "Admin";
+  let message = `🛡️ <b>Панель управления</b>\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `Добро пожаловать, ${firstName}!\n\n`;
+  message += `Выберите раздел для управления:`;
+  await ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" });
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
@@ -301,7 +317,7 @@ router.callbackQuery("admin_exit", async (ctx) => {
     let message = `👋 <b>Выход из панели</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы успешно вышли из панели управления.`
-    ctx.editMessageText(message, {parse_mode: "HTML"})
+    ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: await buildHomeKeyboard(ctx.from.id)})
     log.warn(`${ctx.from.id} exit admin system`)
   }
 })
@@ -569,7 +585,7 @@ router.callbackQuery("platform_back", async (ctx) => {
   message += `• /add канал — добавить канал\n`
   message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: await buildHomeKeyboard(ctx.from.id), parse_mode: "HTML" });
   ctx.session.pendingPlatformSelect = undefined
 });
 

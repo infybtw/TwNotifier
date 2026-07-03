@@ -1,11 +1,18 @@
 import { InlineKeyboard } from "grammy";
-import { getSettingsStateByUserId } from "../database/db";
+import { getSettingsStateByUserId, getUserByUserId } from "../database/db";
 
-export const homePageKeyboard = new InlineKeyboard()
-  .text("Мои подписки", "mySubscriptionsCMD")
-  .row()
-  .text("Настройки", "settingsCMD")
-  .text("Инфо", "infoCMD")
+export async function buildHomeKeyboard(user_id: number): Promise<InlineKeyboard> {
+  const user = await getUserByUserId(user_id);
+  const kb = new InlineKeyboard()
+    .text("Мои подписки", "mySubscriptionsCMD")
+    .row()
+    .text("Настройки", "settingsCMD")
+    .text("Инфо", "infoCMD");
+  if (user?.is_admin) {
+    kb.row().text("Управление", "adminCMD");
+  }
+  return kb;
+}
 
 export const addConfirmationKeyboard = new InlineKeyboard()
   .text("Продолжить", "confirm_add")
