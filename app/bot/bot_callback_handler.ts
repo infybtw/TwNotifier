@@ -37,25 +37,25 @@ export const router = new Composer<MyContext>();
 const log = logger.getSubLogger({ name: "bot:callback_handler" });
 
 router.callbackQuery("settingsCMD", async (ctx) => {
-  let message = `⚙️ *Настройки*\n`
+  let message = `⚙️ <b>Настройки</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n\n`
   message += `Выберите параметры уведомлений:`
   await ctx.editMessageText(message, {
     //@ts-ignore
     reply_markup: await buildSettingsKeyboard(ctx.from.id),
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
   });
 });
 
 router.callbackQuery("settingsBACK", async (ctx) => {
-  let message = `🏠 *TwNotifier*\n`
+  let message = `🏠 <b>TwNotifier</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n\n`
   message += `Бот для отслеживания стримов\n\n`
-  message += `📌 *Команды:*\n`
-  message += `• /add _<канал>_ — добавить канал\n`
-  message += `• /remove _<канал>_ — удалить канал\n`
+  message += `📌 <b>Команды:</b>\n`
+  message += `• /add канал — добавить канал\n`
+  message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "Markdown" });
+  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
@@ -65,18 +65,18 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
   const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
   const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
   if (kickFollows.length < 1 && twitchFollows.length < 1) {
-    await ctx.editMessageText("📭 *Нет подписок*\n\nВы пока не отслеживаете ни одного канала.", {
-      parse_mode: "Markdown",
+    await ctx.editMessageText("📭 <b>Нет подписок</b>\n\nВы пока не отслеживаете ни одного канала.", {
+      parse_mode: "HTML",
       reply_markup: mySubscriptionsEmptyKeyboard,
     });
     return;
   }
   const total = kickFollows.length + twitchFollows.length;
-  let reply_text = `📊 *Мои подписки*\n`;
+  let reply_text = `📊 <b>Мои подписки</b>\n`;
   reply_text += `━━━━━━━━━━━━━━━━━━━━\n`;
-  reply_text += `Всего: *${total}*\n`;
+  reply_text += `Всего: <b>${total}</b>\n`;
   if (twitchFollows.length >= 1) {
-    reply_text += `\n🟣 *Twitch*\n`;
+    reply_text += `\n🟣 <b>Twitch</b>\n`;
     for (const sub of twitchFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
@@ -84,47 +84,47 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
     }
   }
   if (kickFollows.length >= 1) {
-    reply_text += `\n🟢 *Kick*\n`;
+    reply_text += `\n🟢 <b>Kick</b>\n`;
     for (const sub of kickFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
       reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
     }
   }
-  await ctx.editMessageText(reply_text.trimEnd(), { parse_mode: "Markdown", reply_markup: mySubscriptionsKeyboard });
+  await ctx.editMessageText(reply_text.trimEnd(), { parse_mode: "HTML", reply_markup: mySubscriptionsKeyboard });
 });
 
 router.callbackQuery("mySubscriptionsAdd", async (ctx) => {
   ctx.session.awaitingAddInput = true;
   await ctx.editMessageText(
-    "➕ *Добавление канала*\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку:\n\nПример: `xqc` или `https://twitch.tv/xqc`",
-    { parse_mode: "Markdown", reply_markup: mySubscriptionsAddBackKeyboard },
+    "➕ <b>Добавление канала</b>\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку:\n\nПример: <code>xqc</code> или <code>https://twitch.tv/xqc</code>",
+    { parse_mode: "HTML", reply_markup: mySubscriptionsAddBackKeyboard },
   );
 });
 
 router.callbackQuery("mySubscriptionsRemove", async (ctx) => {
   ctx.session.awaitingRemoveInput = true;
   await ctx.editMessageText(
-    "🗑 *Удаление канала*\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку для удаления:\n\nПример: `xqc` или `https://twitch.tv/xqc`",
-    { parse_mode: "Markdown", reply_markup: mySubscriptionsAddBackKeyboard },
+    "🗑 <b>Удаление канала</b>\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку для удаления:\n\nПример: <code>xqc</code> или <code>https://twitch.tv/xqc</code>",
+    { parse_mode: "HTML", reply_markup: mySubscriptionsAddBackKeyboard },
   );
 });
 
 router.callbackQuery("infoCMD", async (ctx) => {
-  let message = `ℹ️ *О боте*\n`
+  let message = `ℹ️ <b>О боте</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-  message += `*TwNotifier* — бот для отслеживания стримов\n\n`
-  message += `📺 *Платформы:*\n`
+  message += `<b>TwNotifier</b> — бот для отслеживания стримов\n\n`
+  message += `📺 <b>Платформы:</b>\n`
   message += `🟣 Twitch\n`
   message += `🟢 Kick\n\n`
-  message += `📌 *Команды:*\n`
-  message += `\`/add\` <имя канала> — добавить канал\n`
-  message += `\`/remove\` <имя канала> — удалить канал\n`
-  message += `\`/list\` — мои подписки\n\n`
+  message += `📌 <b>Команды:</b>\n`
+  message += `/add имя канала — добавить канал\n`
+  message += `/remove имя канала — удалить канал\n`
+  message += `/list — мои подписки\n\n`
   message += `🔔 Бот пришлёт уведомление, когда стример выйдет в эфир или завершит трансляцию.\n\n`
   message += `⚙️ Настройки уведомлений — в разделе «Настройки».\n\n`
-  message += `[GitHub](https://github.com/infybtw/twnotifier)`
-  await ctx.editMessageText(message, { reply_markup: infoBackKeyboard, parse_mode: "Markdown", disable_web_page_preview: true });
+  message += `<a href="https://github.com/infybtw/twnotifier">GitHub</a>`
+  await ctx.editMessageText(message, { reply_markup: infoBackKeyboard, parse_mode: "HTML", disable_web_page_preview: true });
 });
 
 router.callbackQuery("toogleOnlineNotificationCMD", async (ctx) => {
@@ -154,8 +154,8 @@ router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
 router.callbackQuery("confirm_add", async (ctx) => {
   if (!ctx.session.pendingAdd) {
     return await ctx.editMessageText(
-      "⏱️ *Сессия истекла*\n\nИспользуйте /add для добавления канала.",
-      { parse_mode: "Markdown" },
+      "⏱️ <b>Сессия истекла</b>\n\nИспользуйте /add для добавления канала.",
+      { parse_mode: "HTML" },
     );
   }
 
@@ -189,8 +189,8 @@ router.callbackQuery("confirm_add", async (ctx) => {
   if (subOnlineResCode < 0) {
     log.error("subscribe error", { subResponseCode: subOnlineResCode });
     await ctx.editMessageText(
-      "❌ *Ошибка подписки*\n\nПопробуйте позже или обратитесь в тех. поддержку.",
-      { parse_mode: "Markdown" },
+      "❌ <b>Ошибка подписки</b>\n\nПопробуйте позже или обратитесь в тех. поддержку.",
+      { parse_mode: "HTML" },
     );
     ctx.session.pendingAdd = undefined;
     return;
@@ -200,8 +200,8 @@ router.callbackQuery("confirm_add", async (ctx) => {
   if (subOfflineResCode < 0) {
     log.error("subscribe error", { subOfflineResCode });
     await ctx.editMessageText(
-      "❌ *Ошибка подписки*\n\nПопробуйте позже или обратитесь в тех. поддержку.",
-      { parse_mode: "Markdown" },
+      "❌ <b>Ошибка подписки</b>\n\nПопробуйте позже или обратитесь в тех. поддержку.",
+      { parse_mode: "HTML" },
     );
     ctx.session.pendingAdd = undefined;
     return;
@@ -212,9 +212,9 @@ router.callbackQuery("confirm_add", async (ctx) => {
     const follow = (await checkOrCreateFollow(ctx.from.id, channelId, platform))
     ctx.session.pendingAdd = undefined;
     if (!follow.isNew) {
-      return await ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${displayName}`, { parse_mode: "Markdown" });
+      return await ctx.editMessageText(`ℹ️ <b>Уже отслеживаете</b>\n\nВы уже отслеживаете ${displayName}`, { parse_mode: "HTML" });
     }
-    await ctx.editMessageText(`✅ *Канал добавлен*\n\nТеперь вы отслеживаете ${displayName}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+    await ctx.editMessageText(`✅ <b>Канал добавлен</b>\n\nТеперь вы отслеживаете ${displayName}`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
     log.info("new follow", {
       userId: ctx.from.id,
       channel: displayName,
@@ -227,14 +227,14 @@ router.callbackQuery("confirm_add", async (ctx) => {
       platform: platform,
       error: err,
     })
-    await ctx.editMessageText(`❌ *Ошибка*\n\nУже работаем над исправлением!`, { parse_mode: "Markdown" })
+    await ctx.editMessageText(`❌ <b>Ошибка</b>\n\nУже работаем над исправлением!`, { parse_mode: "HTML" })
   }
 });
 
 router.callbackQuery("cancel_add", async (ctx) => {
   if (ctx.session.pendingAdd) {
     await ctx.answerCallbackQuery("Добавление отменено");
-    await ctx.editMessageText(`🚫 *Добавление отменено*\n\nКанал ${ctx.session.pendingAdd.displayName} не добавлен.`, { parse_mode: "Markdown" });
+    await ctx.editMessageText(`🚫 <b>Добавление отменено</b>\n\nКанал ${ctx.session.pendingAdd.displayName} не добавлен.`, { parse_mode: "HTML" });
     log.info("channel addition cancelled", {
       userId: ctx.from.id,
       channel: ctx.session.pendingAdd.displayName,
@@ -243,7 +243,7 @@ router.callbackQuery("cancel_add", async (ctx) => {
     ctx.session.pendingAdd = undefined;
   } else {
     await ctx.answerCallbackQuery("Нет активного добавления");
-    await ctx.editMessageText("ℹ️ *Нет активного процесса*\n\nДобавление канала не было начато.", { parse_mode: "Markdown" });
+    await ctx.editMessageText("ℹ️ <b>Нет активного процесса</b>\n\nДобавление канала не было начато.", { parse_mode: "HTML" });
   }
 });
 
@@ -253,8 +253,8 @@ router.callbackQuery("confirm_remove", async (ctx) => {
       "Сессия истекла. Пожалуйста, начните удаление заново.",
     );
     await ctx.editMessageText(
-      "⏱️ *Сессия истекла*\n\nИспользуйте /remove для удаления канала.",
-      { parse_mode: "Markdown" },
+      "⏱️ <b>Сессия истекла</b>\n\nИспользуйте /remove для удаления канала.",
+      { parse_mode: "HTML" },
     );
     return;
   }
@@ -268,7 +268,7 @@ router.callbackQuery("confirm_remove", async (ctx) => {
   // Clear pending removal
   ctx.session.pendingRemove = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${displayName} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+  await ctx.editMessageText(`✅ <b>Канал удалён</b>\n\n${displayName} удалён из отслеживаемых.`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: displayName,
@@ -282,7 +282,7 @@ router.callbackQuery("cancel_remove", async (ctx) => {
     const { displayName, platform } = ctx.session.pendingRemove;
     ctx.session.pendingRemove = undefined;
     await ctx.answerCallbackQuery("Удаление отменено");
-    await ctx.editMessageText(`🚫 *Удаление отменено*\n\nКанал ${displayName} не удалён.`, { parse_mode: "Markdown" });
+    await ctx.editMessageText(`🚫 <b>Удаление отменено</b>\n\nКанал ${displayName} не удалён.`, { parse_mode: "HTML" });
     log.info("channel removal cancelled", {
       userId: ctx.from.id,
       channel: displayName,
@@ -290,7 +290,7 @@ router.callbackQuery("cancel_remove", async (ctx) => {
     });
   } else {
     await ctx.answerCallbackQuery("Нет активного удаления");
-    await ctx.editMessageText("ℹ️ *Нет активного процесса*\n\nУдаление канала не было начато.", { parse_mode: "Markdown" });
+    await ctx.editMessageText("ℹ️ <b>Нет активного процесса</b>\n\nУдаление канала не было начато.", { parse_mode: "HTML" });
   }
 });
 
@@ -298,10 +298,10 @@ router.callbackQuery("cancel_remove", async (ctx) => {
 router.callbackQuery("admin_exit", async (ctx) => {
   if (ctx.session.adminLogin) {
     ctx.session.adminLogin = undefined
-    let message = `👋 *Выход из панели*\n`
+    let message = `👋 <b>Выход из панели</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы успешно вышли из панели управления.`
-    ctx.editMessageText(message, {parse_mode: "Markdown"})
+    ctx.editMessageText(message, {parse_mode: "HTML"})
     log.warn(`${ctx.from.id} exit admin system`)
   }
 })
@@ -309,55 +309,55 @@ router.callbackQuery("admin_exit", async (ctx) => {
 router.callbackQuery("admin_channels", async (ctx) => {
   if (ctx.session.adminLogin) {
     const channels = await getChannels()
-    let message = `📺 *Управление каналами*\n`
+    let message = `📺 <b>Управление каналами</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
-    message += `Всего отслеживается: *${channels.length}* канал(ов)\n\n`
+    message += `Всего отслеживается: <b>${channels.length}</b> канал(ов)\n\n`
     for (const channel of channels) {
       const icon = channel.platform === "twitch" ? "🟣" : "🟢"
-      message += `${icon} *${channel.channel_name}*\n`
-      message += `   ID: \`${channel.channel_id}\`\n`
+      message += `${icon} <b>${channel.channel_name}</b>\n`
+      message += `   ID: <code>${channel.channel_id}</code>\n`
     }
-    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "Markdown"})
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
   }
 })
 
 router.callbackQuery("admin_users", async (ctx) => {
   if (ctx.session.adminLogin) {
     const users = await getUsers()
-    let message = `👥 *Зарегистрированные пользователи*\n`
+    let message = `👥 <b>Зарегистрированные пользователи</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
-    message += `Всего: *${users.length}*\n\n`
+    message += `Всего: <b>${users.length}</b>\n\n`
     for (const user of users) {
-      message += `👤 *${user.first_name}* (@${user.username})\n`
-      message += `   ID: \`${user.user_id}\`\n`
+      message += `👤 <b>${user.first_name}</b> (@${user.username})\n`
+      message += `   ID: <code>${user.user_id}</code>\n`
       message += `   📅 ${user.created}\n\n`
     }
-    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "Markdown"})
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
   }
 })
 
 router.callbackQuery("admin_admins", async (ctx) => {
   if (ctx.session.adminLogin) {
     const users = await getAdmins()
-    let message = `🛡️ *Администраторы системы*\n`
+    let message = `🛡️ <b>Администраторы системы</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
-    message += `Всего: *${users.length}*\n\n`
+    message += `Всего: <b>${users.length}</b>\n\n`
     for (const user of users) {
-      message += `⚡ *${user.first_name}* (@${user.username})\n`
-      message += `   ID: \`${user.user_id}\`\n`
+      message += `⚡ <b>${user.first_name}</b> (@${user.username})\n`
+      message += `   ID: <code>${user.user_id}</code>\n`
       message += `   📅 ${user.created}\n\n`
     }
-    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "Markdown"})
+    ctx.editMessageText(message, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
   }
 })
 
 router.callbackQuery("admin_add", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔑 *Создание админ-ключа*\n`
+    let message = `🔑 <b>Создание админ-ключа</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы собираетесь создать новый ключ администратора.\n\n`
     message += `⚠️ Ключ будет сгенерирован однократно.`
-    ctx.editMessageText(message, {parse_mode: "Markdown", reply_markup: adminAddConfirmKeyboard})
+    ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminAddConfirmKeyboard})
   }
 })
 
@@ -366,14 +366,14 @@ router.callbackQuery("admin_add_confirm", async (ctx) => {
     const key = randomBytes(32).toString("base64url")
     const adminKey = await addAdminKey(ctx.from.id, key)
     if (!adminKey) {
-      return ctx.editMessageText("❌ *Ошибка генерации ключа*\n\nНе удалось создать админ-ключ. Попробуйте позже.", {parse_mode: "Markdown"})
+      return ctx.editMessageText("❌ <b>Ошибка генерации ключа</b>\n\nНе удалось создать админ-ключ. Попробуйте позже.", {parse_mode: "HTML"})
     }
-    let message = `✅ *Админ-ключ создан*\n`
+    let message = `✅ <b>Админ-ключ создан</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `||\`${adminKey.key}\`||\n\n`
+    message += `<tg-spoiler>${adminKey.key}</tg-spoiler>\n\n`
     message += `📤 Передайте ключ новому администратору\n`
-    message += `📌 Используйте: /becomeAdmin \`ключ\``
-    ctx.editMessageText(message, {parse_mode: "Markdown", reply_markup: adminBackKeyboard})
+    message += `📌 Используйте: /becomeAdmin ключ`
+    ctx.editMessageText(message, {parse_mode: "HTML", reply_markup: adminBackKeyboard})
   }
 })
 
@@ -381,29 +381,29 @@ router.callbackQuery("admin_keys", async (ctx) => {
   if (ctx.session.adminLogin) {
     const keys = await getAllAdminKeys()
     if (keys.length < 1) {
-      return ctx.editMessageText("🔑 *Админ-ключи*\n━━━━━━━━━━━━━━━━━━━━\n\nНет созданных ключей.", { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+      return ctx.editMessageText("🔑 <b>Админ-ключи</b>\n━━━━━━━━━━━━━━━━━━━━\n\nНет созданных ключей.", { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
     }
 
-    let message = `🔑 *Админ-ключи*\n`
+    let message = `🔑 <b>Админ-ключи</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
-    message += `Всего: *${keys.length}*\n\n`
+    message += `Всего: <b>${keys.length}</b>\n\n`
 
     const unused = keys.filter(k => !k.used)
     const used = keys.filter(k => k.used)
 
     if (unused.length > 0) {
-      message += `📥 *Доступные (${unused.length}):*\n`
+      message += `📥 <b>Доступные (${unused.length}):</b>\n`
       for (const k of unused) {
-        message += `\n\`${k.key.slice(0, 16)}...\`\n`
+        message += `\n<code>${k.key.slice(0, 16)}...</code>\n`
         message += `   📅 ${k.issue_date.slice(0, 10)}\n`
         message += `   👤 ${k.issued_by_name || "Unknown"} (@${k.issued_by_username || "unknown"})\n`
       }
     }
 
     if (used.length > 0) {
-      message += `\n📤 *Использованные (${used.length}):*\n`
+      message += `\n📤 <b>Использованные (${used.length}):</b>\n`
       for (const k of used) {
-        message += `\n\`${k.key.slice(0, 16)}...\`\n`
+        message += `\n<code>${k.key.slice(0, 16)}...</code>\n`
         message += `   📅 ${k.issue_date.slice(0, 10)}\n`
         message += `   ✅ ${k.used_date?.slice(0, 10) || "?"}\n`
       }
@@ -416,7 +416,7 @@ router.callbackQuery("admin_keys", async (ctx) => {
     }
     kb.text("Назад", "admin_back")
 
-    ctx.editMessageText(message, { reply_markup: kb, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: kb, parse_mode: "HTML" })
   }
 })
 
@@ -425,61 +425,61 @@ router.callbackQuery(/^admin_key_revoke_confirm_(\d+)$/, async (ctx) => {
     const keyId = Number(ctx.match[1])
     const revoked = await revokeAdminKey(keyId)
     if (!revoked) {
-      return ctx.editMessageText("❌ *Ошибка*\n\nНе удалось отозвать ключ. Возможно, он уже удалён.", { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+      return ctx.editMessageText("❌ <b>Ошибка</b>\n\nНе удалось отозвать ключ. Возможно, он уже удалён.", { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
     }
-    let message = `✅ *Ключ отозван*\n`
+    let message = `✅ <b>Ключ отозван</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Ключ \`${revoked.key.slice(0, 12)}...\` успешно удалён.`
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+    message += `Ключ <code>${revoked.key.slice(0, 12)}...</code> успешно удалён.`
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_back", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🛡️ *Панель управления*\n`
+    let message = `🛡️ <b>Панель управления</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
     message += `Добро пожаловать, ${ctx.from.first_name}!\n\n`
     message += `Выберите раздел для управления:`
-    ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: adminKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_eventsubreload", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔄 *Перезапуск EventSub*\n`
+    let message = `🔄 <b>Перезапуск EventSub</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы уверены, что хотите перезапустить Twitch EventSub?\n\n`
     message += `⚠️ Это отключит текущие подписки и создаст новые.`
-    ctx.editMessageText(message, { reply_markup: eventsubReloadConfirmKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: eventsubReloadConfirmKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔄 *Перезапуск EventSub*\n`
+    let message = `🔄 <b>Перезапуск EventSub</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `⏳ Выполняется перезапуск...\n\n`
     message += `• Удаление текущих подписок\n`
     message += `• Создание новых подписок`
-    ctx.editMessageText(message, {parse_mode: "Markdown"})
+    ctx.editMessageText(message, {parse_mode: "HTML"})
     const subs = await getEventSubList()
     await deleteSubs(subs)
     await sleep(2500)
     await subscribeAllStreamsOnline()
     await subscribeAllStreamsOffline()
-    let successMessage = `✅ *EventSub перезапущен*\n`
+    let successMessage = `✅ <b>EventSub перезапущен</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Все подписки успешно обновлены.`
-    ctx.editMessageText(successMessage, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(successMessage, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_eventsubreload_cancel", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🚫 *Действие отменено*\n`
+    let message = `🚫 <b>Действие отменено</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Перезапуск EventSub отменён.`
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
@@ -487,7 +487,7 @@ router.callbackQuery("admin_follows", async (ctx) => {
   if (ctx.session.adminLogin) {
     const follows = await getAllFollowsWithDetails()
     if (follows.length < 1) {
-      return ctx.editMessageText("📭 *Нет активных подписок*\n\nПока ни один пользователь не отслеживает каналы.", { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+      return ctx.editMessageText("📭 <b>Нет активных подписок</b>\n\nПока ни один пользователь не отслеживает каналы.", { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
     }
 
     const grouped = new Map<string, typeof follows>()
@@ -498,42 +498,42 @@ router.callbackQuery("admin_follows", async (ctx) => {
       grouped.set(key, arr)
     }
 
-    let message = `📊 *Активные подписки*\n`
+    let message = `📊 <b>Активные подписки</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n`
     message += `${follows.length} подписок на ${grouped.size} канал(ах)\n`
     for (const [key, subs] of grouped) {
       const platform = subs[0].platform
       const channel = subs[0].channel_name
       const platformIcon = platform === "twitch" ? "🟣" : "🟢"
-      message += `\n${platformIcon} *${channel}*\n`
+      message += `\n${platformIcon} <b>${channel}</b>\n`
       message += `   ${subs.length} подписано:\n`
       for (const sub of subs) {
         message += `   👤 ${sub.first_name || "Unknown"} (@${sub.username || "unknown"})\n`
         message += `      📅 ${sub.created.slice(0, 10)}\n`
       }
     }
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_webhookreload", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔗 *Перезапуск Webhooks*\n`
+    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы уверены, что хотите перезапустить Kick Webhooks?\n\n`
     message += `⚠️ Это переподключит все вебхуки Kick.`
-    ctx.editMessageText(message, { reply_markup: webhookReloadConfirmKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: webhookReloadConfirmKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🔗 *Перезапуск Webhooks*\n`
+    let message = `🔗 <b>Перезапуск Webhooks</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `⏳ Выполняется перезапуск...\n\n`
     message += `• Удаление текущих вебхуков\n`
     message += `• Создание новых вебхуков`
-    ctx.editMessageText(message, {parse_mode: "Markdown"})
+    ctx.editMessageText(message, {parse_mode: "HTML"})
     const subs = await getKickSubscriptions()
     const dbSubs = await getChannelsByPlatform("kick")
     if (subs.length > 0) {
@@ -545,31 +545,31 @@ router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
         await subscribeToKickChannelOnline(sub.channel_id!)
       }
     }
-    let successMessage = `✅ *Webhooks перезапущены*\n`
+    let successMessage = `✅ <b>Webhooks перезапущены</b>\n`
     successMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
     successMessage += `Все вебхуки Kick успешно обновлены.`
-    ctx.editMessageText(successMessage, {reply_markup: adminBackKeyboard, parse_mode: "Markdown"})
+    ctx.editMessageText(successMessage, {reply_markup: adminBackKeyboard, parse_mode: "HTML"})
   }
 })
 
 router.callbackQuery("admin_webhookreload_cancel", async (ctx) => {
   if (ctx.session.adminLogin) {
-    let message = `🚫 *Действие отменено*\n`
+    let message = `🚫 <b>Действие отменено</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Перезапуск Webhooks отменён.`
-    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" })
+    ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
   }
 })
 
 router.callbackQuery("platform_back", async (ctx) => {
-  let message = `🏠 *TwNotifier*\n`
+  let message = `🏠 <b>TwNotifier</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n\n`
   message += `Бот для отслеживания стримов\n\n`
-  message += `📌 *Команды:*\n`
-  message += `• /add _<канал>_ — добавить канал\n`
-  message += `• /remove _<канал>_ — удалить канал\n`
+  message += `📌 <b>Команды:</b>\n`
+  message += `• /add канал — добавить канал\n`
+  message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "Markdown" });
+  await ctx.editMessageText(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
   ctx.session.pendingPlatformSelect = undefined
 });
 
@@ -578,11 +578,11 @@ router.callbackQuery("platform_twitch", async (ctx) => {
   const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name.toLowerCase()!
 
   if (!ctx.from) {
-    return ctx.editMessageText("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+    return ctx.editMessageText("❌ <b>Ошибка</b>\n\nНе удалось определить пользователя.", { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   }
 
   if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "twitch")) {
-    return ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+    return ctx.editMessageText(`ℹ️ <b>Уже отслеживаете</b>\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   }
 
   // Store pending channel in session
@@ -594,9 +594,9 @@ router.callbackQuery("platform_twitch", async (ctx) => {
   };
 
   // Show preview with confirmation buttons
-  let previewMessage = `📺 *Добавление канала*\n`
+  let previewMessage = `📺 <b>Добавление канала</b>\n`
   previewMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-  previewMessage += `Имя: *${display_name}*\n`
+  previewMessage += `Имя: <b>${display_name}</b>\n`
   previewMessage += `Платформа: 🟣 Twitch\n`
   previewMessage += `Ссылка: https://twitch.tv/${display_name}\n\n`
   previewMessage += `Продолжить добавление?`
@@ -610,7 +610,7 @@ router.callbackQuery("platform_twitch", async (ctx) => {
 
   return await ctx.editMessageText(previewMessage, {
     reply_markup: addConfirmationKeyboard,
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
   });
 })
 
@@ -619,11 +619,11 @@ router.callbackQuery("platform_kick", async (ctx) => {
   const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug.toLowerCase()!
 
   if (!ctx.from) {
-    return ctx.editMessageText("❌ *Ошибка*\n\nНе удалось определить пользователя.", { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+    return ctx.editMessageText("❌ <b>Ошибка</b>\n\nНе удалось определить пользователя.", { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   }
 
   if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "kick")) {
-    return ctx.editMessageText(`ℹ️ *Уже отслеживаете*\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+    return ctx.editMessageText(`ℹ️ <b>Уже отслеживаете</b>\n\nВы уже отслеживаете ${display_name}`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   }
 
   // Store pending channel in session
@@ -635,9 +635,9 @@ router.callbackQuery("platform_kick", async (ctx) => {
   };
 
   // Show preview with confirmation buttons
-  let previewMessage = `📺 *Добавление канала*\n`
+  let previewMessage = `📺 <b>Добавление канала</b>\n`
   previewMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-  previewMessage += `Имя: *${display_name}*\n`
+  previewMessage += `Имя: <b>${display_name}</b>\n`
   previewMessage += `Платформа: 🟢 Kick\n`
   previewMessage += `Ссылка: https://kick.com/${display_name}\n\n`
   previewMessage += `Продолжить добавление?`
@@ -651,7 +651,7 @@ router.callbackQuery("platform_kick", async (ctx) => {
 
   return await ctx.editMessageText(previewMessage, {
     reply_markup: addConfirmationKeyboard,
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
   });
 })
 
@@ -661,8 +661,8 @@ router.callbackQuery("remove_platform_kick", async (ctx) => {
       "Сессия истекла. Пожалуйста, начните удаление заново.",
     );
     await ctx.editMessageText(
-      "⏱️ *Сессия истекла*\n\nИспользуйте /remove для удаления канала.",
-      { parse_mode: "Markdown" },
+      "⏱️ <b>Сессия истекла</b>\n\nИспользуйте /remove для удаления канала.",
+      { parse_mode: "HTML" },
     );
     return;
   }
@@ -676,7 +676,7 @@ router.callbackQuery("remove_platform_kick", async (ctx) => {
   // Clear pending removal
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${kickChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+  await ctx.editMessageText(`✅ <b>Канал удалён</b>\n\n${kickChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: kickChannel.channel_name,
@@ -691,8 +691,8 @@ router.callbackQuery("remove_platform_twitch", async (ctx) => {
       "Сессия истекла. Пожалуйста, начните удаление заново.",
     );
     await ctx.editMessageText(
-      "⏱️ *Сессия истекла*\n\nИспользуйте /remove для удаления канала.",
-      { parse_mode: "Markdown" },
+      "⏱️ <b>Сессия истекла</b>\n\nИспользуйте /remove для удаления канала.",
+      { parse_mode: "HTML" },
     );
     return;
   }
@@ -706,7 +706,7 @@ router.callbackQuery("remove_platform_twitch", async (ctx) => {
   // Clear pending removal
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(`✅ *Канал удалён*\n\n${twitchChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "Markdown", reply_markup: backHomeKeyboard });
+  await ctx.editMessageText(`✅ <b>Канал удалён</b>\n\n${twitchChannel.channel_name} удалён из отслеживаемых.`, { parse_mode: "HTML", reply_markup: backHomeKeyboard });
   log.info("follow removed", {
     userId: ctx.from.id,
     channel: twitchChannel.channel_name,
@@ -720,7 +720,7 @@ router.callbackQuery("remove_platform_back", async (ctx) => {
     const { twitchChannel, kickChannel } = ctx.session.removePendingPlatformSelect;
     ctx.session.removePendingPlatformSelect = undefined;
     await ctx.answerCallbackQuery("Удаление отменено");
-    await ctx.editMessageText(`🚫 *Удаление отменено*\n\nКанал ${twitchChannel.channel_name} не удалён.`, { parse_mode: "Markdown" });
+    await ctx.editMessageText(`🚫 <b>Удаление отменено</b>\n\nКанал ${twitchChannel.channel_name} не удалён.`, { parse_mode: "HTML" });
     log.info("channel removal cancelled", {
       userId: ctx.from.id,
       twithchChannel: twitchChannel.channel_name,
@@ -728,7 +728,7 @@ router.callbackQuery("remove_platform_back", async (ctx) => {
     });
   } else {
     await ctx.answerCallbackQuery("Нет активного удаления");
-    await ctx.editMessageText("ℹ️ *Нет активного процесса*\n\nУдаление канала не было начато.", { parse_mode: "Markdown" });
+    await ctx.editMessageText("ℹ️ <b>Нет активного процесса</b>\n\nУдаление канала не было начато.", { parse_mode: "HTML" });
   }
 });
 

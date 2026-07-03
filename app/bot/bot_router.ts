@@ -34,14 +34,14 @@ const log = logger.getSubLogger({ name: "bot:router" });
 export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
-  let message = `🏠 *TwNotifier*\n`
+  let message = `🏠 <b>TwNotifier</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n\n`
   message += `Бот для отслеживания стримов\n\n`
-  message += `📌 *Команды:*\n`
-  message += `• /add _<канал>_ — добавить канал\n`
-  message += `• /remove _<канал>_ — удалить канал\n`
+  message += `📌 <b>Команды:</b>\n`
+  message += `• /add канал — добавить канал\n`
+  message += `• /remove канал — удалить канал\n`
   message += `• /list — мои подписки`
-  ctx.reply(message, { reply_markup: homePageKeyboard, parse_mode: "Markdown" });
+  ctx.reply(message, { reply_markup: homePageKeyboard, parse_mode: "HTML" });
   const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
   if (!newUser) {
     ctx.reply("Упс, произошла ошибка при регистрации, пожалуйста обратитесь в поддержку")
@@ -285,14 +285,14 @@ router.command("list", async (ctx) => {
   const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick")
   const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch")
   if (kickFollows.length < 1 && twitchFollows.length < 1) {
-    return ctx.reply("📭 *Нет подписок*\n\nВы пока не отслеживаете ни одного канала.", { parse_mode: "Markdown" });
+    return ctx.reply("📭 <b>Нет подписок</b>\n\nВы пока не отслеживаете ни одного канала.", { parse_mode: "HTML" });
   }
   const total = kickFollows.length + twitchFollows.length
-  let reply_text = `📊 *Мои подписки*\n`
+  let reply_text = `📊 <b>Мои подписки</b>\n`
   reply_text += `━━━━━━━━━━━━━━━━━━━━\n`
-  reply_text += `Всего: *${total}*\n`
+  reply_text += `Всего: <b>${total}</b>\n`
   if (twitchFollows.length >= 1) {
-    reply_text += `\n🟣 *Twitch*\n`
+    reply_text += `\n🟣 <b>Twitch</b>\n`
     for (const sub of twitchFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
@@ -300,7 +300,7 @@ router.command("list", async (ctx) => {
     }
   }
   if (kickFollows.length >= 1) {
-    reply_text += `\n🟢 *Kick*\n`
+    reply_text += `\n🟢 <b>Kick</b>\n`
     for (const sub of kickFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
@@ -308,13 +308,13 @@ router.command("list", async (ctx) => {
     }
   }
 
-  ctx.reply(reply_text, {parse_mode: "Markdown", reply_markup: backHomeKeyboard});
+  ctx.reply(reply_text.trimEnd(), {parse_mode: "HTML", reply_markup: backHomeKeyboard});
 });
 
 router.command("admin", async (ctx) => {
   const user = await getUserByUserId(ctx.from?.id!)
   if (!user?.is_admin) {
-    ctx.reply("🚫 *Доступ запрещён*\n\nДанная команда доступна только администраторам.", {parse_mode: "Markdown"})
+    ctx.reply("🚫 <b>Доступ запрещён</b>\n\nДанная команда доступна только администраторам.", {parse_mode: "HTML"})
     return
   }
   ctx.session.adminLogin = {
@@ -322,17 +322,17 @@ router.command("admin", async (ctx) => {
   }
   log.warn(`${ctx.from?.id!} enter admin system`)
   const firstName = ctx.from?.first_name || "Admin"
-  let message = `🛡️ *Панель управления*\n`
+  let message = `🛡️ <b>Панель управления</b>\n`
   message += `━━━━━━━━━━━━━━━━━━━━\n`
   message += `Добро пожаловать, ${firstName}!\n\n`
   message += `Выберите раздел для управления:`
-  ctx.reply(message, {reply_markup: adminKeyboard, parse_mode: "Markdown"})
+  ctx.reply(message, {reply_markup: adminKeyboard, parse_mode: "HTML"})
 })
 
 router.command("becomeAdmin", async (ctx) => {
   const user = await getUserByUserId(ctx.from?.id!)
   if (user?.is_admin) {
-    return ctx.reply("ℹ️ *Вы уже администратор*\n\nИспользуйте /admin для входа в панель.", {parse_mode: "Markdown"})
+    return ctx.reply("ℹ️ <b>Вы уже администратор</b>\n\nИспользуйте /admin для входа в панель.", {parse_mode: "HTML"})
   }
   const key = ctx.match.trim();
   if (!key) {
@@ -342,11 +342,11 @@ router.command("becomeAdmin", async (ctx) => {
   const updatedUser = await makeUserAdmin(user_id, key)
   if (updatedUser) {
     log.warn(`User ${user_id} become admin with ${key}`)
-    let message = `✅ *Админ-ключ активирован*\n`
+    let message = `✅ <b>Админ-ключ активирован</b>\n`
     message += `━━━━━━━━━━━━━━━━━━━━\n\n`
     message += `Вы успешно получили права администратора.\n\n`
     message += `📌 Используйте /admin для входа в панель управления.`
-    return ctx.reply(message, {parse_mode: "Markdown"})
+    return ctx.reply(message, {parse_mode: "HTML"})
   }
 })
 
