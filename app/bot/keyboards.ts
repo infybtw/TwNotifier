@@ -51,16 +51,16 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
 
 export function buildAdminKeyboard(): InlineKeyboard {
   const kb = new InlineKeyboard()
-    .text("Каналы", "admin_channels").text("Пользователи", "admin_users").row()
-    .text("Администраторы", "admin_admins").row()
-    .text("Ключи", "admin_keys").text("Добавить ключ", "admin_add").row()
-    .text("Подписки", "admin_follows").text("Рассылка", "admin_broadcast").row()
+    .text("📺 Каналы", "admin_channels").text("👥 Пользователи", "admin_users").row()
+    .text("🛡 Администраторы", "admin_admins").row()
+    .text("🔑 Ключи", "admin_keys").text("➕ Добавить ключ", "admin_add").row()
+    .text("📋 Подписки", "admin_follows").text("📨 Рассылка", "admin_broadcast").row()
     .text("🟣 EventSub Control", "admin_eventsub").text("🟢 Webhook Control", "admin_webhook").row()
-    .text("Логи", "admin_logs").row()
+    .text("📝 Логи", "admin_logs").row()
   if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
   if (PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.url("💾 pgbackweb", PGBACKWEB_URL)
   if (ADMINER_URL && ADMINER_URL !== "undefined" && PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.row()
-  kb.text("Выйти", "admin_exit")
+  kb.text("🚪 Выйти", "admin_exit")
   return kb
 }
 
