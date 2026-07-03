@@ -12,6 +12,7 @@ import {
   getChannelFollowersByChannelIdAndPlatform,
   getChannels,
   getChannelsByPlatform,
+  getChannelsWithFollowersByPlatform,
   getFollowByUserIdChannelIdAndPlatform,
   getFollowsByUserIdAndPlatform,
   getUsers,
@@ -608,7 +609,7 @@ router.callbackQuery("admin_webhookreload_confirm", async (ctx) => {
     message += `• Создание новых вебхуков`
     ctx.editMessageText(message, {parse_mode: "HTML"})
     const subs = await getKickSubscriptions()
-    const dbSubs = await getChannelsByPlatform("kick")
+    const dbSubs = await getChannelsWithFollowersByPlatform("kick")
     for (const sub of subs) {
       await deleteKickSubscription(sub)
     }
