@@ -21,7 +21,7 @@ services:
     image: ghcr.io/infybtw/twn
     build:
       context: .
-      dockerfile: Dockerfile-app
+      dockerfile: app/Dockerfile
       network: host
     env_file: .env
     restart: unless-stopped

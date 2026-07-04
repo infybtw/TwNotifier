@@ -1,10 +1,10 @@
 FROM oven/bun:1
 
 WORKDIR /app
-COPY package.json bun.lock ./
+COPY app/package.json app/bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY app  .
-COPY drizzle.config.ts .
+COPY app/drizzle.config.ts .
 COPY drizzle ./drizzle
 
 CMD ["bun", "run", "index.ts"]
