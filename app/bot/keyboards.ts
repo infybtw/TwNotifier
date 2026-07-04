@@ -113,6 +113,7 @@ export const mySubscriptionsEmptyKeyboard = new InlineKeyboard()
 export const mySubscriptionsKeyboard = new InlineKeyboard()
   .text("Добавить", "mySubscriptionsAdd")
   .text("Удалить", "mySubscriptionsRemove").row()
+  .text("🟢 Каналы онлайн", "mySubscriptionsOnline").row()
   .text("Назад", "settingsBACK")
 
 export const mySubscriptionsAddBackKeyboard = new InlineKeyboard()

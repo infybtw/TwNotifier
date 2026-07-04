@@ -1,4 +1,4 @@
-import { Composer } from "grammy";
+import { Composer, InlineKeyboard } from "grammy";
 import { buildSettingsKeyboard, buildHomeKeyboard, buildAdminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
 import { getUserByUserId } from "../database/db";
 import {
@@ -28,6 +28,8 @@ import {
   subscribeToChannelOffline,
   subscribeToChannelOnline,
 } from "../twitchAPI/subscriptions";
+import { getStreamsByUserIds } from "../twitchAPI/users";
+import { getKickChannelsOnline } from "../kickAPI/users";
 import logger from "../logger";
 import { MyContext } from "./bot";
 import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
@@ -127,6 +129,93 @@ router.callbackQuery("mySubscriptionsRemove", async (ctx) => {
     "🗑 <b>Удаление канала</b>\n━━━━━━━━━━━━━━━━━━━━\n\nОтправьте имя канала или ссылку для удаления:\n\nПример: <code>xqc</code> или <code>https://twitch.tv/xqc</code>",
     { parse_mode: "HTML", reply_markup: mySubscriptionsAddBackKeyboard },
   );
+});
+
+router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const user_id = ctx.from?.id;
+  const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
+  const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
+
+  if (kickFollows.length < 1 && twitchFollows.length < 1) {
+    try {
+      await ctx.editMessageText("📭 <b>Нет подписок</b>\n\nВы пока не отслеживаете ни одного канала.", {
+        parse_mode: "HTML",
+        reply_markup: mySubscriptionsEmptyKeyboard,
+      });
+    } catch {}
+    return;
+  }
+
+  let onlineTwitch: { name: string; title: string; game: string; viewers: number }[] = [];
+  let onlineKick: { name: string; title: string; viewers: number }[] = [];
+
+  if (twitchFollows.length >= 1) {
+    const twitchIds = twitchFollows.map((f) => Number(f.channel_id));
+    const streams = await getStreamsByUserIds(twitchIds);
+    for (const stream of streams) {
+      onlineTwitch.push({
+        name: stream.user_name,
+        title: stream.title,
+        game: stream.game_name,
+        viewers: stream.viewer_count,
+      });
+    }
+  }
+
+  if (kickFollows.length >= 1) {
+    const kickChannelNames: string[] = [];
+    for (const f of kickFollows) {
+      const ch = await getChannelByChannelId(f.channel_id!);
+      if (ch?.channel_name) kickChannelNames.push(ch.channel_name);
+    }
+    const kickChannels = await getKickChannelsOnline(kickChannelNames);
+    for (const ch of kickChannels) {
+      if (ch.is_live) {
+        onlineKick.push({
+          name: ch.slug,
+          title: ch.stream_title,
+          viewers: ch.viewer_count,
+        });
+      }
+    }
+  }
+
+  const backKb = new InlineKeyboard().text("Назад", "mySubscriptionsCMD");
+
+  const totalOnline = onlineTwitch.length + onlineKick.length;
+  if (totalOnline === 0) {
+    try {
+      await ctx.editMessageText("🔴 <b>Онлайн каналов нет</b>\n\nСейчас ни один из ваших каналов не в эфире.", {
+        parse_mode: "HTML",
+        reply_markup: backKb,
+      });
+    } catch {}
+    return;
+  }
+
+  let text = `🟢 <b>Каналы онлайн</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  if (onlineTwitch.length >= 1) {
+    text += `🟣 <b>Twitch</b>\n`;
+    for (const s of onlineTwitch) {
+      text += `   📺 <b>${s.name}</b> — 👁 ${s.viewers}\n`;
+      text += `      🎮 ${s.game}\n`;
+      text += `      📝 ${s.title.slice(0, 80)}\n\n`;
+    }
+  }
+
+  if (onlineKick.length >= 1) {
+    text += `🟢 <b>Kick</b>\n`;
+    for (const s of onlineKick) {
+      text += `   📺 <b>${s.name}</b> — 👁 ${s.viewers}\n`;
+      text += `      📝 ${s.title.slice(0, 80)}\n\n`;
+    }
+  }
+
+  try {
+    await ctx.editMessageText(text.trimEnd(), { parse_mode: "HTML", reply_markup: backKb });
+  } catch {}
 });
 
 router.callbackQuery("infoCMD", async (ctx) => {
