@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --env-file=.env run app/index.ts"
+    "dev": "bun --env-file=.env run app/index.ts",
+    "migrate": "cd app && bunx drizzle-kit generate"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

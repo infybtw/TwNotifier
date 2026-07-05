@@ -1,0 +1,8 @@
+:9091 {
+    handle /api* {
+        reverse_proxy localhost:3000
+    }
+    handle /* {
+        reverse_proxy localhost:3001
+    }
+}
