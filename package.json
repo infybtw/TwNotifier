@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "cd app && bun run --env-file ../.env index.ts",
-    "migrate": "cd app && bunx drizzle-kit generate"
+    "migrate": "cd app && bunx drizzle-kit generate",
+    "web": "cd web-admin && bun run dev"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

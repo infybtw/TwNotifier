@@ -1,0 +1,9 @@
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Use exact versions (no ^ or ~)
+exact = true
+
+[run]
+# Silence bun's default header
+silent = false
