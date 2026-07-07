@@ -40,10 +40,15 @@ definePageMeta({
   layout: false,
 })
 
+const route = useRoute()
 const code = ref('')
 const error = ref('')
 const loading = ref(false)
 const { login } = useAuth()
+
+if (route.query.error === 'auth_required') {
+  error.value = 'You need to authenticate to access this page'
+}
 
 async function handleLogin() {
   if (code.value.length !== 6) return

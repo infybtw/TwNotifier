@@ -4,7 +4,8 @@ export function useAuth() {
 
   async function checkAuth() {
     try {
-      const data = await $fetch<{ user: { user_id: number; username: string; is_admin: boolean } }>('/api/auth/me')
+      const fetch = useRequestFetch()
+      const data = await fetch<{ user: { user_id: number; username: string; is_admin: boolean } }>('/api/auth/me')
       user.value = data.user
       return true
     } catch {
