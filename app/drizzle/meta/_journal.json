@@ -71,6 +71,13 @@
       "when": 1783444928116,
       "tag": "0009_colorful_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783451033174,
+      "tag": "0010_tearful_johnny_storm",
+      "breakpoints": true
     }
   ]
 }

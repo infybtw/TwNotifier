@@ -85,3 +85,14 @@ export const login_codes = pgTable("login_codes", {
 
 export type LoginCode = typeof login_codes.$inferSelect
 export type NewLoginCode = typeof login_codes.$inferInsert
+
+export const admin_logs = pgTable("admin_logs", {
+  id: serial("id").primaryKey(),
+  user_id: bigint({ mode: "number" }).references(() => users.user_id).notNull(),
+  action: varchar({ length: 64 }).notNull(),
+  details: text(),
+  created: text().notNull(),
+})
+
+export type AdminLog = typeof admin_logs.$inferSelect
+export type NewAdminLog = typeof admin_logs.$inferInsert

@@ -3,15 +3,20 @@ import { SQL } from 'bun'
 import { drizzle } from 'drizzle-orm/bun-sql'
 import { eq, and, count, sql } from 'drizzle-orm'
 import {
-  users, channels, users_follows, users_settings, admin_keys, stream_logs
+  users, channels, users_follows, users_settings, admin_keys, stream_logs, admin_logs
 } from '../database/schema'
-import { verifyJwt, getBearerToken } from './auth_api'
+import { verifyJwt, getTokenFromCookie } from './auth_api'
+import { sendBroadcastMessage } from '../bot/bot_sender'
+import { getEventSubList, deleteSubs, subscribeAllStreamsOnline, subscribeAllStreamsOffline } from '../twitchAPI/subscriptions'
+import { getKickSubscriptions, deleteKickSubscription, subscribeToKickChannelOnline } from '../kickAPI/subscription'
+import { getChannelFollowersByChannelIdAndPlatform, getChannelsWithFollowersByPlatform } from '../database/db'
+import { sleep } from 'bun'
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
 const db = drizzle(sqlConnect)
 
 async function checkAuth(request: Request, set: any): Promise<boolean> {
-  const token = getBearerToken(request)
+  const token = getTokenFromCookie(request)
   if (!token) { set.status = 401; return false }
   const payload = await verifyJwt(token)
   if (!payload) { set.status = 401; return false }
@@ -183,4 +188,151 @@ export const adminApi = new Elysia({ prefix: '/api/admin' })
       .where(eq(users_settings.user_id, Number(params.id))).returning()
     if (!settings) { set.status = 404; return { error: 'Settings not found' } }
     return settings
+  })
+
+  // --- Broadcast ---
+  .post('/broadcast', async ({ body, set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const data = body as { text?: string }
+    if (!data.text) { set.status = 400; return { error: 'Message text required' } }
+    const result = await sendBroadcastMessage(data.text, undefined)
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'broadcast',
+        details: `Sent to ${result.sent} users, ${result.failed} failed`, created: new Date().toISOString(),
+      })
+    }
+    return result
+  })
+
+  // --- EventSub ---
+  .get('/eventsub', async ({ request, set }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getEventSubList()
+    return subs
+  })
+  .post('/eventsub/reload', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getEventSubList()
+    await deleteSubs(subs)
+    await sleep(2500)
+    await subscribeAllStreamsOnline()
+    await subscribeAllStreamsOffline()
+    const newSubs = await getEventSubList()
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'eventsub_reload',
+        details: `Before: ${subs.length}, After: ${newSubs.length}`, created: new Date().toISOString(),
+      })
+    }
+    return { before: subs.length, after: newSubs.length }
+  })
+  .post('/eventsub/disconnect', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getEventSubList()
+    await deleteSubs(subs)
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'eventsub_disconnect',
+        details: `Deleted ${subs.length} subscriptions`, created: new Date().toISOString(),
+      })
+    }
+    return { deleted: subs.length }
+  })
+  .post('/eventsub/cleanup', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getEventSubList()
+    const orphaned = []
+    for (const sub of subs) {
+      const channelId = sub.condition.broadcaster_user_id
+      if (!channelId) continue
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(channelId), "twitch")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    if (orphaned.length > 0) await deleteSubs(orphaned)
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'eventsub_cleanup',
+        details: `Total: ${subs.length}, Removed: ${orphaned.length}`, created: new Date().toISOString(),
+      })
+    }
+    return { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length }
+  })
+
+  // --- Webhooks ---
+  .get('/webhooks', async ({ request, set }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    return await getKickSubscriptions()
+  })
+  .post('/webhooks/reload', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getKickSubscriptions()
+    const dbSubs = await getChannelsWithFollowersByPlatform("kick")
+    for (const sub of subs) await deleteKickSubscription(sub)
+    await sleep(2500)
+    for (const sub of dbSubs) await subscribeToKickChannelOnline(sub.channel_id!)
+    const newSubs = await getKickSubscriptions()
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'webhook_reload',
+        details: `Before: ${subs.length}, After: ${newSubs.length}`, created: new Date().toISOString(),
+      })
+    }
+    return { before: subs.length, after: newSubs.length }
+  })
+  .post('/webhooks/disconnect', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getKickSubscriptions()
+    for (const sub of subs) await deleteKickSubscription(sub)
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'webhook_disconnect',
+        details: `Deleted ${subs.length} webhooks`, created: new Date().toISOString(),
+      })
+    }
+    return { deleted: subs.length }
+  })
+  .post('/webhooks/cleanup', async ({ set, request }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    const subs = await getKickSubscriptions()
+    const orphaned = []
+    for (const sub of subs) {
+      const follows = await getChannelFollowersByChannelIdAndPlatform(Number(sub.broadcaster_user_id), "kick")
+      if (follows.length === 0) orphaned.push(sub)
+    }
+    for (const sub of orphaned) await deleteKickSubscription(sub)
+    const token = getTokenFromCookie(request)
+    const payload = token ? await verifyJwt(token) : null
+    if (payload) {
+      await db.insert(admin_logs).values({
+        user_id: Number(payload.user_id), action: 'webhook_cleanup',
+        details: `Total: ${subs.length}, Removed: ${orphaned.length}`, created: new Date().toISOString(),
+      })
+    }
+    return { total: subs.length, removed: orphaned.length, remaining: subs.length - orphaned.length }
+  })
+
+  // --- Admin Logs ---
+  .get('/admin-logs', async ({ request, set }) => {
+    if (!await checkAuth(request, set)) return { error: 'Not authenticated' }
+    return await db.select({
+      id: admin_logs.id, user_id: admin_logs.user_id, action: admin_logs.action,
+      details: admin_logs.details, created: admin_logs.created, username: users.username, first_name: users.first_name,
+    })
+      .from(admin_logs)
+      .leftJoin(users, eq(admin_logs.user_id, users.user_id))
+      .orderBy(sql`${admin_logs.id} DESC`)
+      .limit(100)
   })

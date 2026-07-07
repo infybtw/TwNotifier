@@ -14,10 +14,11 @@ function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000))
 }
 
-export function getBearerToken(request: Request): string | null {
-  const auth = request.headers.get('authorization')
-  if (!auth?.startsWith('Bearer ')) return null
-  return auth.slice(7)
+export function getTokenFromCookie(request: Request): string | null {
+  const cookieHeader = request.headers.get('cookie')
+  if (!cookieHeader) return null
+  const match = cookieHeader.match(/auth_token=([^;]+)/)
+  return match ? match[1] : null
 }
 
 async function signJwt(payload: Record<string, unknown>): Promise<string> {
@@ -122,6 +123,8 @@ export const authApi = new Elysia({ prefix: '/api/auth' })
       username: user.username,
     })
 
+    set.headers['set-cookie'] = `auth_token=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`
+
     try {
       const firstName = user.first_name || 'Admin'
       let message = `🔐 <b>Вход в панель</b>\n`
@@ -133,11 +136,11 @@ export const authApi = new Elysia({ prefix: '/api/auth' })
       // silently ignore notification failures
     }
 
-    return { success: true, token, user: { user_id: user.user_id, username: user.username } }
+    return { success: true, user: { user_id: user.user_id, username: user.username } }
   })
 
   .get('/me', async ({ set, request }) => {
-    const token = getBearerToken(request)
+    const token = getTokenFromCookie(request)
     if (!token) {
       set.status = 401
       return { error: 'Not authenticated' }
@@ -152,7 +155,8 @@ export const authApi = new Elysia({ prefix: '/api/auth' })
     return { user: { user_id: payload.user_id, username: payload.username, is_admin: payload.is_admin } }
   })
 
-  .post('/logout', () => {
+  .post('/logout', ({ set }) => {
+    set.headers['set-cookie'] = 'auth_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict'
     return { success: true }
   })
 
