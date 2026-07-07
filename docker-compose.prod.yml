@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    network_mode: host # remove in production
     container_name: postgres
     restart: unless-stopped
     environment:
@@ -19,6 +20,7 @@ services:
 
   twn:
     image: ghcr.io/infybtw/twn
+    network_mode: host # remove in production
     build:
       context: .
       dockerfile: app/Dockerfile
@@ -31,6 +33,18 @@ services:
       - ./logs/prod:/app/logs
     depends_on:
       postgres:
+        condition: service_healthy
+
+  twn-web:
+    image: ghcr.io/infybtw/twn-web
+    network_mode: host # remove in production
+    build:
+      context: .
+      dockerfile: web-admin/Dockerfile
+      network: host
+    restart: unless-stopped
+    depends_on:
+      twn:
         condition: service_healthy
 
   adminer:
@@ -49,7 +63,7 @@ services:
       - ./backups:/backups
     environment:
       PBW_ENCRYPTION_KEY: "secret_key"
-      PBW_POSTGRES_CONN_STRING: "postgresql://twn:twn@postgres:5432/pgbackweb?sslmode=disable"
+      PBW_POSTGRES_CONN_STRING: "postgresql://twn:twn@localhost:5432/pgbackweb?sslmode=disable"
       PBW_PATH_PREFIX: "/pgback"
     depends_on:
       postgres:
@@ -59,6 +73,7 @@ services:
 
 volumes:
   pgdata-prod:
+  caddy_data:
 
 networks:
   pg:

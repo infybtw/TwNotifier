@@ -1,6 +1,6 @@
 # TwitchNotifierBot
 
-A Telegram bot that sends real-time notifications when Twitch/Kick streamers go live. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub WebSocket API and Kick webhooks.
+A Telegram bot that sends real-time notifications when Twitch/Kick streamers go live, with a web admin panel for management. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub WebSocket API and Kick webhooks.
 
 ## Project Description
 
@@ -13,6 +13,7 @@ TwitchNotifierBot is a notification system that connects to Twitch's EventSub We
 - PostgreSQL database for persistent user preferences
 - Grammy.js framework for Telegram bot interactions
 - Development mode with Twitch API mocking support
+- **Web admin panel** with Nuxt 4 + Tailwind CSS v4
 
 ## Quickstart
 
@@ -34,6 +35,7 @@ TwitchNotifierBot is a notification system that connects to Twitch's EventSub We
 2. Install dependencies:
    ```bash
    bun install
+   cd web-admin && bun install
    ```
 
 3. Configure environment variables:
@@ -68,6 +70,9 @@ BOT_TOKEN=TELEGRAM_BOT_TOKEN
 # Database
 DATABASE_URL=DATABASE_URL
 
+# JWT Secret for web admin auth
+JWT_SECRET=CHANGE_ME_TO_A_RANDOM_STRING
+
 # Twitch endpoints
 TWITCH_WS=TWITCH_WS_URL
 TWITCH_HELIX=TWITCH_HELIX_URL
@@ -81,14 +86,15 @@ TWITCH_HELIX=localhost:7777
 TWITCH_OAUTH=localhost:7777
 ```
 
-### Running the Bot
+### Running
 
-**Development mode** (with `.env` file):
+**Development** (bot + web):
 ```bash
-bun run dev
+bun run dev    # Bot on :3000
+bun run web    # Web admin on :3001
 ```
 
-**Production mode** (via Docker):
+**Production** (Docker):
 ```bash
 docker compose -f docker-compose.prod.yml up -d
 ```
@@ -97,6 +103,34 @@ docker compose -f docker-compose.prod.yml up -d
 ```bash
 bun test
 ```
+
+## Web Admin Panel
+
+The web admin panel (`web-admin/`) provides a browser-based interface for managing the bot.
+
+### Authentication
+1. Open the web panel in your browser
+2. Send `/weblogin` to the Telegram bot to get a one-time code
+3. Enter the code on the login page
+4. You'll receive a Telegram notification confirming the login
+
+### Pages
+- **Dashboard** — overview with stats (users, channels, follows, stream logs)
+- **Users** — list, edit, delete registered users
+- **Channels** — list, edit, delete tracked channels
+- **Follows** — list, delete user-channel subscriptions
+- **Admin Keys** — generate and manage admin access keys
+- **Stream Logs** — view stream online/offline event history
+- **Broadcast** — send messages to all bot users
+- **EventSub** — view, reload, disconnect, cleanup Twitch EventSub subscriptions
+- **Webhooks** — view, reload, disconnect, cleanup Kick webhook subscriptions
+- **Admin Logs** — audit trail of admin actions
+
+### Tech Stack
+- **Nuxt 4** — Vue.js framework with SSR
+- **Tailwind CSS v4** — utility-first CSS
+- **Dark mode** — toggle in sidebar, persisted to localStorage
+- **Collapsible sidebar** — with icon-only collapsed state
 
 ## Architecture
 
@@ -126,8 +160,10 @@ app/
 │   └── verifyWebhook.ts  # Webhook verification
 ├── handlers/             # Event handlers
 │   ├── ws_handler.ts     # Twitch WebSocket message processing
-│   ├── http_handler.ts   # Elysia HTTP server (Kick webhooks)
-│   └── webhook_handler.ts # Kick webhook processing
+│   ├── http_handler.ts   # Elysia HTTP server (API + webhooks)
+│   ├── webhook_handler.ts # Kick webhook processing
+│   ├── admin_api.ts      # REST API for web admin
+│   └── auth_api.ts       # JWT auth endpoints
 ├── database/             # Database layer
 │   ├── db.ts             # Database queries
 │   └── schema.ts         # Drizzle ORM schema
@@ -138,6 +174,41 @@ app/
 └── utils/                # Utilities
     ├── settings.ts       # User settings helpers
     └── urlParser.ts      # URL parsing
+
+web-admin/
+├── nuxt.config.ts        # Nuxt configuration
+├── Dockerfile            # Production build
+├── app/
+│   ├── app.vue           # App entry
+│   ├── assets/css/       # Tailwind CSS entry
+│   ├── components/       # Reusable components
+│   │   ├── Sidebar.vue
+│   │   ├── DataTable.vue
+│   │   ├── Modal.vue
+│   │   ├── Button.vue
+│   │   ├── Input.vue
+│   │   ├── StatCard.vue
+│   │   ├── ThemeSwitcher.vue
+│   │   └── AppLayout.vue
+│   ├── composables/      # Vue composables
+│   │   ├── useApi.ts     # API fetch helpers
+│   │   ├── useAuth.ts    # Auth state management
+│   │   └── useSidebar.ts # Sidebar collapse state
+│   ├── middleware/        # Route middleware
+│   │   └── auth.global.ts # Auth guard
+│   ├── layouts/          # Page layouts
+│   └── pages/            # Page components
+│       ├── index.vue     # Dashboard
+│       ├── login.vue     # Auth login
+│       ├── users/        # User management
+│       ├── channels/     # Channel management
+│       ├── follows/      # Follow management
+│       ├── admin-keys/   # Admin key management
+│       ├── stream-logs/  # Stream event logs
+│       ├── broadcast/    # Message broadcast
+│       ├── eventsub/     # EventSub control
+│       ├── webhooks/     # Webhook control
+│       └── admin-logs/   # Admin action logs
 ```
 
 ## Libraries Used
@@ -147,9 +218,14 @@ app/
 - **[@grammyjs/conversations](https://grammy.dev/plugins/conversations)** (^2.1.1) - Conversation management for Telegram bots
 - **[@grammyjs/storage-file](https://grammy.dev/plugins/storage-file)** (^2.5.1) - File-based session storage
 - **[drizzle-orm](https://orm.drizzle.team/)** (^0.45.2) - TypeScript ORM for PostgreSQL
-- **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework (Kick webhooks)
+- **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework
 - **[pg](https://node-postgres.com/)** (^8.22.0) - PostgreSQL client
 - **[pino](https://getpino.io/)** (^10.3.1) - Logger
+
+### Web Admin Dependencies
+- **[nuxt](https://nuxt.com/)** (^4.4.8) - Vue.js framework
+- **[tailwindcss](https://tailwindcss.com/)** (^4.3.2) - CSS framework
+- **[@tailwindcss/vite](https://tailwindcss.com/)** - Tailwind Vite plugin
 
 ### Development Dependencies
 - **[@types/bun](https://bun.sh/docs/typescript)** - TypeScript definitions for Bun
