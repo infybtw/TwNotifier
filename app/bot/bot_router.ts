@@ -350,6 +350,22 @@ router.command("becomeAdmin", async (ctx) => {
   }
 })
 
+router.command("weblogin", async (ctx) => {
+  const user = await getUserByUserId(ctx.from?.id!)
+  if (!user?.is_admin) {
+    return ctx.reply("🚫 <b>Доступ запрещён</b>\n\nДанная команда доступна только администраторам.", {parse_mode: "HTML"})
+  }
+  const { generateLoginCode } = await import("../handlers/auth_api")
+  const code = await generateLoginCode(ctx.from?.id!)
+  log.warn(`${ctx.from?.id} requested web login code`)
+  let message = `🔐 <b>Код для входа</b>\n`
+  message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+  message += `<code>${code}</code>\n\n`
+  message += `⏳ Код действителен 5 минут\n`
+  message += `📌 Введите его в панели администратора`
+  ctx.reply(message, {parse_mode: "HTML"})
+})
+
 router.on("message", async (ctx, next) => {
   if (ctx.session.awaitingAddInput && ctx.message.text) {
     ctx.session.awaitingAddInput = undefined;

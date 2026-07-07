@@ -74,3 +74,14 @@ export const stream_logs = pgTable("stream_logs", {
 
 export type StreamLog = typeof stream_logs.$inferSelect
 export type NewStreamLog = typeof stream_logs.$inferInsert
+
+export const login_codes = pgTable("login_codes", {
+  id: serial("id").primaryKey(),
+  code: varchar({ length: 6 }).notNull(),
+  user_id: bigint({ mode: "number" }).references(() => users.user_id).notNull(),
+  expires_at: text().notNull(),
+  used: boolean().default(false),
+})
+
+export type LoginCode = typeof login_codes.$inferSelect
+export type NewLoginCode = typeof login_codes.$inferInsert

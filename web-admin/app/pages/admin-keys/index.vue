@@ -17,8 +17,19 @@
 
     <Modal :open="showCreate" title="Generate Admin Key" @close="showCreate = false">
       <div class="space-y-4">
-        <Input v-model="newKey" label="Key" placeholder="Enter key string" />
-        <Button @click="handleCreate">Create</Button>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Key</label>
+          <div class="flex gap-2">
+            <input
+              v-model="newKey"
+              type="text"
+              placeholder="Enter key or generate one"
+              class="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <Button variant="secondary" @click="generateKey">Generate</Button>
+          </div>
+        </div>
+        <Button :disabled="!newKey" @click="handleCreate">Create</Button>
       </div>
     </Modal>
   </div>
@@ -30,6 +41,13 @@ const { data: keys, status, refresh } = await useAsyncData('admin-keys', () => g
 
 const showCreate = ref(false)
 const newKey = ref('')
+
+function generateKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const arr = new Uint8Array(32)
+  crypto.getRandomValues(arr)
+  newKey.value = Array.from(arr, b => chars[b % chars.length]).join('')
+}
 
 const columns = [
   { key: 'id', label: 'ID' },

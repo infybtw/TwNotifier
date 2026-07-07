@@ -2,9 +2,11 @@ import { Elysia } from 'elysia'
 import { handleKickWebhook } from './webhook_handler';
 import { HTTP_SERVER_PORT, KICK_WEBHOOK_PATH } from '../config';
 import { adminApi } from './admin_api';
+import { authApi } from './auth_api';
 
 export async function startHTTPServer() {
   const app = new Elysia()
+    .use(authApi)
     .use(adminApi)
     .post(KICK_WEBHOOK_PATH, async ({ request, set }) => {
       const rawBody = await request.text()
