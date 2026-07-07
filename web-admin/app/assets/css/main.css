@@ -1,3 +1,7 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+
+button, a, [role="button"], input[type="submit"], input[type="checkbox"] {
+  cursor: pointer;
+}
