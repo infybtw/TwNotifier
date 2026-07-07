@@ -1,64 +1,89 @@
 <template>
-  <aside
-    :class="[
-      'bg-gray-900 text-gray-100 min-h-screen p-4 flex flex-col transition-all duration-200',
-      collapsed ? 'w-16' : 'w-64',
-    ]"
-  >
-    <div class="flex items-center justify-between mb-8" :class="collapsed ? 'px-0 justify-center' : 'px-2'">
-      <span v-if="!collapsed" class="text-xl font-bold whitespace-nowrap">Admin Panel</span>
-      <div class="flex items-center gap-1">
-        <ThemeSwitcher v-if="!collapsed" />
-        <button
-          @click="toggle"
-          class="p-1.5 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
-          :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+  <div>
+    <!-- Backdrop -->
+    <div
+      v-if="mobileOpen"
+      class="fixed inset-0 bg-black/50 z-40 md:hidden"
+      @click="$emit('close')"
+    />
+
+    <!-- Sidebar -->
+    <aside
+      :class="[
+        'bg-gray-900 text-gray-100 min-h-screen p-4 flex flex-col transition-all duration-200 z-50',
+        'fixed md:static inset-y-0 left-0',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        collapsed ? 'md:w-16' : 'md:w-64',
+        mobileOpen ? 'w-64' : '',
+      ]"
+    >
+      <div class="flex items-center justify-between mb-8" :class="collapsed ? 'md:px-0 md:justify-center px-2' : 'px-2'">
+        <span v-if="!collapsed || mobileOpen" class="text-xl font-bold whitespace-nowrap">Admin Panel</span>
+        <div class="flex items-center gap-1">
+          <ThemeSwitcher v-if="!collapsed || mobileOpen" />
+          <button
+            @click="toggle"
+            class="p-1.5 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white hidden md:block"
+            :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path v-if="collapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            @click="$emit('close')"
+            class="p-1.5 rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white md:hidden"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <nav class="space-y-1 flex-1">
+        <NuxtLink
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          @click="$emit('close')"
+          :class="[
+            'flex items-center rounded-lg hover:bg-gray-800 transition-colors',
+            (!collapsed || mobileOpen) ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2.5',
+          ]"
+          active-class="bg-gray-800 text-white"
+          :title="collapsed && !mobileOpen ? item.label : undefined"
         >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path v-if="collapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+          <span v-html="item.icon" class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!collapsed || mobileOpen" class="whitespace-nowrap">{{ item.label }}</span>
+        </NuxtLink>
+      </nav>
+
+      <div class="mt-auto space-y-2" :class="collapsed && !mobileOpen ? 'flex flex-col items-center' : ''">
+        <ThemeSwitcher v-if="collapsed && !mobileOpen" />
+        <button
+          @click="handleLogout"
+          :class="[
+            'flex items-center rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-red-400 w-full',
+            (!collapsed || mobileOpen) ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2.5',
+          ]"
+          title="Logout"
+        >
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
+          <span v-if="!collapsed || mobileOpen" class="whitespace-nowrap">Logout</span>
         </button>
       </div>
-    </div>
-
-    <nav class="space-y-1 flex-1">
-      <NuxtLink
-        v-for="item in navItems"
-        :key="item.to"
-        :to="item.to"
-        :class="[
-          'flex items-center rounded-lg hover:bg-gray-800 transition-colors',
-          collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
-        ]"
-        active-class="bg-gray-800 text-white"
-        :title="collapsed ? item.label : undefined"
-      >
-        <span v-html="item.icon" class="w-5 h-5 flex-shrink-0" />
-        <span v-if="!collapsed" class="whitespace-nowrap">{{ item.label }}</span>
-      </NuxtLink>
-    </nav>
-
-    <div class="mt-auto space-y-2" :class="collapsed ? 'flex flex-col items-center' : ''">
-      <ThemeSwitcher v-if="collapsed" />
-      <button
-        @click="handleLogout"
-        :class="[
-          'flex items-center rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-red-400 w-full',
-          collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2',
-        ]"
-        title="Logout"
-      >
-        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-        <span v-if="!collapsed" class="whitespace-nowrap">Logout</span>
-      </button>
-    </div>
-  </aside>
+    </aside>
+  </div>
 </template>
 
 <script setup lang="ts">
+defineProps<{ mobileOpen: boolean }>()
+defineEmits<{ close: [] }>()
+
 const { collapsed, toggle, init } = useSidebar()
 const { logout } = useAuth()
 onMounted(() => init())

@@ -3,21 +3,36 @@
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
     </div>
-    <DataTable :columns="columns" :rows="users ?? []" :loading="status === 'pending'">
+    <DataTable :columns="columns" :rows="users ?? []" :loading="status === 'pending'" @row-click="openDetail">
       <template #actions="{ row }">
         <div class="flex gap-3 justify-end">
           <button
             class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium"
-            @click="openEdit(row)"
+            @click.stop="openEdit(row)"
           >Edit</button>
           <button
             class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-medium"
-            @click="handleDelete(row.user_id)"
+            @click.stop="handleDelete(row.user_id)"
           >Delete</button>
         </div>
       </template>
     </DataTable>
 
+    <!-- Detail Modal -->
+    <Modal :open="showDetail" title="User Details" @close="showDetail = false">
+      <div v-if="selectedRow" class="space-y-3">
+        <div v-for="col in columns" :key="col.key" class="flex justify-between text-sm">
+          <span class="text-gray-500 dark:text-gray-400">{{ col.label }}</span>
+          <span class="text-gray-900 dark:text-gray-100 font-medium break-all text-right ml-4">{{ selectedRow[col.key] }}</span>
+        </div>
+        <div class="flex gap-2 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button class="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700" @click="showDetail = false; openEdit(selectedRow)">Edit</button>
+          <button class="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700" @click="showDetail = false; handleDelete(selectedRow.user_id)">Delete</button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Edit Modal -->
     <Modal :open="showEdit" title="Edit User" @close="showEdit = false">
       <div class="space-y-4">
         <Input v-model="editForm.username" label="Username" />
@@ -46,6 +61,8 @@
 const { get, put, del } = useApi()
 const { data: users, status, refresh } = await useAsyncData('users', () => get<any[]>('/users'))
 
+const showDetail = ref(false)
+const selectedRow = ref<any>(null)
 const showEdit = ref(false)
 const saving = ref(false)
 const editId = ref<number | null>(null)
@@ -58,6 +75,11 @@ const columns = [
   { key: 'is_admin', label: 'Admin' },
   { key: 'created', label: 'Created' },
 ]
+
+function openDetail(row: any) {
+  selectedRow.value = row
+  showDetail.value = true
+}
 
 function openEdit(row: any) {
   editId.value = row.user_id
