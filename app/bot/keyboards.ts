@@ -60,6 +60,7 @@ export function buildAdminKeyboard(): InlineKeyboard {
   if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
   if (PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.url("💾 pgbackweb", PGBACKWEB_URL)
   if (ADMINER_URL && ADMINER_URL !== "undefined" && PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.row()
+  kb.text("🔄 Restart", "admin_restart").row()
   kb.text("🚪 Выйти", "admin_exit")
   return kb
 }
@@ -118,3 +119,7 @@ export const mySubscriptionsKeyboard = new InlineKeyboard()
 
 export const mySubscriptionsAddBackKeyboard = new InlineKeyboard()
   .text("Назад", "mySubscriptionsCMD")
+
+export const restartConfirmKeyboard = new InlineKeyboard()
+  .text("Подтвердить", "admin_restart_confirm")
+  .text("Отмена", "admin_back")

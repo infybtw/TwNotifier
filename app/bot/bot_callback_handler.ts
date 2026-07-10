@@ -1,5 +1,5 @@
 import { Composer, InlineKeyboard } from "grammy";
-import { buildSettingsKeyboard, buildHomeKeyboard, buildAdminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard } from "./keyboards";
+import { buildSettingsKeyboard, buildHomeKeyboard, buildAdminKeyboard, adminBackKeyboard, addConfirmationKeyboard, broadcastCancelKeyboard, broadcastConfirmKeyboard, infoBackKeyboard, eventsubControlKeyboard, eventsubResultKeyboard, webhookControlKeyboard, webhookResultKeyboard, adminAddConfirmKeyboard, backHomeKeyboard, mySubscriptionsEmptyKeyboard, mySubscriptionsKeyboard, mySubscriptionsAddBackKeyboard, restartConfirmKeyboard } from "./keyboards";
 import { getUserByUserId } from "../database/db";
 import {
   addAdminKey,
@@ -822,6 +822,27 @@ router.callbackQuery("admin_logs", async (ctx) => {
       }
     }
     ctx.editMessageText(message, { reply_markup: adminBackKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_restart", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    let message = `🔄 <b>Перезапуск бота</b>\n`
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    message += `⚠️ Вы уверены? Бот будет недоступен несколько секунд.`
+    ctx.editMessageText(message, { reply_markup: restartConfirmKeyboard, parse_mode: "HTML" })
+  } else {
+    await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_restart_confirm", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    log.warn(`${ctx.from.id} initiated bot restart`)
+    await ctx.editMessageText("🔄 <b>Бот перезапускается...</b>", { parse_mode: "HTML" })
+    process.exit(0)
   } else {
     await ctx.editMessageText("⚠️ <b>Сессия истекла</b>\n\nВойдите снова через /admin", { parse_mode: "HTML" });
   }
