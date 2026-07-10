@@ -7,6 +7,8 @@ const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
 const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
 let ws: WebSocket;
+let currentUrl: string;
+let reconnecting = false;
 
 export async function updateShard(sessionId: string,shardId: number): Promise<void> {
   const res = await fetch(SHARD_URL, {
@@ -40,6 +42,8 @@ export async function updateShard(sessionId: string,shardId: number): Promise<vo
 }
 
 export async function connectWebSocket(url: string) {
+  currentUrl = url;
+  reconnecting = false;
   console.log("Connecting to EventSub...");
   ws = new WebSocket(url);
 
@@ -62,7 +66,10 @@ export async function connectWebSocket(url: string) {
       case "session_reconnect": {
         console.warn("Twitch required reconnect");
         const reconnectUrl = msg.payload.session.reconnect_url;
+        const oldWs = ws;
+        reconnecting = true;
         await connectWebSocket(reconnectUrl);
+        oldWs.close();
         break;
       }
       case "notification":
@@ -74,8 +81,12 @@ export async function connectWebSocket(url: string) {
   });
 
   ws.on("close", (code: any) => {
+    if (reconnecting) {
+      reconnecting = false;
+      return;
+    }
     console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
-    if (code !== 1000) setTimeout(connectWebSocket, 5000);
+    if (code !== 1000) setTimeout(() => connectWebSocket(currentUrl), 5000);
   });
 
   ws.on("error", (e: any) => console.error("WebSocket error:", e.message));
