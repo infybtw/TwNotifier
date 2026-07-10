@@ -32,3 +32,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 docker-compose.yml
 docker-compose.local.yml
+
+docs
+.nuxt

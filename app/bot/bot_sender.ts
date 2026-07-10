@@ -1,8 +1,29 @@
-import { getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
+import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
+
+export async function notifyAdminsAndExit(stepName: string, error: unknown): Promise<never> {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  log.error(`Startup failed at step: ${stepName}`, { error: errorMessage });
+
+  try {
+    const admins = await getAdmins();
+    const message = `🚨 <b>Startup Failed</b>\n\nStep: <code>${stepName}</code>\nError: <code>${errorMessage}</code>\n\nBot is shutting down.`;
+    for (const admin of admins) {
+      try {
+        await bot.api.sendMessage(admin.user_id, message, { parse_mode: "HTML" });
+      } catch (sendErr) {
+        log.error(`Failed to notify admin ${admin.user_id}`, { error: sendErr });
+      }
+    }
+  } catch (dbErr) {
+    log.error("Failed to fetch admins for notification", { error: dbErr });
+  }
+
+  process.exit(1);
+}
 
 export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, data: JSON) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
