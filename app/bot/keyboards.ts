@@ -30,6 +30,7 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
   }
   let onlineNotificationText = "Старт трансляции ";
   let offlineNotificationText = "Окончание трансляции ";
+  let linkPreviewText = "Превью ссылок ";
   if (user_settings?.online_notification === 1) {
     onlineNotificationText += "✅";
   } else {
@@ -40,11 +41,18 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
   } else {
     offlineNotificationText += "🚫";
   }
+  if (user_settings?.link_preview === 1) {
+    linkPreviewText += "✅";
+  } else {
+    linkPreviewText += "🚫";
+  }
 
   return new InlineKeyboard()
     .text(onlineNotificationText, "toogleOnlineNotificationCMD")
     .row()
     .text(offlineNotificationText, "toggleOfflineNotificationCMD")
+    .row()
+    .text(linkPreviewText, "toggleLinkPreviewCMD")
     .row()
     .text("Назад", "settingsBACK");
 }

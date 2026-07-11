@@ -32,7 +32,7 @@ import { getStreamsByUserIds } from "../twitchAPI/users";
 import { getKickChannelsOnline } from "../kickAPI/users";
 import logger from "../logger";
 import { MyContext } from "./bot";
-import { toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
+import { toggleLinkPreviewStateByUserId, toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
 import { deleteKickSubscription, getKickSubscriptions, subscribeToKickChannelOnline } from "../kickAPI/subscription";
@@ -255,6 +255,18 @@ router.callbackQuery("toggleOfflineNotificationCMD", async (ctx) => {
   log.info("settings changed", {
     user_id: ctx.from.id,
     setting: "offlineNotification",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleLinkPreviewCMD", async (ctx) => {
+  const newState = await toggleLinkPreviewStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "linkPreview",
     new_state: newState,
   });
 });

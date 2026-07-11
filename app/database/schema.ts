@@ -45,7 +45,8 @@ export type NewUserFollow = typeof users_follows.$inferInsert
 export const users_settings = pgTable("users_settings", {
   user_id: bigint({mode: "number"}).primaryKey().references(() => users.user_id),
   online_notification: integer().default(1),
-  offline_notification: integer().default(1)
+  offline_notification: integer().default(1),
+  link_preview: integer().default(1)
 })
 
 export type UserSettings = typeof users_settings.$inferSelect

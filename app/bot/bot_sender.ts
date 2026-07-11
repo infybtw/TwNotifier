@@ -30,11 +30,15 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1) {
+        const linkPreviewDisabled = userSettings?.link_preview === 0;
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
           `*${channel_name}* ведет прямую трансляцию.\n${data.title}\n_${data.game_name}_\n\n[Twitch](https://twitch.tv/${channel_name})`,
-          { parse_mode: "Markdown" },
+          { 
+            parse_mode: "Markdown",
+            link_preview_options: { is_disabled: linkPreviewDisabled }
+          },
         );
         log.info("message sent", {
           user_id: follower.user_id,
@@ -51,10 +55,14 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1) {
+        const linkPreviewDisabled = userSettings?.link_preview === 0;
         await bot.api.sendMessage(
           follower.user_id!,
           `*${channel_name}* завершил прямую трансляцию.`,
-          { parse_mode: "Markdown" },
+          { 
+            parse_mode: "Markdown",
+            link_preview_options: { is_disabled: linkPreviewDisabled }
+          },
         );
         log.info("message sent", {
           user_id: follower.user_id,
@@ -71,11 +79,15 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1) {
+        const linkPreviewDisabled = userSettings?.link_preview === 0;
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
           `*${channel_name}* ведет прямую трансляцию.\n${title}\n\n[Kick](https://kick.com/${channel_name})`,
-          { parse_mode: "Markdown" },
+          { 
+            parse_mode: "Markdown",
+            link_preview_options: { is_disabled: linkPreviewDisabled }
+          },
         );
         log.info("message sent", {
           user_id: follower.user_id,
@@ -92,11 +104,15 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1) {
+        const linkPreviewDisabled = userSettings?.link_preview === 0;
         await bot.api.sendMessage(
           follower.user_id!,
           //@ts-ignore
           `*${channel_name}* завершил прямую трансляцию.\n`,
-          { parse_mode: "Markdown" },
+          { 
+            parse_mode: "Markdown",
+            link_preview_options: { is_disabled: linkPreviewDisabled }
+          },
         );
         log.info("message sent", {
           user_id: follower.user_id,
