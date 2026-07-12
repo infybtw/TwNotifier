@@ -91,7 +91,7 @@ router.callbackQuery("adminCMD", async (ctx) => {
   log.warn(`${ctx.from?.id} enter admin system`);
   const firstName = ctx.from?.first_name || "Admin";
   let message = t("admin.panel", locale).replace("{name}", firstName);
-  await ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" });
+  await ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(locale), parse_mode: "HTML" });
 });
 
 router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
@@ -551,7 +551,7 @@ router.callbackQuery("admin_keys", async (ctx) => {
     const { InlineKeyboard } = await import("grammy")
     const kb = new InlineKeyboard()
     for (const k of unused) {
-      kb.text(`Отозвать ${k.key.slice(0, 8)}...`, `admin_key_revoke_confirm_${k.id}`).row()
+      kb.text(t("admin.btn.revoke_key", locale).replace("{key}", k.key.slice(0, 8) + "..."), `admin_key_revoke_confirm_${k.id}`).row()
     }
     kb.text(t("buttons.back", locale), "admin_back")
 
@@ -580,7 +580,7 @@ router.callbackQuery("admin_back", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
     let message = t("admin.panel", locale).replace("{name}", ctx.from.first_name)
-    ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(), parse_mode: "HTML" })
+    ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(locale), parse_mode: "HTML" })
   } else {
     await ctx.editMessageText(t("admin.expired", "ru"), { parse_mode: "HTML" });
   }
@@ -598,9 +598,9 @@ router.callbackQuery("admin_eventsub", async (ctx) => {
         const icon = sub.status === "enabled" ? "✅" : "⚠️"
         message += `${icon} <code>${sub.type}</code>\n`
         message += `   ID: <code>${sub.id.slice(0, 16)}...</code>\n`
-        message += `   Статус: ${sub.status}\n`
+        message += `   ${t("admin.label.status", locale)}: ${sub.status}\n`
         if (sub.condition.broadcaster_user_id) {
-          message += `   Канал ID: <code>${sub.condition.broadcaster_user_id}</code>\n`
+          message += `   ${t("admin.label.channel_id", locale)}: <code>${sub.condition.broadcaster_user_id}</code>\n`
         }
       }
     }
@@ -683,8 +683,8 @@ router.callbackQuery("admin_webhook", async (ctx) => {
       for (const sub of subs) {
         message += `📌 <code>${sub.event}</code>\n`
         message += `   ID: <code>${sub.id}</code>\n`
-        message += `   Канал ID: <code>${sub.broadcaster_user_id}</code>\n`
-        message += `   Создан: ${sub.created_at}\n`
+        message += `   ${t("admin.label.channel_id", locale)}: <code>${sub.broadcaster_user_id}</code>\n`
+        message += `   ${t("admin.label.created", locale)}: ${sub.created_at}\n`
       }
     }
     ctx.editMessageText(message, { reply_markup: buildWebhookControlKeyboard(locale), parse_mode: "HTML" })
@@ -785,7 +785,7 @@ router.callbackQuery("admin_follows", async (ctx) => {
       const channel = subs[0].channel_name
       const platformIcon = platform === "twitch" ? "🟣" : "🟢"
       message += `\n${platformIcon} <b>${channel}</b>\n`
-      message += `   ${subs.length} подписано:\n`
+      message += `   ${subs.length} ${t("admin.label.subscribed", locale)}:\n`
       for (const sub of subs) {
         message += `   👤 ${sub.first_name || "Unknown"} (@${sub.username || "unknown"})\n`
         message += `      📅 ${sub.created.slice(0, 10)}\n`
@@ -810,7 +810,7 @@ router.callbackQuery("admin_logs", async (ctx) => {
         const eventIcon = entry.event === "online" ? t("event.online", locale) : t("event.offline", locale)
         message += `${platformIcon} <b>${entry.channel_name || `ID:${entry.channel_id}`}</b>\n`
         message += `   ${eventIcon}\n`
-        message += `   👥 Подписчиков: ${entry.follower_count ?? 0}\n`
+        message += `   👥 ${t("admin.label.subscribers", locale)}: ${entry.follower_count ?? 0}\n`
         message += `   📅 ${entry.created}\n\n`
       }
     }

@@ -64,19 +64,19 @@ export async function buildSettingsKeyboard(user_id: number, locale: Locale = "r
     .text(t("buttons.back", locale), "settingsBACK");
 }
 
-export function buildAdminKeyboard(): InlineKeyboard {
+export function buildAdminKeyboard(locale: Locale = "ru"): InlineKeyboard {
   const kb = new InlineKeyboard()
-    .text("📺 Каналы", "admin_channels").text("👥 Пользователи", "admin_users").row()
-    .text("🛡 Администраторы", "admin_admins").row()
-    .text("🔑 Ключи", "admin_keys").text("➕ Добавить ключ", "admin_add").row()
-    .text("📋 Подписки", "admin_follows").text("📨 Рассылка", "admin_broadcast").row()
-    .text("🟣 EventSub Control", "admin_eventsub").text("🟢 Webhook Control", "admin_webhook").row()
-    .text("📝 Логи", "admin_logs").row()
+    .text(t("admin.btn.channels", locale), "admin_channels").text(t("admin.btn.users", locale), "admin_users").row()
+    .text(t("admin.btn.admins", locale), "admin_admins").row()
+    .text(t("admin.btn.keys", locale), "admin_keys").text(t("admin.btn.add_key", locale), "admin_add").row()
+    .text(t("admin.btn.follows", locale), "admin_follows").text(t("admin.btn.broadcast", locale), "admin_broadcast").row()
+    .text(t("admin.btn.eventsub", locale), "admin_eventsub").text(t("admin.btn.webhook", locale), "admin_webhook").row()
+    .text(t("admin.btn.logs", locale), "admin_logs").row()
   if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
   if (PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.url("💾 pgbackweb", PGBACKWEB_URL)
   if (ADMINER_URL && ADMINER_URL !== "undefined" && PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.row()
-  kb.text("🔄 Restart", "admin_restart").row()
-  kb.text("🚪 Выйти", "admin_exit")
+  kb.text(t("admin.btn.restart", locale), "admin_restart").row()
+  kb.text(t("admin.btn.exit", locale), "admin_exit")
   return kb
 }
 
@@ -116,9 +116,9 @@ export function buildRemovePlatformSelectKeyboard(locale: Locale = "ru"): Inline
 
 export function buildEventsubControlKeyboard(locale: Locale = "ru"): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🔄 Перезапуск", "admin_eventsubreload_confirm")
-    .text("❌ Отключить", "admin_eventsub_disconnect").row()
-    .text("🧹 Очистить неиспольз.", "admin_eventsub_cleanup").row()
+    .text(t("admin.btn.eventsub_restart", locale), "admin_eventsubreload_confirm")
+    .text(t("admin.btn.eventsub_disconnect", locale), "admin_eventsub_disconnect").row()
+    .text(t("admin.btn.eventsub_cleanup", locale), "admin_eventsub_cleanup").row()
     .text(t("buttons.back", locale), "admin_back");
 }
 
@@ -128,9 +128,9 @@ export function buildEventsubResultKeyboard(locale: Locale = "ru"): InlineKeyboa
 
 export function buildWebhookControlKeyboard(locale: Locale = "ru"): InlineKeyboard {
   return new InlineKeyboard()
-    .text("🔄 Перезапуск", "admin_webhookreload_confirm")
-    .text("❌ Отключить", "admin_webhook_disconnect").row()
-    .text("🧹 Очистить неиспольз.", "admin_webhook_cleanup").row()
+    .text(t("admin.btn.webhook_restart", locale), "admin_webhookreload_confirm")
+    .text(t("admin.btn.webhook_disconnect", locale), "admin_webhook_disconnect").row()
+    .text(t("admin.btn.webhook_cleanup", locale), "admin_webhook_cleanup").row()
     .text(t("buttons.back", locale), "admin_back");
 }
 

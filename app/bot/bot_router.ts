@@ -297,7 +297,7 @@ router.command("admin", async (ctx) => {
   log.warn(`${ctx.from?.id!} enter admin system`)
   const firstName = ctx.from?.first_name || "Admin"
   const message = t("admin.panel", locale).replace("{name}", firstName)
-  ctx.reply(message, {reply_markup: buildAdminKeyboard(), parse_mode: "HTML"})
+  ctx.reply(message, {reply_markup: buildAdminKeyboard(locale), parse_mode: "HTML"})
 })
 
 router.command("becomeAdmin", async (ctx) => {
