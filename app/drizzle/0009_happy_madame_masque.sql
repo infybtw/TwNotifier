@@ -1,0 +1,1 @@
+ALTER TABLE "users_settings" ADD COLUMN "link_preview" integer DEFAULT 1;

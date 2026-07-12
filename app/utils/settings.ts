@@ -1,4 +1,4 @@
-import { getSettingsStateByUserId, setOfflineNotificationStateByUserId, setOnlineNotificationStateByUserId } from "../database/db";
+import { getSettingsStateByUserId, setLinkPreviewStateByUserId, setOfflineNotificationStateByUserId, setOnlineNotificationStateByUserId } from "../database/db";
 
 
 export async function toggleOnlineNotificationStateByUserId(
@@ -23,6 +23,19 @@ export async function toggleOfflineNotificationStateByUserId(
       return 0;
     } else {
       await setOfflineNotificationStateByUserId(user_id, 1);
+      return 1;
+    }
+}
+
+export async function toggleLinkPreviewStateByUserId(
+  user_id: number,
+): Promise<number> {
+    const settingsState = await getSettingsStateByUserId(user_id);
+    if (settingsState?.link_preview === 1) {
+      await setLinkPreviewStateByUserId(user_id, 0);
+      return 0;
+    } else {
+      await setLinkPreviewStateByUserId(user_id, 1);
       return 1;
     }
 }
