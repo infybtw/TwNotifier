@@ -26,6 +26,8 @@ export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 export const ADMINER_URL: string = String(process.env.ADMINER_URL)
 export const PGBACKWEB_URL: string = String(process.env.PGBACKWEB_URL)
 
+export const DEFAULT_LANGUAGE: string = process.env.DEFAULT_LANGUAGE || "ru"
+
 
 export async function setAppToken(appToken: string): Promise<void> {
   APP_TOKEN = appToken;
