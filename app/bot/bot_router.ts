@@ -14,37 +14,33 @@ import {
 import { getUserByLogin } from "../twitchAPI/users";
 import {
   buildHomeKeyboard,
-  addConfirmationKeyboard,
-  removeConfirmationKeyboard,
+  buildAddConfirmationKeyboard,
+  buildRemoveConfirmationKeyboard,
   buildAdminKeyboard,
-  platformSelectKeyboard,
-  removePlatformSelecteKeyboard,
-  adminBackKeyboard,
-  broadcastConfirmKeyboard,
-  backHomeKeyboard,
-  mySubscriptionsAddBackKeyboard,
+  buildPlatformSelectKeyboard,
+  buildRemovePlatformSelectKeyboard,
+  buildAdminBackKeyboard,
+  buildBroadcastConfirmKeyboard,
+  buildBackHomeKeyboard,
+  buildMySubscriptionsAddBackKeyboard,
 } from "./keyboards";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
 import { Channel, UserFollow } from "../database/schema";
+import { t, Locale } from "../i18n";
+import { getUserLocale } from "../utils/locale";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
 export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
-  let message = `🏠 <b>TwNotifier</b>\n`
-  message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-  message += `Бот для отслеживания стримов\n\n`
-  message += `📌 <b>Команды:</b>\n`
-  message += `• /add канал — добавить канал\n`
-  message += `• /remove канал — удалить канал\n`
-  message += `• /list — мои подписки`
-  ctx.reply(message, { reply_markup: await buildHomeKeyboard(ctx.from?.id!), parse_mode: "HTML" });
+  const locale = await getUserLocale(ctx.from?.id!);
+  ctx.reply(t("start.welcome", locale), { reply_markup: await buildHomeKeyboard(ctx.from?.id!, locale), parse_mode: "HTML" });
   const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
   if (!newUser) {
-    ctx.reply("Упс, произошла ошибка при регистрации, пожалуйста обратитесь в поддержку")
+    ctx.reply(t("commands.registration_error", locale))
   } else if(!newUser.isNew) {
     log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name});
   } else if (newUser.isNew) {
@@ -53,26 +49,23 @@ router.command("start", async (ctx) => {
 });
 
 router.command("add", async (ctx) => {
+  const locale = await getUserLocale(ctx.from?.id!);
   const input = ctx.match.trim();
 
   if (!input) {
-    return ctx.reply(
-      "Неверный формат, Пример использования: /add xqc или /add https://twitch.tv/xqc",
-    );
+    return ctx.reply(t("commands.add_usage", locale));
   }
 
   const extractedUsername = extractUsernameFromTwitchUrl(input);
   if (!extractedUsername) {
-    return ctx.reply(
-      "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
-    );
+    return ctx.reply(t("commands.url_parse_error", locale));
   }
 
   const channel_name_lower = extractedUsername.toLowerCase();
   const twitchChannel = await getUserByLogin(channel_name_lower);
   const kickChannel = await getKickChannelByUsername(channel_name_lower);
   if (!(twitchChannel || kickChannel)) {
-    return ctx.reply("Канал с таким именем не найден");
+    return ctx.reply(t("commands.channel_not_found", locale));
   }
 
   if (kickChannel.data[0] && twitchChannel) {
@@ -81,12 +74,11 @@ router.command("add", async (ctx) => {
       twitchData: twitchChannel,
     }
 
-    const message = `Канал с таким именем найден на 2 платформах.\n` +
-      `https://kick.com/${channel_name_lower}\n` +
-      `https://twitch.tv/${channel_name_lower}\n\n` +
-      `Выберите платформу для подписки:`
+    const message = t("add.dual_platform", locale)
+      .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
+      .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
 
-    return ctx.reply(message ,{reply_markup: platformSelectKeyboard})
+    return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
   }
   let platform = ""
   if (kickChannel.data[0]) {
@@ -94,14 +86,13 @@ router.command("add", async (ctx) => {
     const display_name = kickChannel.data[0].slug;
 
     if (!ctx.from) {
-      return ctx.reply("Ошибка: не удалось определить пользователя");
+      return ctx.reply(t("commands.user_error", locale));
     }
 
     if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-      return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+      return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name));
     }
 
-    // Store pending channel in session
     ctx.session.pendingAdd = {
       channelId: channel_id,
       channelName: channel_name_lower,
@@ -109,12 +100,9 @@ router.command("add", async (ctx) => {
       platform: "kick"
     };
 
-    // Show preview with confirmation buttons
-    const previewMessage =
-      `Вы хотите добавить канал:\n\n` +
-      `📺 Имя: ${display_name}\n` +
-      `🔗 Ссылка: https://kick.com/${display_name}\n\n` +
-      `Продолжить добавление?`;
+    const previewMessage = t("add.preview", locale)
+      .replace("{name}", display_name)
+      .replace("{url}", `https://kick.com/${display_name}`);
 
     log.info("showing channel preview", {
       userId: ctx.from.id,
@@ -124,23 +112,20 @@ router.command("add", async (ctx) => {
     });
 
     return await ctx.reply(previewMessage, {
-      reply_markup: addConfirmationKeyboard,
+      reply_markup: buildAddConfirmationKeyboard(locale),
     });
   } else if (twitchChannel) {
-
-
       const channel_id = Number(twitchChannel!.id);
       const display_name = twitchChannel!.display_name;
 
       if (!ctx.from) {
-        return ctx.reply("Ошибка: не удалось определить пользователя");
+        return ctx.reply(t("commands.user_error", locale));
       }
 
       if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(`Вы уже отслеживаете ${display_name}`);
+        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name));
       }
 
-      // Store pending channel in session
       ctx.session.pendingAdd = {
         channelId: channel_id,
         channelName: channel_name_lower,
@@ -148,15 +133,12 @@ router.command("add", async (ctx) => {
         platform: "twitch"
       };
 
-      // Show preview with confirmation buttons
-      const previewMessage =
-        `Вы хотите добавить канал:\n\n` +
-        `📺 Имя: ${display_name}\n` +
-        `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
-        `Продолжить добавление?`;
+      const previewMessage = t("add.preview", locale)
+        .replace("{name}", display_name)
+        .replace("{url}", `https://twitch.tv/${display_name}`);
 
       await ctx.reply(previewMessage, {
-        reply_markup: addConfirmationKeyboard,
+        reply_markup: buildAddConfirmationKeyboard(locale),
       });
 
       log.info("showing channel preview", {
@@ -166,29 +148,25 @@ router.command("add", async (ctx) => {
         platform: "twitch",
       });
   } else {
-    return ctx.reply("Канал с таким именем не найден")
+    return ctx.reply(t("commands.channel_not_found", locale))
   }
-
 });
 
 router.command("remove", async (ctx) => {
+  const locale = await getUserLocale(ctx.from?.id!);
   const input = ctx.match.trim();
 
   if (!input) {
-    return ctx.reply(
-      "Неверный формат, Пример использования: /remove xqc или /remove https://twitch.tv/xqc",
-    );
+    return ctx.reply(t("commands.remove_usage", locale));
   }
 
   const extractedUsername = extractUsernameFromTwitchUrl(input);
   if (!extractedUsername) {
-    return ctx.reply(
-      "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
-    );
+    return ctx.reply(t("commands.url_parse_error", locale));
   }
 
   if (!ctx.from) {
-    return ctx.reply("Ошибка: не удалось определить пользователя");
+    return ctx.reply(t("commands.user_error", locale));
   }
 
   const channel_name_lower = extractedUsername.toLowerCase();
@@ -198,7 +176,7 @@ router.command("remove", async (ctx) => {
   const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
 
   if (!kickChannel && !twitchChannel) {
-    return ctx.reply("Канал с таким именем не найден");
+    return ctx.reply(t("commands.channel_not_found", locale));
   }
 
   const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
@@ -219,27 +197,26 @@ router.command("remove", async (ctx) => {
       channel = twitchChannel!
     }
   } else {
-    return ctx.reply("Вы не подписанны на этот канал")
+    return ctx.reply(t("commands.not_following", locale))
   }
 
   if (usernameChannels.length < 1) {
-    return ctx.reply("Канал с таким именем не найден");
+    return ctx.reply(t("commands.channel_not_found", locale));
   }
 
   if (usernameChannels.length > 1 && bothFollow) {
     if (!kickChannel || !twitchChannel) {
-      return ctx.reply("Канал с таким именем не найден")
+      return ctx.reply(t("commands.channel_not_found", locale))
     } else {
-      const message = `Канал с таким именем найден на 2 платформах.\n` +
-        `https://kick.com/${channel_name_lower}\n` +
-        `https://twitch.tv/${channel_name_lower}\n\n` +
-        `Выберите платформу для удаления:`
+      const message = t("remove.dual_platform", locale)
+        .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
+        .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
 
       ctx.session.removePendingPlatformSelect = {
         kickChannel,
         twitchChannel,
       }
-      return ctx.reply(message, { reply_markup: removePlatformSelecteKeyboard })
+      return ctx.reply(message, { reply_markup: buildRemovePlatformSelectKeyboard(locale) })
     }
   }
 
@@ -252,7 +229,7 @@ router.command("remove", async (ctx) => {
 
 
   if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
-    return ctx.reply(`Вы не подписаны на ${display_name}`);
+    return ctx.reply(t("commands.not_following_name", locale).replace("{name}", display_name));
   }
 
   ctx.session.pendingRemove = {
@@ -262,15 +239,12 @@ router.command("remove", async (ctx) => {
     platform: channelPlatform,
   };
 
-  // Show preview with confirmation buttons
-  const previewMessage =
-    `Вы хотите удалить канал из отслеживаемых:\n\n` +
-    `📺 Имя: ${display_name}\n` +
-    `🔗 Ссылка: https://${channelPlatformUrl}/${channel_name_lower}\n\n` +
-    `Подтвердите удаление?`;
+  const previewMessage = t("remove.preview", locale)
+    .replace("{name}", display_name)
+    .replace("{url}", `https://${channelPlatformUrl}/${channel_name_lower}`);
 
   await ctx.reply(previewMessage, {
-    reply_markup: removeConfirmationKeyboard,
+    reply_markup: buildRemoveConfirmationKeyboard(locale),
   });
 
   log.info("showing remove preview", {
@@ -281,18 +255,17 @@ router.command("remove", async (ctx) => {
 });
 
 router.command("list", async (ctx) => {
+  const locale = await getUserLocale(ctx.from?.id!);
   const user_id = ctx.from?.id
   const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick")
   const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch")
   if (kickFollows.length < 1 && twitchFollows.length < 1) {
-    return ctx.reply("📭 <b>Нет подписок</b>\n\nВы пока не отслеживаете ни одного канала.", { parse_mode: "HTML" });
+    return ctx.reply(t("commands.list_empty", locale), { parse_mode: "HTML" });
   }
   const total = kickFollows.length + twitchFollows.length
-  let reply_text = `📊 <b>Мои подписки</b>\n`
-  reply_text += `━━━━━━━━━━━━━━━━━━━━\n`
-  reply_text += `Всего: <b>${total}</b>\n`
+  let reply_text = t("commands.list_header", locale).replace("{total}", String(total))
   if (twitchFollows.length >= 1) {
-    reply_text += `\n🟣 <b>Twitch</b>\n`
+    reply_text += `\n\n🟣 <b>Twitch</b>\n`
     for (const sub of twitchFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
@@ -300,7 +273,7 @@ router.command("list", async (ctx) => {
     }
   }
   if (kickFollows.length >= 1) {
-    reply_text += `\n🟢 <b>Kick</b>\n`
+    reply_text += `\n\n🟢 <b>Kick</b>\n`
     for (const sub of kickFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
@@ -308,13 +281,14 @@ router.command("list", async (ctx) => {
     }
   }
 
-  ctx.reply(reply_text.trimEnd(), {parse_mode: "HTML", reply_markup: backHomeKeyboard});
+  ctx.reply(reply_text.trimEnd(), {parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale)});
 });
 
 router.command("admin", async (ctx) => {
+  const locale = await getUserLocale(ctx.from?.id!);
   const user = await getUserByUserId(ctx.from?.id!)
   if (!user?.is_admin) {
-    ctx.reply("🚫 <b>Доступ запрещён</b>\n\nДанная команда доступна только администраторам.", {parse_mode: "HTML"})
+    ctx.reply(t("admin.access_denied", locale), {parse_mode: "HTML"})
     return
   }
   ctx.session.adminLogin = {
@@ -322,17 +296,15 @@ router.command("admin", async (ctx) => {
   }
   log.warn(`${ctx.from?.id!} enter admin system`)
   const firstName = ctx.from?.first_name || "Admin"
-  let message = `🛡️ <b>Панель управления</b>\n`
-  message += `━━━━━━━━━━━━━━━━━━━━\n`
-  message += `Добро пожаловать, ${firstName}!\n\n`
-  message += `Выберите раздел для управления:`
+  const message = t("admin.panel", locale).replace("{name}", firstName)
   ctx.reply(message, {reply_markup: buildAdminKeyboard(), parse_mode: "HTML"})
 })
 
 router.command("becomeAdmin", async (ctx) => {
+  const locale = await getUserLocale(ctx.from?.id!);
   const user = await getUserByUserId(ctx.from?.id!)
   if (user?.is_admin) {
-    return ctx.reply("ℹ️ <b>Вы уже администратор</b>\n\nИспользуйте /admin для входа в панель.", {parse_mode: "HTML"})
+    return ctx.reply(t("admin.already_admin", locale), {parse_mode: "HTML"})
   }
   const key = ctx.match.trim();
   if (!key) {
@@ -342,24 +314,21 @@ router.command("becomeAdmin", async (ctx) => {
   const updatedUser = await makeUserAdmin(user_id, key)
   if (updatedUser) {
     log.warn(`User ${user_id} become admin with ${key}`)
-    let message = `✅ <b>Админ-ключ активирован</b>\n`
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    message += `Вы успешно получили права администратора.\n\n`
-    message += `📌 Используйте /admin для входа в панель управления.`
-    return ctx.reply(message, {parse_mode: "HTML"})
+    return ctx.reply(t("admin.activated", locale), {parse_mode: "HTML"})
   }
 })
 
 router.on("message", async (ctx, next) => {
   if (ctx.session.awaitingAddInput && ctx.message.text) {
     ctx.session.awaitingAddInput = undefined;
+    const locale = await getUserLocale(ctx.from?.id!);
     const input = ctx.message.text.trim();
 
     const extractedUsername = extractUsernameFromTwitchUrl(input);
     if (!extractedUsername) {
       return ctx.reply(
-        "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
-        { reply_markup: mySubscriptionsAddBackKeyboard },
+        t("commands.url_parse_error", locale),
+        { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) },
       );
     }
 
@@ -367,7 +336,7 @@ router.on("message", async (ctx, next) => {
     const twitchChannel = await getUserByLogin(channel_name_lower);
     const kickChannel = await getKickChannelByUsername(channel_name_lower);
     if (!(twitchChannel || kickChannel)) {
-      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
     if (kickChannel.data[0] && twitchChannel) {
@@ -376,12 +345,11 @@ router.on("message", async (ctx, next) => {
         twitchData: twitchChannel,
       }
 
-      const message = `Канал с таким именем найден на 2 платформах.\n` +
-        `https://kick.com/${channel_name_lower}\n` +
-        `https://twitch.tv/${channel_name_lower}\n\n` +
-        `Выберите платформу для подписки:`
+      const message = t("add.dual_platform", locale)
+        .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
+        .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
 
-      return ctx.reply(message, { reply_markup: platformSelectKeyboard })
+      return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
     }
 
     if (kickChannel.data[0]) {
@@ -389,11 +357,11 @@ router.on("message", async (ctx, next) => {
       const display_name = kickChannel.data[0].slug;
 
       if (!ctx.from) {
-        return ctx.reply("Ошибка: не удалось определить пользователя");
+        return ctx.reply(t("commands.user_error", locale));
       }
 
       if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(`Вы уже отслеживаете ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
       }
 
       ctx.session.pendingAdd = {
@@ -403,11 +371,9 @@ router.on("message", async (ctx, next) => {
         platform: "kick"
       };
 
-      const previewMessage =
-        `Вы хотите добавить канал:\n\n` +
-        `📺 Имя: ${display_name}\n` +
-        `🔗 Ссылка: https://kick.com/${display_name}\n\n` +
-        `Продолжить добавление?`;
+      const previewMessage = t("add.preview", locale)
+        .replace("{name}", display_name)
+        .replace("{url}", `https://kick.com/${display_name}`);
 
       log.info("showing channel preview", {
         userId: ctx.from.id,
@@ -417,18 +383,18 @@ router.on("message", async (ctx, next) => {
       });
 
       return await ctx.reply(previewMessage, {
-        reply_markup: addConfirmationKeyboard,
+        reply_markup: buildAddConfirmationKeyboard(locale),
       });
     } else if (twitchChannel) {
       const channel_id = Number(twitchChannel!.id);
       const display_name = twitchChannel!.display_name;
 
       if (!ctx.from) {
-        return ctx.reply("Ошибка: не удалось определить пользователя");
+        return ctx.reply(t("commands.user_error", locale));
       }
 
       if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(`Вы уже отслеживаете ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
       }
 
       ctx.session.pendingAdd = {
@@ -438,11 +404,9 @@ router.on("message", async (ctx, next) => {
         platform: "twitch"
       };
 
-      const previewMessage =
-        `Вы хотите добавить канал:\n\n` +
-        `📺 Имя: ${display_name}\n` +
-        `🔗 Ссылка: https://twitch.tv/${display_name}\n\n` +
-        `Продолжить добавление?`;
+      const previewMessage = t("add.preview", locale)
+        .replace("{name}", display_name)
+        .replace("{url}", `https://twitch.tv/${display_name}`);
 
       log.info("showing channel preview", {
         userId: ctx.from.id,
@@ -452,27 +416,28 @@ router.on("message", async (ctx, next) => {
       });
 
       return await ctx.reply(previewMessage, {
-        reply_markup: addConfirmationKeyboard,
+        reply_markup: buildAddConfirmationKeyboard(locale),
       });
     } else {
-      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
   }
 
   if (ctx.session.awaitingRemoveInput && ctx.message.text) {
     ctx.session.awaitingRemoveInput = undefined;
+    const locale = await getUserLocale(ctx.from?.id!);
     const input = ctx.message.text.trim();
 
     const extractedUsername = extractUsernameFromTwitchUrl(input);
     if (!extractedUsername) {
       return ctx.reply(
-        "Не удалось извлечь имя пользователя из URL. Убедитесь, что это корректная ссылка Twitch или имя пользователя.",
-        { reply_markup: mySubscriptionsAddBackKeyboard },
+        t("commands.url_parse_error", locale),
+        { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) },
       );
     }
 
     if (!ctx.from) {
-      return ctx.reply("Ошибка: не удалось определить пользователя");
+      return ctx.reply(t("commands.user_error", locale));
     }
 
     const channel_name_lower = extractedUsername.toLowerCase();
@@ -482,7 +447,7 @@ router.on("message", async (ctx, next) => {
     const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
 
     if (!kickChannel && !twitchChannel) {
-      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
     const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
@@ -503,27 +468,26 @@ router.on("message", async (ctx, next) => {
         channel = twitchChannel!
       }
     } else {
-      return ctx.reply("Вы не подписанны на этот канал", { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.not_following", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
     if (usernameChannels.length < 1) {
-      return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
     if (usernameChannels.length > 1 && bothFollow) {
       if (!kickChannel || !twitchChannel) {
-        return ctx.reply("Канал с таким именем не найден", { reply_markup: mySubscriptionsAddBackKeyboard });
+        return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
       } else {
-        const message = `Канал с таким именем найден на 2 платформах.\n` +
-          `https://kick.com/${channel_name_lower}\n` +
-          `https://twitch.tv/${channel_name_lower}\n\n` +
-          `Выберите платформу для удаления:`
+        const message = t("remove.dual_platform", locale)
+          .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
+          .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
 
         ctx.session.removePendingPlatformSelect = {
           kickChannel,
           twitchChannel,
         }
-        return ctx.reply(message, { reply_markup: removePlatformSelecteKeyboard })
+        return ctx.reply(message, { reply_markup: buildRemovePlatformSelectKeyboard(locale) })
       }
     }
 
@@ -534,7 +498,7 @@ router.on("message", async (ctx, next) => {
     const display_name = channel!.channel_name || extractedUsername;
 
     if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
-      return ctx.reply(`Вы не подписаны на ${display_name}`, { reply_markup: mySubscriptionsAddBackKeyboard });
+      return ctx.reply(t("commands.not_following_name", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
     ctx.session.pendingRemove = {
@@ -544,14 +508,12 @@ router.on("message", async (ctx, next) => {
       platform: channelPlatform,
     };
 
-    const previewMessage =
-      `Вы хотите удалить канал из отслеживаемых:\n\n` +
-      `📺 Имя: ${display_name}\n` +
-      `🔗 Ссылка: https://${channelPlatformUrl}/${channel_name_lower}\n\n` +
-      `Подтвердите удаление?`;
+    const previewMessage = t("remove.preview", locale)
+      .replace("{name}", display_name)
+      .replace("{url}", `https://${channelPlatformUrl}/${channel_name_lower}`);
 
     await ctx.reply(previewMessage, {
-      reply_markup: removeConfirmationKeyboard,
+      reply_markup: buildRemoveConfirmationKeyboard(locale),
     });
 
     log.info("showing remove preview", {
@@ -572,16 +534,13 @@ router.on("message", async (ctx) => {
 
   ctx.session.broadcastPending = undefined;
 
+  const locale = await getUserLocale(ctx.from?.id!);
   const text = ctx.message?.text;
   const photo = ctx.message?.photo;
   const caption = ctx.message?.caption;
 
   if (!text && (!photo || photo.length === 0)) {
-    let errorMessage = `⚠️ *Ошибка формата*\n`
-    errorMessage += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    errorMessage += `Не удалось распознать сообщение.\n\n`
-    errorMessage += `📝 Отправьте текст или фото.`
-    return ctx.reply(errorMessage, { reply_markup: adminBackKeyboard, parse_mode: "Markdown" });
+    return ctx.reply(t("admin.broadcast_error", locale), { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "Markdown" });
   }
 
   const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;
@@ -589,16 +548,16 @@ router.on("message", async (ctx) => {
 
   ctx.session.broadcastMessage = { text: messageText, photoFileId };
 
-  let preview = `📨 *Предпросмотр рассылки*\n`
-  preview += `━━━━━━━━━━━━━━━━━━━━\n\n`;
-  if (messageText) {
-    preview += messageText.length > 500 ? messageText.slice(0, 500) + "..." : messageText;
+  let previewText = messageText || "";
+  if (previewText.length > 500) {
+    previewText = previewText.slice(0, 500) + "...";
   }
-  if (photoFileId) {
-    preview += messageText ? "\n\n📷 Фото" : "📷 Фото";
+  let preview = t("admin.broadcast_preview", locale).replace("{text}", previewText);
+  if (photoFileId && !messageText) {
+    preview = t("admin.broadcast_preview", locale).replace("{text}", t("broadcast.photo_label", locale));
+  } else if (photoFileId && messageText) {
+    preview = t("admin.broadcast_preview", locale).replace("{text}", previewText + "\n\n" + t("broadcast.photo_label", locale));
   }
-  preview += `\n\n━━━━━━━━━━━━━━━━━━━━\n`;
-  preview += `Подтвердите отправку или отмените.`
 
-  await ctx.reply(preview, { reply_markup: broadcastConfirmKeyboard, parse_mode: "Markdown" });
+  await ctx.reply(preview, { reply_markup: buildBroadcastConfirmKeyboard(locale), parse_mode: "Markdown" });
 });

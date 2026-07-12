@@ -1,4 +1,5 @@
 import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
+import { t, Locale } from "../i18n";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
@@ -30,45 +31,46 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1) {
+        const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
+        //@ts-ignore
+        const text = t("notifications.stream_online", locale)
+          .replace("{name}", channel_name)
+          //@ts-ignore
+          .replace("{title}", data.title)
+          //@ts-ignore
+          .replace("{game}", data.game_name);
         await bot.api.sendMessage(
           follower.user_id!,
-          //@ts-ignore
-          `*${channel_name}* ведет прямую трансляцию.\n${data.title}\n_${data.game_name}_\n\n[Twitch](https://twitch.tv/${channel_name})`,
+          text,
           { 
             parse_mode: "Markdown",
             link_preview_options: { is_disabled: linkPreviewDisabled }
           },
         );
-        log.info("message sent", {
-          user_id: follower.user_id,
-          //@ts-ignore
-          text: `*${channel_name}* ведет прямую трансляцию.\n${data.title}\n_${data.game_name}_\n\n[Twitch](https://twitch.tv/${channel_name})`,
-        });
+        log.info("message sent", { user_id: follower.user_id, text });
       }
     }
     await insertStreamLog(channel_id, "twitch", "online")
 }
 
-export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number,channel_name: string) {
+export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number, channel_name: string) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1) {
+        const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
+        const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
         await bot.api.sendMessage(
           follower.user_id!,
-          `*${channel_name}* завершил прямую трансляцию.`,
+          text,
           { 
             parse_mode: "Markdown",
             link_preview_options: { is_disabled: linkPreviewDisabled }
           },
         );
-        log.info("message sent", {
-          user_id: follower.user_id,
-          //@ts-ignore
-          text: `*${channel_name}* завершил прямую трансляцию.`,
-        });
+        log.info("message sent", { user_id: follower.user_id, text });
       }
     }
     await insertStreamLog(channel_id, "twitch", "offline")
@@ -79,21 +81,20 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1) {
+        const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
+        const text = t("notifications.stream_online_kick", locale)
+          .replace("{name}", channel_name)
+          .replace("{title}", title);
         await bot.api.sendMessage(
           follower.user_id!,
-          //@ts-ignore
-          `*${channel_name}* ведет прямую трансляцию.\n${title}\n\n[Kick](https://kick.com/${channel_name})`,
+          text,
           { 
             parse_mode: "Markdown",
             link_preview_options: { is_disabled: linkPreviewDisabled }
           },
         );
-        log.info("message sent", {
-          user_id: follower.user_id,
-          //@ts-ignore
-          text: `*${channel_name}* ведет прямую трансляцию.\n${title}\n\n[Kick](https://kick.com/${channel_name})`,
-        });
+        log.info("message sent", { user_id: follower.user_id, text });
       }
     }
     await insertStreamLog(channel_id, "kick", "online")
@@ -104,21 +105,18 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1) {
+        const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
+        const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
         await bot.api.sendMessage(
           follower.user_id!,
-          //@ts-ignore
-          `*${channel_name}* завершил прямую трансляцию.\n`,
+          text,
           { 
             parse_mode: "Markdown",
             link_preview_options: { is_disabled: linkPreviewDisabled }
           },
         );
-        log.info("message sent", {
-          user_id: follower.user_id,
-          //@ts-ignore
-          text: `*${channel_name}* завершил прямую трансляцию.\n`,
-        });
+        log.info("message sent", { user_id: follower.user_id, text });
       }
     }
     await insertStreamLog(channel_id, "kick", "offline")

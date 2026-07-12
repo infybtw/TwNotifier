@@ -1,36 +1,43 @@
 import { InlineKeyboard } from "grammy";
 import { getSettingsStateByUserId, getUserByUserId } from "../database/db";
 import { ADMINER_URL, PGBACKWEB_URL } from "../config";
+import { t, Locale } from "../i18n";
 
-export async function buildHomeKeyboard(user_id: number): Promise<InlineKeyboard> {
+export async function buildHomeKeyboard(user_id: number, locale: Locale = "ru"): Promise<InlineKeyboard> {
   const user = await getUserByUserId(user_id);
   const kb = new InlineKeyboard()
-    .text("Мои подписки", "mySubscriptionsCMD")
+    .text(t("buttons.my_subscriptions", locale), "mySubscriptionsCMD")
     .row()
-    .text("Настройки", "settingsCMD")
-    .text("Инфо", "infoCMD");
+    .text(t("buttons.settings", locale), "settingsCMD")
+    .text(t("buttons.info", locale), "infoCMD")
+    .row()
+    .text(t("buttons.language", locale), "langCMD");
   if (user?.is_admin) {
-    kb.row().text("Управление", "adminCMD");
+    kb.row().text(t("buttons.admin", locale), "adminCMD");
   }
   return kb;
 }
 
-export const addConfirmationKeyboard = new InlineKeyboard()
-  .text("Продолжить", "confirm_add")
-  .text("Отмена", "cancel_add");
+export function buildAddConfirmationKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.confirm", locale), "confirm_add")
+    .text(t("buttons.cancel", locale), "cancel_add");
+}
 
-export const removeConfirmationKeyboard = new InlineKeyboard()
-  .text("Удалить", "confirm_remove")
-  .text("Отмена", "cancel_remove");
+export function buildRemoveConfirmationKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.delete", locale), "confirm_remove")
+    .text(t("buttons.cancel", locale), "cancel_remove");
+}
 
-export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyboard> {
+export async function buildSettingsKeyboard(user_id: number, locale: Locale = "ru"): Promise<InlineKeyboard> {
   const user_settings = await getSettingsStateByUserId(user_id);
   if (!user_settings) {
-    return new InlineKeyboard().text("Назад", "settingsBACK");
+    return new InlineKeyboard().text(t("buttons.back", locale), "settingsBACK");
   }
-  let onlineNotificationText = "Старт трансляции ";
-  let offlineNotificationText = "Окончание трансляции ";
-  let linkPreviewText = "Превью ссылок ";
+  let onlineNotificationText = t("settings.stream_start", locale);
+  let offlineNotificationText = t("settings.stream_end", locale);
+  let linkPreviewText = t("settings.link_preview", locale);
   if (user_settings?.online_notification === 1) {
     onlineNotificationText += "✅";
   } else {
@@ -54,7 +61,7 @@ export async function buildSettingsKeyboard(user_id: number): Promise<InlineKeyb
     .row()
     .text(linkPreviewText, "toggleLinkPreviewCMD")
     .row()
-    .text("Назад", "settingsBACK");
+    .text(t("buttons.back", locale), "settingsBACK");
 }
 
 export function buildAdminKeyboard(): InlineKeyboard {
@@ -73,61 +80,97 @@ export function buildAdminKeyboard(): InlineKeyboard {
   return kb
 }
 
-export const broadcastCancelKeyboard = new InlineKeyboard().text("Отмена", "admin_broadcast_cancel")
+export function buildBroadcastCancelKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.cancel", locale), "admin_broadcast_cancel");
+}
 
-export const broadcastConfirmKeyboard = new InlineKeyboard()
-  .text("Подтвердить", "admin_broadcast_confirm")
-  .text("Отмена", "admin_broadcast_cancel")
+export function buildBroadcastConfirmKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.confirm", locale), "admin_broadcast_confirm")
+    .text(t("buttons.cancel", locale), "admin_broadcast_cancel");
+}
 
-export const adminBackKeyboard = new InlineKeyboard().text("Назад", "admin_back")
+export function buildAdminBackKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "admin_back");
+}
 
-export const backHomeKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
+export function buildBackHomeKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "settingsBACK");
+}
 
-export const infoBackKeyboard = new InlineKeyboard().text("Назад", "settingsBACK")
+export function buildInfoBackKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "settingsBACK");
+}
 
-export const platformSelectKeyboard = new InlineKeyboard()
-  .text("Kick", "platform_kick").text("Twitch", "platform_twitch").row()
-  .text("Отмена", "platform_back")
+export function buildPlatformSelectKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Kick", "platform_kick").text("Twitch", "platform_twitch").row()
+    .text(t("buttons.cancel", locale), "platform_back");
+}
 
-export const removePlatformSelecteKeyboard = new InlineKeyboard()
-  .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
-  .text("Отмена", "remove_platform_back")
+export function buildRemovePlatformSelectKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Kick", "remove_platform_kick").text("Twitch", "remove_platform_twitch").row()
+    .text(t("buttons.cancel", locale), "remove_platform_back");
+}
 
-export const eventsubControlKeyboard = new InlineKeyboard()
-  .text("🔄 Перезапуск", "admin_eventsubreload_confirm")
-  .text("❌ Отключить", "admin_eventsub_disconnect").row()
-  .text("🧹 Очистить неиспольз.", "admin_eventsub_cleanup").row()
-  .text("Назад", "admin_back")
+export function buildEventsubControlKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔄 Перезапуск", "admin_eventsubreload_confirm")
+    .text("❌ Отключить", "admin_eventsub_disconnect").row()
+    .text("🧹 Очистить неиспольз.", "admin_eventsub_cleanup").row()
+    .text(t("buttons.back", locale), "admin_back");
+}
 
-export const eventsubResultKeyboard = new InlineKeyboard()
-  .text("Назад", "admin_eventsub")
+export function buildEventsubResultKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "admin_eventsub");
+}
 
-export const webhookControlKeyboard = new InlineKeyboard()
-  .text("🔄 Перезапуск", "admin_webhookreload_confirm")
-  .text("❌ Отключить", "admin_webhook_disconnect").row()
-  .text("🧹 Очистить неиспольз.", "admin_webhook_cleanup").row()
-  .text("Назад", "admin_back")
+export function buildWebhookControlKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔄 Перезапуск", "admin_webhookreload_confirm")
+    .text("❌ Отключить", "admin_webhook_disconnect").row()
+    .text("🧹 Очистить неиспольз.", "admin_webhook_cleanup").row()
+    .text(t("buttons.back", locale), "admin_back");
+}
 
-export const webhookResultKeyboard = new InlineKeyboard()
-  .text("Назад", "admin_webhook")
+export function buildWebhookResultKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "admin_webhook");
+}
 
-export const adminAddConfirmKeyboard = new InlineKeyboard()
-  .text("Подтвердить", "admin_add_confirm")
-  .text("Отмена", "admin_back")
+export function buildAdminAddConfirmKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.confirm", locale), "admin_add_confirm")
+    .text(t("buttons.cancel", locale), "admin_back");
+}
 
-export const mySubscriptionsEmptyKeyboard = new InlineKeyboard()
-  .text("Добавить", "mySubscriptionsAdd").row()
-  .text("Назад", "settingsBACK")
+export function buildMySubscriptionsEmptyKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.add", locale), "mySubscriptionsAdd").row()
+    .text(t("buttons.back", locale), "settingsBACK");
+}
 
-export const mySubscriptionsKeyboard = new InlineKeyboard()
-  .text("Добавить", "mySubscriptionsAdd")
-  .text("Удалить", "mySubscriptionsRemove").row()
-  .text("🟢 Каналы онлайн", "mySubscriptionsOnline").row()
-  .text("Назад", "settingsBACK")
+export function buildMySubscriptionsKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.add", locale), "mySubscriptionsAdd")
+    .text(t("buttons.remove", locale), "mySubscriptionsRemove").row()
+    .text(t("buttons.online_channels", locale), "mySubscriptionsOnline").row()
+    .text(t("buttons.back", locale), "settingsBACK");
+}
 
-export const mySubscriptionsAddBackKeyboard = new InlineKeyboard()
-  .text("Назад", "mySubscriptionsCMD")
+export function buildMySubscriptionsAddBackKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard().text(t("buttons.back", locale), "mySubscriptionsCMD");
+}
 
-export const restartConfirmKeyboard = new InlineKeyboard()
-  .text("Подтвердить", "admin_restart_confirm")
-  .text("Отмена", "admin_back")
+export function buildRestartConfirmKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.confirm", locale), "admin_restart_confirm")
+    .text(t("buttons.cancel", locale), "admin_back");
+}
+
+export function buildLanguageKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(t("buttons.ru", locale), "lang_ru")
+    .text(t("buttons.en", locale), "lang_en").row()
+    .text(t("buttons.back", locale), "settingsBACK");
+}

@@ -264,6 +264,11 @@ export async function setLinkPreviewStateByUserId(user_id: number, state: number
   return newUserSettings
 }
 
+export async function setLanguageByUserId(user_id: number, language: string): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ language }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
 async function setAdminKeyUsedById(id: number, used_by: number): Promise<AdminKey>{
   const [adminKey] = await db.update(admin_keys).set({ used: true, used_date: new Date().toISOString(), used_by}).where(eq(admin_keys.id, id)).returning()
   return adminKey

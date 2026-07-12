@@ -46,7 +46,8 @@ export const users_settings = pgTable("users_settings", {
   user_id: bigint({mode: "number"}).primaryKey().references(() => users.user_id),
   online_notification: integer().default(1),
   offline_notification: integer().default(1),
-  link_preview: integer().default(1)
+  link_preview: integer().default(1),
+  language: varchar({ length: 5 }).default("ru")
 })
 
 export type UserSettings = typeof users_settings.$inferSelect
