@@ -1,0 +1,1 @@
+ALTER TABLE "users_settings" ADD COLUMN "language" varchar(5) DEFAULT 'ru';

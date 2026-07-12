@@ -71,6 +71,13 @@
       "when": 1783722685203,
       "tag": "0009_happy_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783868328905,
+      "tag": "0010_true_mole_man",
+      "breakpoints": true
     }
   ]
 }
