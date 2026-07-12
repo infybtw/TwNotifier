@@ -1,7 +1,6 @@
 import { sendKickStreamfflineNotificationToUsers, sendKickStreamOnlineNotificationToUsers } from "../bot/bot_sender";
 import { getKickPublicKey } from "../kickAPI/publicKey";
 import { verifyKickWebhook } from "../kickAPI/verifyWebhook";
-import { ALLOW_KICK_INSECURE } from "../config";
 import logger from "../logger";
 
 const log = logger.getSubLogger({name: "handlers:webhook_handler"})
@@ -38,30 +37,20 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
   const signature = headers.get("kick-event-signature");
   const eventType = headers.get("kick-event-type");
 
-  if (ALLOW_KICK_INSECURE) {
-    log.warn("Kick signature validation bypassed (ALLOW_KICK_INSECURE=true)")
-    console.log(rawBody)
-    console.log(headers)
-  } else {
-    if (!messageId || !timestamp || !signature || !eventType) {
-      return { status: 400, body: { error: "Missing required Kick headers" } };
-    }
-
-    const publicKey = await getKickPublicKey();
-
-    const isValid = verifyKickWebhook(
-      { messageId, timestamp, signature },
-      rawBody,
-      publicKey
-    );
-
-    if (!isValid) {
-      return { status: 401, body: { error: "Invalid signature" } };
-    }
+  if (!messageId || !timestamp || !signature || !eventType) {
+    return { status: 400, body: { error: "Missing required Kick headers" } };
   }
 
-  if (!eventType) {
-    return { status: 400, body: { error: "Missing kick-event-type header" } };
+  const publicKey = await getKickPublicKey();
+
+  const isValid = verifyKickWebhook(
+    { messageId, timestamp, signature },
+    rawBody,
+    publicKey
+  );
+
+  if (!isValid) {
+    return { status: 401, body: { error: "Invalid signature" } };
   }
 
   const payload: KickWebhookPayload = JSON.parse(rawBody);
