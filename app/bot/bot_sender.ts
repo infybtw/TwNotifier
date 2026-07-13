@@ -37,6 +37,7 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
         //@ts-ignore
         const text = t("notifications.stream_online", locale)
           .replace("{name}", channel_name)
+          .replace("{url}", `https://twitch.tv/${channel_name}`)
           //@ts-ignore
           .replace("{title}", data.title)
           //@ts-ignore
@@ -48,8 +49,8 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
         await bot.api.sendMessage(
           follower.user_id!,
           text,
-          { 
-            parse_mode: "Markdown",
+          {
+            parse_mode: "HTML",
             link_preview_options: { is_disabled: linkPreviewDisabled },
             reply_markup: keyboard
           },
@@ -91,6 +92,7 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_online_kick", locale)
           .replace("{name}", channel_name)
+          .replace("{url}", `https://kick.com/${channel_name}`)
           .replace("{title}", title);
         const keyboard = new InlineKeyboard().url(
           t("platform.kick", locale),
@@ -99,8 +101,8 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         await bot.api.sendMessage(
           follower.user_id!,
           text,
-          { 
-            parse_mode: "Markdown",
+          {
+            parse_mode: "HTML",
             link_preview_options: { is_disabled: linkPreviewDisabled },
             reply_markup: keyboard
           },
