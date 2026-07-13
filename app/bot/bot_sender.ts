@@ -1,3 +1,4 @@
+import { InlineKeyboard } from "grammy";
 import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
@@ -40,12 +41,17 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
           .replace("{title}", data.title)
           //@ts-ignore
           .replace("{game}", data.game_name);
+        const keyboard = new InlineKeyboard().url(
+          t("platform.twitch", locale),
+          `https://twitch.tv/${channel_name}`
+        );
         await bot.api.sendMessage(
           follower.user_id!,
           text,
           { 
             parse_mode: "Markdown",
-            link_preview_options: { is_disabled: linkPreviewDisabled }
+            link_preview_options: { is_disabled: linkPreviewDisabled },
+            reply_markup: keyboard
           },
         );
         log.info("message sent", { user_id: follower.user_id, text });
@@ -86,12 +92,17 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         const text = t("notifications.stream_online_kick", locale)
           .replace("{name}", channel_name)
           .replace("{title}", title);
+        const keyboard = new InlineKeyboard().url(
+          t("platform.kick", locale),
+          `https://kick.com/${channel_name}`
+        );
         await bot.api.sendMessage(
           follower.user_id!,
           text,
           { 
             parse_mode: "Markdown",
-            link_preview_options: { is_disabled: linkPreviewDisabled }
+            link_preview_options: { is_disabled: linkPreviewDisabled },
+            reply_markup: keyboard
           },
         );
         log.info("message sent", { user_id: follower.user_id, text });
