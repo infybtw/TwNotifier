@@ -46,16 +46,20 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
           t("platform.twitch", locale),
           `https://twitch.tv/${channel_name}`
         );
-        await bot.api.sendMessage(
-          follower.user_id!,
-          text,
-          {
-            parse_mode: "HTML",
-            link_preview_options: { is_disabled: linkPreviewDisabled },
-            reply_markup: keyboard
-          },
-        );
-        log.info("message sent", { user_id: follower.user_id, text });
+        try {
+          await bot.api.sendMessage(
+            follower.user_id!,
+            text,
+            {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: linkPreviewDisabled },
+              reply_markup: keyboard
+            },
+          );
+          log.info("message sent", { user_id: follower.user_id, text });
+        } catch (err) {
+          log.error("failed to send twitch online notification", { user_id: follower.user_id, error: err });
+        }
       }
     }
     await insertStreamLog(channel_id, "twitch", "online")
@@ -69,15 +73,19 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
-        await bot.api.sendMessage(
-          follower.user_id!,
-          text,
-          { 
-            parse_mode: "Markdown",
-            link_preview_options: { is_disabled: linkPreviewDisabled }
-          },
-        );
-        log.info("message sent", { user_id: follower.user_id, text });
+        try {
+          await bot.api.sendMessage(
+            follower.user_id!,
+            text,
+            {
+              parse_mode: "Markdown",
+              link_preview_options: { is_disabled: linkPreviewDisabled }
+            },
+          );
+          log.info("message sent", { user_id: follower.user_id, text });
+        } catch (err) {
+          log.error("failed to send twitch offline notification", { user_id: follower.user_id, error: err });
+        }
       }
     }
     await insertStreamLog(channel_id, "twitch", "offline")
@@ -98,16 +106,20 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
           t("platform.kick", locale),
           `https://kick.com/${channel_name}`
         );
-        await bot.api.sendMessage(
-          follower.user_id!,
-          text,
-          {
-            parse_mode: "HTML",
-            link_preview_options: { is_disabled: linkPreviewDisabled },
-            reply_markup: keyboard
-          },
-        );
-        log.info("message sent", { user_id: follower.user_id, text });
+        try {
+          await bot.api.sendMessage(
+            follower.user_id!,
+            text,
+            {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: linkPreviewDisabled },
+              reply_markup: keyboard
+            },
+          );
+          log.info("message sent", { user_id: follower.user_id, text });
+        } catch (err) {
+          log.error("failed to send kick online notification", { user_id: follower.user_id, error: err });
+        }
       }
     }
     await insertStreamLog(channel_id, "kick", "online")
@@ -121,15 +133,19 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
-        await bot.api.sendMessage(
-          follower.user_id!,
-          text,
-          { 
-            parse_mode: "Markdown",
-            link_preview_options: { is_disabled: linkPreviewDisabled }
-          },
-        );
-        log.info("message sent", { user_id: follower.user_id, text });
+        try {
+          await bot.api.sendMessage(
+            follower.user_id!,
+            text,
+            {
+              parse_mode: "Markdown",
+              link_preview_options: { is_disabled: linkPreviewDisabled }
+            },
+          );
+          log.info("message sent", { user_id: follower.user_id, text });
+        } catch (err) {
+          log.error("failed to send kick offline notification", { user_id: follower.user_id, error: err });
+        }
       }
     }
     await insertStreamLog(channel_id, "kick", "offline")
