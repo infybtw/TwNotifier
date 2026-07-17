@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import { getSettingsStateByUserId, getUserByUserId } from "../database/db";
+import { getAdminSettings, getSettingsStateByUserId, getUserByUserId } from "../database/db";
 import { ADMINER_URL, PGBACKWEB_URL } from "../config";
 import { t, Locale } from "../i18n";
 
@@ -75,8 +75,31 @@ export function buildAdminKeyboard(locale: Locale = "ru"): InlineKeyboard {
   if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
   if (PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.url("💾 pgbackweb", PGBACKWEB_URL)
   if (ADMINER_URL && ADMINER_URL !== "undefined" && PGBACKWEB_URL && PGBACKWEB_URL !== "undefined") kb.row()
+  kb.text(t("admin.btn.settings", locale), "admin_settings").row()
   kb.text(t("admin.btn.restart", locale), "admin_restart").row()
   kb.text(t("admin.btn.exit", locale), "admin_exit")
+  return kb
+}
+
+export async function buildAdminSettingsKeyboard(user_id: number, locale: Locale = "ru"): Promise<InlineKeyboard> {
+  const settings = await getAdminSettings(user_id)
+  const offset = settings?.utc_offset ?? 0
+  const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`
+
+  return new InlineKeyboard()
+    .text(`${t("admin.settings.timezone", locale).replace("{offset}", `UTC${offsetStr}`)}`, "noop").row()
+    .text(t("admin.settings.timezone_change", locale), "admin_tz_change").row()
+    .text(t("admin.settings.back", locale), "admin_back")
+}
+
+export function buildTimezoneKeyboard(locale: Locale = "ru"): InlineKeyboard {
+  const kb = new InlineKeyboard()
+  for (let offset = -12; offset <= 14; offset++) {
+    const label = offset >= 0 ? `UTC+${offset}` : `UTC${offset}`
+    kb.text(label, `admin_tz_${offset}`)
+    if ((offset + 12) % 7 === 6) kb.row()
+  }
+  kb.row().text(t("admin.settings.back", locale), "admin_settings")
   return kb
 }
 

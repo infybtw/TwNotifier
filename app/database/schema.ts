@@ -66,6 +66,14 @@ export const admin_keys = pgTable("admin_keys", {
 export type AdminKey = typeof admin_keys.$inferSelect
 export type NewAdminKey = typeof admin_keys.$inferInsert
 
+export const admin_settings = pgTable("admin_settings", {
+  user_id: bigint({ mode: "number" }).primaryKey().references(() => users.user_id),
+  utc_offset: integer().notNull().default(0),
+})
+
+export type AdminSettings = typeof admin_settings.$inferSelect
+export type NewAdminSettings = typeof admin_settings.$inferInsert
+
 export const stream_logs = pgTable("stream_logs", {
   id: serial("id").primaryKey(),
   channel_id: bigint({mode: "number"}).references(() => channels.channel_id).notNull(),

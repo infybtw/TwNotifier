@@ -22,8 +22,10 @@ import {
   buildRemovePlatformSelectKeyboard,
   buildRemoveConfirmationKeyboard,
   buildLanguageKeyboard,
+  buildAdminSettingsKeyboard,
+  buildTimezoneKeyboard,
 } from "./keyboards";
-import { getUserByUserId, setLanguageByUserId } from "../database/db";
+import { getAdminSettings, getUserByUserId, setAdminTimezoneOffset, setLanguageByUserId } from "../database/db";
 import {
   addAdminKey,
   checkOrCreateChannel,
@@ -63,6 +65,7 @@ import { sendBroadcastMessage } from "./bot_sender";
 import { t, Locale } from "../i18n";
 import { getUserLocale } from "../utils/locale";
 import { TWITCH_EVENT_TRANSPORT } from "../config";
+import { formatDateForAdmin, formatDateUTC, formatTimeForAdmin } from "../utils/time";
 
 export const router = new Composer<MyContext>();
 
@@ -116,7 +119,7 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
     for (const sub of twitchFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
+      reply_text += `      📅 ${formatDateUTC(sub.created)}\n\n`;
     }
   }
   if (kickFollows.length >= 1) {
@@ -124,7 +127,7 @@ router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
     for (const sub of kickFollows) {
       const channel = await getChannelByChannelId(sub.channel_id!);
       reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${sub.created.slice(0, 10)}\n\n`;
+      reply_text += `      📅 ${formatDateUTC(sub.created)}\n\n`;
     }
   }
   await ctx.editMessageText(reply_text.trimEnd(), { parse_mode: "HTML", reply_markup: buildMySubscriptionsKeyboard(locale) });
@@ -446,6 +449,55 @@ router.callbackQuery("admin_exit", async (ctx) => {
   }
 })
 
+router.callbackQuery("admin_settings", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const locale = await getUserLocale(ctx.from.id);
+    const message = t("admin.settings.title", locale)
+    await ctx.editMessageText(message, {
+      reply_markup: await buildAdminSettingsKeyboard(ctx.from.id, locale),
+      parse_mode: "HTML",
+    });
+  } else {
+    await ctx.editMessageText(t("admin.expired", "ru"), { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("admin_tz_change", async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const locale = await getUserLocale(ctx.from.id);
+    const message = t("admin.settings.timezone_select", locale)
+    await ctx.editMessageText(message, {
+      reply_markup: buildTimezoneKeyboard(locale),
+      parse_mode: "HTML",
+    });
+  } else {
+    await ctx.editMessageText(t("admin.expired", "ru"), { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery(/^admin_tz_(-?\d+)$/, async (ctx) => {
+  if (ctx.session.adminLogin) {
+    const locale = await getUserLocale(ctx.from.id);
+    const offset = Number(ctx.match[1])
+    if (offset < -12 || offset > 14) {
+      return ctx.answerCallbackQuery({ text: "Invalid offset", show_alert: true })
+    }
+    await setAdminTimezoneOffset(ctx.from.id, offset)
+    const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`
+    const message = t("admin.settings.timezone_saved", locale).replace("{offset}", `UTC${offsetStr}`)
+    await ctx.editMessageText(message, {
+      reply_markup: await buildAdminSettingsKeyboard(ctx.from.id, locale),
+      parse_mode: "HTML",
+    })
+  } else {
+    await ctx.editMessageText(t("admin.expired", "ru"), { parse_mode: "HTML" });
+  }
+})
+
+router.callbackQuery("noop", async (ctx) => {
+  await ctx.answerCallbackQuery()
+})
+
 router.callbackQuery("admin_channels", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
@@ -465,12 +517,14 @@ router.callbackQuery("admin_channels", async (ctx) => {
 router.callbackQuery("admin_users", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const users = await getUsers()
     let message = t("admin.users", locale).replace("{count}", users.length.toString())
     for (const user of users) {
       message += `👤 <b>${user.first_name}</b> (@${user.username})\n`
       message += `   ID: <code>${user.user_id}</code>\n`
-      message += `   📅 ${user.created}\n\n`
+      message += `   📅 ${formatTimeForAdmin(user.created, tzOffset)}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML"})
   } else {
@@ -481,12 +535,14 @@ router.callbackQuery("admin_users", async (ctx) => {
 router.callbackQuery("admin_admins", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const users = await getAdmins()
     let message = t("admin.admins", locale).replace("{count}", users.length.toString())
     for (const user of users) {
       message += `⚡ <b>${user.first_name}</b> (@${user.username})\n`
       message += `   ID: <code>${user.user_id}</code>\n`
-      message += `   📅 ${user.created}\n\n`
+      message += `   📅 ${formatTimeForAdmin(user.created, tzOffset)}\n\n`
     }
     ctx.editMessageText(message, {reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML"})
   } else {
@@ -521,6 +577,8 @@ router.callbackQuery("admin_add_confirm", async (ctx) => {
 router.callbackQuery("admin_keys", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const keys = await getAllAdminKeys()
     if (keys.length < 1) {
       return ctx.editMessageText(t("admin.keys_title", locale), { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML" })
@@ -535,7 +593,7 @@ router.callbackQuery("admin_keys", async (ctx) => {
       message += t("admin.keys_available", locale).replace("{count}", unused.length.toString())
       for (const k of unused) {
         message += `\n<code>${k.key.slice(0, 16)}...</code>\n`
-        message += `   📅 ${k.issue_date.slice(0, 10)}\n`
+        message += `   📅 ${formatDateForAdmin(k.issue_date, tzOffset)}\n`
         message += `   👤 ${k.issued_by_name || "Unknown"} (@${k.issued_by_username || "unknown"})\n`
       }
     }
@@ -544,8 +602,8 @@ router.callbackQuery("admin_keys", async (ctx) => {
       message += t("admin.keys_used", locale).replace("{count}", used.length.toString())
       for (const k of used) {
         message += `\n<code>${k.key.slice(0, 16)}...</code>\n`
-        message += `   📅 ${k.issue_date.slice(0, 10)}\n`
-        message += `   ✅ ${k.used_date?.slice(0, 10) || "?"}\n`
+        message += `   📅 ${formatDateForAdmin(k.issue_date, tzOffset)}\n`
+        message += `   ✅ ${k.used_date ? formatDateForAdmin(k.used_date, tzOffset) : "?"}\n`
       }
     }
 
@@ -679,6 +737,8 @@ router.callbackQuery("admin_eventsub_cleanup", async (ctx) => {
 router.callbackQuery("admin_webhook", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const subs = await getKickSubscriptions()
     log.info(`${ctx.from.id} opened Webhook control`, { total: subs.length })
     let message = t("admin.webhook_header", locale).replace("{count}", subs.length.toString())
@@ -688,7 +748,7 @@ router.callbackQuery("admin_webhook", async (ctx) => {
         message += `📌 <code>${sub.event}</code>\n`
         message += `   ID: <code>${sub.id}</code>\n`
         message += `   ${t("admin.label.channel_id", locale)}: <code>${sub.broadcaster_user_id}</code>\n`
-        message += `   ${t("admin.label.created", locale)}: ${sub.created_at}\n`
+        message += `   ${t("admin.label.created", locale)}: ${formatTimeForAdmin(sub.created_at, tzOffset)}\n`
       }
     }
     ctx.editMessageText(message, { reply_markup: buildWebhookControlKeyboard(locale), parse_mode: "HTML" })
@@ -768,6 +828,8 @@ router.callbackQuery("admin_webhook_cleanup", async (ctx) => {
 router.callbackQuery("admin_follows", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const follows = await getAllFollowsWithDetails()
     if (follows.length < 1) {
       return ctx.editMessageText(t("admin.follows_empty", locale), { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML" })
@@ -792,7 +854,7 @@ router.callbackQuery("admin_follows", async (ctx) => {
       message += `   ${subs.length} ${t("admin.label.subscribed", locale)}:\n`
       for (const sub of subs) {
         message += `   👤 ${sub.first_name || "Unknown"} (@${sub.username || "unknown"})\n`
-        message += `      📅 ${sub.created.slice(0, 10)}\n`
+        message += `      📅 ${formatDateForAdmin(sub.created, tzOffset)}\n`
       }
     }
     ctx.editMessageText(message, { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML" })
@@ -804,6 +866,8 @@ router.callbackQuery("admin_follows", async (ctx) => {
 router.callbackQuery("admin_logs", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
+    const adminSettings = await getAdminSettings(ctx.from.id)
+    const tzOffset = adminSettings?.utc_offset ?? 0
     const logs = await getRecentStreamLogs(10)
     let message = t("admin.logs_header", locale)
     if (logs.length === 0) {
@@ -815,7 +879,7 @@ router.callbackQuery("admin_logs", async (ctx) => {
         message += `${platformIcon} <b>${entry.channel_name || `ID:${entry.channel_id}`}</b>\n`
         message += `   ${eventIcon}\n`
         message += `   👥 ${t("admin.label.subscribers", locale)}: ${entry.follower_count ?? 0}\n`
-        message += `   📅 ${entry.created}\n\n`
+        message += `   📅 ${formatTimeForAdmin(entry.created, tzOffset)}\n\n`
       }
     }
     ctx.editMessageText(message, { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "HTML" })

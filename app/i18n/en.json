@@ -135,5 +135,12 @@
   "admin.label.channel_id": "Channel ID",
   "admin.label.created": "Created",
   "admin.label.subscribed": "subscribed",
-  "admin.label.subscribers": "Subscribers"
+  "admin.label.subscribers": "Subscribers",
+  "admin.btn.settings": "⚙️ Settings",
+  "admin.settings.title": "⚙️ <b>Admin Settings</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
+  "admin.settings.timezone": "⏰ Timezone: <b>{offset}</b>",
+  "admin.settings.timezone_change": "Change timezone",
+  "admin.settings.timezone_select": "Select your UTC offset:",
+  "admin.settings.timezone_saved": "✅ Timezone set to <b>{offset}</b>",
+  "admin.settings.back": "← Back"
 }

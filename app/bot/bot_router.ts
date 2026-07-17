@@ -30,6 +30,7 @@ import { getKickChannelByUsername } from "../kickAPI/users";
 import { Channel, UserFollow } from "../database/schema";
 import { t, Locale } from "../i18n";
 import { getUserLocale } from "../utils/locale";
+import { formatDateUTC } from "../utils/time";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -269,7 +270,7 @@ router.command("list", async (ctx) => {
     for (const sub of twitchFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
-        reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+        reply_text += `      📅 ${formatDateUTC(sub.created)}\n`;
     }
   }
   if (kickFollows.length >= 1) {
@@ -277,7 +278,7 @@ router.command("list", async (ctx) => {
     for (const sub of kickFollows) {
         const channel = await getChannelByChannelId(sub.channel_id!);
         reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
-        reply_text += `      📅 ${sub.created.slice(0, 10)}\n`;
+        reply_text += `      📅 ${formatDateUTC(sub.created)}\n`;
     }
   }
 

@@ -1,6 +1,6 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, Channel, channels, NewUserSettings, StreamLog, stream_logs, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamLog, stream_logs, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
 import { and, count, eq, sql } from "drizzle-orm";
 import logger from "../logger";
 
@@ -17,6 +17,19 @@ export async function getUserByUserId(user_id: number): Promise<User> {
 export async function getSettingsStateByUserId(user_id: number): Promise<UserSettings>{
   const [userSettings] = await db.select().from(users_settings).where(eq(users_settings.user_id, user_id)).limit(1)
   return userSettings
+}
+
+export async function getAdminSettings(user_id: number): Promise<AdminSettings | undefined> {
+  const [settings] = await db.select().from(admin_settings).where(eq(admin_settings.user_id, user_id)).limit(1)
+  return settings || undefined
+}
+
+export async function setAdminTimezoneOffset(user_id: number, utc_offset: number): Promise<AdminSettings> {
+  const [settings] = await db.insert(admin_settings)
+    .values({ user_id, utc_offset })
+    .onConflictDoUpdate({ target: admin_settings.user_id, set: { utc_offset } })
+    .returning()
+  return settings
 }
 
 export async function getChannelByChannelId(channel_id: number): Promise<Channel> {
