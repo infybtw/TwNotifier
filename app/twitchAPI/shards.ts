@@ -43,7 +43,6 @@ export async function updateShard(sessionId: string,shardId: number): Promise<vo
 
 export async function connectWebSocket(url: string) {
   currentUrl = url;
-  reconnecting = false;
   console.log("Connecting to EventSub...");
   ws = new WebSocket(url);
 
@@ -59,6 +58,7 @@ export async function connectWebSocket(url: string) {
 
     switch (type) {
       case "session_welcome":
+        reconnecting = false;
         await onSessionWelcome(msg.payload.session.id);
         break;
       case "session_keepalive":
