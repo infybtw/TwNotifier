@@ -39,12 +39,16 @@ export async function handleTwitchWebhook({
     return { status: 403, body: "Invalid signature" };
   }
 
+  log.info("Twitch webhook signature verified", { messageId, messageType });
+
   switch (messageType) {
     case "webhook_callback_verification": {
       const payload = JSON.parse(rawBody);
       log.info("Twitch webhook callback verification", {
         subscriptionType: payload.subscription?.type,
+        challenge: payload.challenge,
       });
+      log.info("Responding with challenge", { challenge: payload.challenge });
       return { status: 200, body: payload.challenge };
     }
 

@@ -26,6 +26,7 @@ export async function startHTTPServer() {
           });
 
           set.status = result.status;
+          set.headers["content-type"] = "text/plain";
           return result.body;
         })
       : (app: Elysia) => app
