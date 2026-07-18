@@ -57,12 +57,17 @@ function formatPretty(level: LogLevel, name: string, message: string, args: unkn
 }
 
 function formatJson(level: LogLevel, name: string, message: string, args: unknown[]): string {
-  const obj: Record<string, unknown> = { level };
-  obj.time = new Date().toISOString();
-  obj.msg = message;
-  if (name) obj.name = name;
+  const obj: Record<string, unknown> = {
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+  };
+  if (name) obj.logger = name;
   if (args.length > 0) {
-    obj.data = args.length === 1 ? args[0] : args;
+    const extra = args.length === 1 && typeof args[0] === "object" && args[0] !== null
+      ? args[0] as Record<string, unknown>
+      : { data: args.length === 1 ? args[0] : args };
+    Object.assign(obj, extra);
   }
   const json = JSON.stringify(obj);
   const color = LEVEL_COLORS[level];
