@@ -2,16 +2,34 @@ import { sleep } from "bun";
 import {
   APP_TOKEN,
   BOT_USER_ID,
+  BOT_URL,
   CLIENT_ID,
   CONDUIT_ID,
+  TWITCH_EVENT_TRANSPORT,
   TWITCH_HELIX,
   TWITCH_OAUTH,
+  TWITCH_WEBHOOK_PATH,
+  TWITCH_WEBHOOK_SECRET,
 } from "../config";
 import { getChannelsWithFollowersByPlatform } from "../database/db";
 import logger from "../logger";
 import { getAppToken } from "./auth";
 
 const log = logger.getSubLogger({ name: "twitchAPI:subscriptions" });
+
+function getTransport() {
+  if (TWITCH_EVENT_TRANSPORT === "webhook") {
+    return {
+      method: "webhook",
+      callback: BOT_URL + TWITCH_WEBHOOK_PATH,
+      secret: TWITCH_WEBHOOK_SECRET,
+    };
+  }
+  return {
+    method: "conduit",
+    conduit_id: CONDUIT_ID,
+  };
+}
 
 export async function subscribeToChannelOnline(broadcasterId: number, broadcaster_name: string): Promise<number> {
   const subscription = {
@@ -31,10 +49,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
     },
     body: JSON.stringify({
       ...subscription,
-      transport: {
-        method: "conduit", // ← не websocket, а conduit!
-        conduit_id: CONDUIT_ID,
-      },
+      transport: getTransport(),
     }),
   });
 
@@ -45,6 +60,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
     });
     return 202;
   } else if (data.status === 409) {
@@ -52,6 +68,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
     });
     return 409;
   } else if (res.status === 429) {
@@ -59,6 +76,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     })
     await sleep(10000)
@@ -69,6 +87,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     } )
     await sleep(10000);
@@ -78,6 +97,7 @@ export async function subscribeToChannelOnline(broadcasterId: number, broadcaste
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     });
     return -1;
@@ -110,10 +130,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
     },
     body: JSON.stringify({
       ...subscription,
-      transport: {
-        method: "conduit",
-        conduit_id: CONDUIT_ID,
-      },
+      transport: getTransport(),
     }),
   });
 
@@ -123,6 +140,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
     });
     return 202;
   } else if (data.status === 409) {
@@ -130,6 +148,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
     });
     return 409;
   } else if (res.status === 429) {
@@ -137,6 +156,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     })
     await sleep(10000)
@@ -147,6 +167,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     } )
     await sleep(10000);
@@ -156,6 +177,7 @@ export async function subscribeToChannelOffline(broadcasterId: number, broadcast
       type: subscription.type,
       broadcaster_id: broadcasterId,
       broadcaster_name: broadcaster_name,
+      transport: TWITCH_EVENT_TRANSPORT,
       error_message: data.message,
     });
     return -1;

@@ -20,6 +20,11 @@ export const TWITCH_WS: string = String(process.env.TWITCH_WS);
 export const TWITCH_HELIX: string = String(process.env.TWITCH_HELIX);
 export const TWITCH_OAUTH: string = String(process.env.TWITCH_OAUTH);
 
+export const TWITCH_EVENT_TRANSPORT: string = process.env.TWITCH_EVENT_TRANSPORT || "";
+export const TWITCH_WEBHOOK_PATH: string = process.env.TWITCH_WEBHOOK_PATH || "";
+export const TWITCH_WEBHOOK_SECRET: string = process.env.TWITCH_WEBHOOK_SECRET || "";
+export const BOT_URL: string = process.env.BOT_URL || "";
+
 export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 

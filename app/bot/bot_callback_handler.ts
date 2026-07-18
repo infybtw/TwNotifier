@@ -62,6 +62,7 @@ import { deleteKickSubscription, getKickSubscriptions, subscribeToKickChannelOnl
 import { sendBroadcastMessage } from "./bot_sender";
 import { t, Locale } from "../i18n";
 import { getUserLocale } from "../utils/locale";
+import { TWITCH_EVENT_TRANSPORT } from "../config";
 
 export const router = new Composer<MyContext>();
 
@@ -591,7 +592,9 @@ router.callbackQuery("admin_eventsub", async (ctx) => {
     const locale = await getUserLocale(ctx.from.id);
     const subs = await getEventSubList()
     log.info(`${ctx.from.id} opened EventSub control`, { total: subs.length })
-    let message = t("admin.eventsub_header", locale).replace("{count}", subs.length.toString())
+    let message = t("admin.eventsub_header", locale)
+      .replace("{count}", subs.length.toString())
+      .replace("{transport}", TWITCH_EVENT_TRANSPORT)
     if (subs.length > 0) {
       message += `\n`
       for (const sub of subs) {
@@ -599,6 +602,7 @@ router.callbackQuery("admin_eventsub", async (ctx) => {
         message += `${icon} <code>${sub.type}</code>\n`
         message += `   ID: <code>${sub.id.slice(0, 16)}...</code>\n`
         message += `   ${t("admin.label.status", locale)}: ${sub.status}\n`
+        message += `   ${t("admin.label.transport", locale)}: ${sub.transport.method}\n`
         if (sub.condition.broadcaster_user_id) {
           message += `   ${t("admin.label.channel_id", locale)}: <code>${sub.condition.broadcaster_user_id}</code>\n`
         }
