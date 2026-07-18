@@ -1,14 +1,14 @@
 # TwitchNotifierBot
 
-A Telegram bot that sends real-time notifications when Twitch/Kick streamers go live. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub WebSocket API and Kick webhooks.
+A Telegram bot that sends real-time notifications when Twitch/Kick streamers go live. Built with TypeScript, Bun runtime, and integrates with Twitch EventSub (WebSocket conduit or webhook) and Kick webhooks.
 
 ## Project Description
 
-TwitchNotifierBot is a notification system that connects to Twitch's EventSub WebSocket API and Kick's webhook system to monitor streamers and sends Telegram notifications when they start streaming. The bot maintains persistent WebSocket connections to Twitch, handles authentication, and manages user subscriptions through a Telegram interface.
+TwitchNotifierBot is a notification system that monitors Twitch and Kick streamers and sends Telegram notifications when they start or stop streaming. For Twitch, it supports two EventSub transport modes: **conduit** (persistent WebSocket connection) or **webhook** (HTTP callback). Kick uses webhook integration. The bot handles authentication, manages user subscriptions, and provides an admin panel via Telegram.
 
 ### Key Features
 - Real-time Twitch and Kick stream notifications via Telegram
-- Twitch EventSub WebSocket integration for efficient streaming
+- Twitch EventSub with configurable transport: conduit (WebSocket) or webhook
 - Kick webhook integration for stream notifications
 - PostgreSQL database for persistent user preferences
 - Grammy.js framework for Telegram bot interactions
@@ -61,6 +61,14 @@ HTTP_SERVER_PORT=
 
 # Twitch EventSub Configuration
 SHARD_COUNT=1
+
+# Twitch EventSub Transport: "webhook" or "conduit" (required)
+TWITCH_EVENT_TRANSPORT=
+
+# Webhook config (required when TWITCH_EVENT_TRANSPORT=webhook)
+TWITCH_WEBHOOK_PATH=
+TWITCH_WEBHOOK_SECRET=
+BOT_URL=https://your-domain.com
 
 # Telegram Bot Token
 BOT_TOKEN=TELEGRAM_BOT_TOKEN
@@ -117,7 +125,9 @@ app/
 │   ├── shards.ts         # WebSocket connection management
 │   ├── conduits.ts       # Conduit management
 │   ├── subscriptions.ts  # Event subscriptions
-│   └── users.ts          # User lookups
+│   ├── users.ts          # User lookups
+│   ├── verifyWebhook.ts  # Webhook signature verification (HMAC-SHA256)
+│   └── webhook_handler.ts # Twitch webhook processing
 ├── kickAPI/              # Kick API integration
 │   ├── auth.ts           # Kick authentication
 │   ├── subscription.ts   # Kick subscription management
@@ -126,7 +136,7 @@ app/
 │   └── verifyWebhook.ts  # Webhook verification
 ├── handlers/             # Event handlers
 │   ├── ws_handler.ts     # Twitch WebSocket message processing
-│   ├── http_handler.ts   # Elysia HTTP server (Kick webhooks)
+│   ├── http_handler.ts   # Elysia HTTP server (Kick + Twitch webhooks)
 │   └── webhook_handler.ts # Kick webhook processing
 ├── database/             # Database layer
 │   ├── db.ts             # Database queries
@@ -147,7 +157,7 @@ app/
 - **[@grammyjs/conversations](https://grammy.dev/plugins/conversations)** (^2.1.1) - Conversation management for Telegram bots
 - **[@grammyjs/storage-file](https://grammy.dev/plugins/storage-file)** (^2.5.1) - File-based session storage
 - **[drizzle-orm](https://orm.drizzle.team/)** (^0.45.2) - TypeScript ORM for PostgreSQL
-- **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework (Kick webhooks)
+- **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework (Kick + Twitch webhooks)
 - **[pg](https://node-postgres.com/)** (^8.22.0) - PostgreSQL client
 - **[pino](https://getpino.io/)** (^10.3.1) - Logger
 
