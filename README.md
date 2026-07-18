@@ -112,7 +112,7 @@ bun test
 app/
 ├── index.ts              # Main entry point
 ├── config.ts             # Environment configuration
-├── logger.ts             # Logging setup
+├── logger.ts             # Custom logger (json/pretty/plain, Alloy/Loki compatible)
 ├── migrate.ts            # Database migration runner
 ├── bot/                  # Telegram bot handlers
 │   ├── bot.ts            # Bot initialization
@@ -159,7 +159,7 @@ app/
 - **[drizzle-orm](https://orm.drizzle.team/)** (^0.45.2) - TypeScript ORM for PostgreSQL
 - **[elysia](https://elysiajs.com/)** (^1.4.29) - HTTP server framework (Kick + Twitch webhooks)
 - **[pg](https://node-postgres.com/)** (^8.22.0) - PostgreSQL client
-- **[pino](https://getpino.io/)** (^10.3.1) - Logger
+- Custom logger (`app/logger.ts`) - Zero-dependency logger with json/pretty/plain formats, compatible with Grafana Alloy/Loki
 
 ### Development Dependencies
 - **[@types/bun](https://bun.sh/docs/typescript)** - TypeScript definitions for Bun
