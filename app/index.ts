@@ -62,8 +62,10 @@ async function main(): Promise<void> {
   }
 
   await withRetry("startHTTPServer", () => startHTTPServer());
+  console.log("Kick transport: webhook");
   console.log("Kick webhook path: " + KICK_WEBHOOK_PATH);
   console.log("Kick webhook callback URL: " + BOT_URL + KICK_WEBHOOK_PATH);
+  console.log("Twitch transport: " + TWITCH_EVENT_TRANSPORT);
   if (TWITCH_EVENT_TRANSPORT === "webhook") {
     console.log("Twitch webhook path: " + TWITCH_WEBHOOK_PATH);
     console.log("Twitch webhook callback URL: " + BOT_URL + TWITCH_WEBHOOK_PATH);
