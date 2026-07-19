@@ -5,13 +5,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: twn
-      POSTGRES_PASSWORD: twn
+      POSTGRES_PASSWORD: pass
       POSTGRES_DB: twn
     volumes:
       - pgdata-prod:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U twn -d twn"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
@@ -21,7 +21,7 @@ services:
     image: ghcr.io/infybtw/twn
     build:
       context: .
-      dockerfile: app/Dockerfile
+      dockerfile: Dockerfile-app
       network: host
     env_file: .env
     restart: unless-stopped
@@ -29,6 +29,8 @@ services:
       - pg
     volumes:
       - ./logs/prod:/app/logs
+    ports:
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,19 +39,18 @@ services:
     image: adminer
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     networks:
       - pg
 
   pgbackweb:
     image: eduardolat/pgbackweb:latest
+    restart: unless-stopped
     ports:
-      - "8085:8085"
-    volumes:
-      - ./backups:/backups
+      - "127.0.0.1:8085:8085"
     environment:
-      PBW_ENCRYPTION_KEY: "secret_key"
-      PBW_POSTGRES_CONN_STRING: "postgresql://twn:twn@postgres:5432/pgbackweb?sslmode=disable"
+      PBW_ENCRYPTION_KEY: "key"
+      PBW_POSTGRES_CONN_STRING: "postgresql://user:pass@postgres:5432/db?sslmode=disable"
       PBW_PATH_PREFIX: "/pgback"
     depends_on:
       postgres:
