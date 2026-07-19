@@ -217,7 +217,7 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
   if (onlineTwitch.length >= 1) {
     text += `🟣 <b>Twitch</b>\n`;
     for (const s of onlineTwitch) {
-      text += `   📺 <b>${s.name}</b> — 👁 ${s.viewers}\n`;
+      text += `   📺 <b><a href="https://twitch.tv/${s.name}">${s.name}</a></b> — 👁 ${s.viewers}\n`;
       text += `      🎮 ${s.game}\n`;
       text += `      📝 ${s.title.slice(0, 80)}\n\n`;
     }
@@ -226,13 +226,13 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
   if (onlineKick.length >= 1) {
     text += `🟢 <b>Kick</b>\n`;
     for (const s of onlineKick) {
-      text += `   📺 <b>${s.name}</b> — 👁 ${s.viewers}\n`;
+      text += `   📺 <b><a href="https://kick.com/${s.name}">${s.name}</a></b> — 👁 ${s.viewers}\n`;
       text += `      📝 ${s.title.slice(0, 80)}\n\n`;
     }
   }
 
   try {
-    await ctx.editMessageText(text.trimEnd(), { parse_mode: "HTML", reply_markup: backKb });
+    await ctx.editMessageText(text.trimEnd(), { parse_mode: "HTML", reply_markup: backKb, disable_web_page_preview: true });
   } catch {}
 });
 
