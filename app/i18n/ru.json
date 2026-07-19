@@ -135,5 +135,11 @@
   "admin.label.channel_id": "Канал ID",
   "admin.label.created": "Создан",
   "admin.label.subscribed": "подписано",
-  "admin.label.subscribers": "Подписчиков"
+  "admin.label.subscribers": "Подписчиков",
+  "admin.btn.settings": "⚙️ Настройки",
+  "admin.settings.title": "⚙️ <b>Настройки администратора</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
+  "admin.settings.timezone": "⏰ Часовой пояс: <b>{offset}</b>",
+  "admin.settings.timezone_select": "Выберите ваш UTC сдвиг:",
+  "admin.settings.timezone_saved": "✅ Часовой пояс установлен: <b>{offset}</b>",
+  "admin.settings.back": "← Назад"
 }
