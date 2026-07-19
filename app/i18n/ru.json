@@ -139,7 +139,6 @@
   "admin.btn.settings": "⚙️ Настройки",
   "admin.settings.title": "⚙️ <b>Настройки администратора</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
   "admin.settings.timezone": "⏰ Часовой пояс: <b>{offset}</b>",
-  "admin.settings.timezone_change": "Изменить часовой пояс",
   "admin.settings.timezone_select": "Выберите ваш UTC сдвиг:",
   "admin.settings.timezone_saved": "✅ Часовой пояс установлен: <b>{offset}</b>",
   "admin.settings.back": "← Назад"

@@ -87,19 +87,19 @@ export async function buildAdminSettingsKeyboard(user_id: number, locale: Locale
   const offsetStr = offset >= 0 ? `+${offset}` : `${offset}`
 
   return new InlineKeyboard()
-    .text(`${t("admin.settings.timezone", locale).replace("{offset}", `UTC${offsetStr}`)}`, "noop").row()
-    .text(t("admin.settings.timezone_change", locale), "admin_tz_change").row()
+    .text(`⏰ Timezone: UTC${offsetStr}`, "admin_tz_change").row()
     .text(t("admin.settings.back", locale), "admin_back")
 }
 
 export function buildTimezoneKeyboard(locale: Locale = "ru"): InlineKeyboard {
   const kb = new InlineKeyboard()
-  for (let offset = -12; offset <= 14; offset++) {
-    const label = offset >= 0 ? `UTC+${offset}` : `UTC${offset}`
-    kb.text(label, `admin_tz_${offset}`)
-    if ((offset + 12) % 7 === 6) kb.row()
+  kb.text("UTC+0", "admin_tz_0").row()
+  for (let i = 1; i <= 12; i++) {
+    kb.text(`UTC-${i}`, `admin_tz_-${i}`).text(`UTC+${i}`, `admin_tz_${i}`).row()
   }
-  kb.row().text(t("admin.settings.back", locale), "admin_settings")
+  kb.text(`UTC-13`, `admin_tz_-13`).text(`UTC+13`, `admin_tz_13`).row()
+  kb.text(`UTC-14`, `admin_tz_-14`).text(`UTC+14`, `admin_tz_14`).row()
+  kb.text(t("admin.settings.back", locale), "admin_settings")
   return kb
 }
 

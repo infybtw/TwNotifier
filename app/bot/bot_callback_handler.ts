@@ -494,10 +494,6 @@ router.callbackQuery(/^admin_tz_(-?\d+)$/, async (ctx) => {
   }
 })
 
-router.callbackQuery("noop", async (ctx) => {
-  await ctx.answerCallbackQuery()
-})
-
 router.callbackQuery("admin_channels", async (ctx) => {
   if (ctx.session.adminLogin) {
     const locale = await getUserLocale(ctx.from.id);
