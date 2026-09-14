@@ -6,9 +6,10 @@ import logger from "../logger";
 const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
 const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
-let ws: WebSocket;
+let ws: WebSocket | undefined;
 let currentUrl: string;
-let reconnecting = false;
+let reconnectingFrom: WebSocket | undefined;
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
 export async function updateShard(sessionId: string,shardId: number): Promise<void> {
   const res = await fetch(SHARD_URL, {
@@ -41,53 +42,100 @@ export async function updateShard(sessionId: string,shardId: number): Promise<vo
   console.log(`Shard updated successfully. Session ID: `, sessionId);
 }
 
-export async function connectWebSocket(url: string) {
+function scheduleReconnect(url: string, previousWs?: WebSocket): void {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = undefined;
+    connect(url, previousWs).catch((error) => {
+      console.error("WebSocket reconnect failed:", error);
+      scheduleReconnect(url, previousWs);
+    });
+  }, 5000);
+}
+
+export function connectWebSocket(url: string): Promise<void> {
+  return connect(url);
+}
+
+function connect(url: string, previousWs?: WebSocket): Promise<void> {
   currentUrl = url;
   console.log("Connecting to EventSub...");
-  ws = new WebSocket(url);
+  const socket = new WebSocket(url);
 
-  ws.on("open", () => {
-    console.log(
-      "WebSocket connected to EventSub, waiting for session_welcome...",
-    );
-  });
+  return new Promise((resolve, reject) => {
+    let welcomed = false;
 
-  ws.on("message", async (raw: any) => {
-    const msg = JSON.parse(raw.toString());
-    const type = msg.metadata?.message_type;
+    socket.on("open", () => {
+      console.log(
+        "WebSocket connected to EventSub, waiting for session_welcome...",
+      );
+    });
 
-    switch (type) {
-      case "session_welcome":
-        reconnecting = false;
-        await onSessionWelcome(msg.payload.session.id);
-        break;
-      case "session_keepalive":
-        break;
-      case "session_reconnect": {
-        console.warn("Twitch required reconnect");
-        const reconnectUrl = msg.payload.session.reconnect_url;
-        const oldWs = ws;
-        reconnecting = true;
-        await connectWebSocket(reconnectUrl);
-        oldWs.close();
-        break;
+    socket.on("message", async (raw: any) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        const type = msg.metadata?.message_type;
+
+        switch (type) {
+          case "session_welcome":
+            await onSessionWelcome(msg.payload.session.id);
+            welcomed = true;
+            ws = socket;
+            reconnectingFrom = undefined;
+            resolve();
+
+            // Twitch keeps the old connection alive until this Welcome arrives.
+            if (previousWs && previousWs !== socket) previousWs.close();
+            break;
+          case "session_keepalive":
+            break;
+          case "session_reconnect": {
+            if (socket !== ws || reconnectingFrom === socket) break;
+
+            console.warn("Twitch required reconnect");
+            const reconnectUrl = msg.payload.session.reconnect_url;
+            reconnectingFrom = socket;
+            connect(reconnectUrl, socket).catch((error) => {
+              console.error("WebSocket reconnect failed:", error);
+              if (!ws || ws === socket) {
+                reconnectingFrom = undefined;
+                scheduleReconnect(reconnectUrl, socket);
+              }
+            });
+            break;
+          }
+          case "notification":
+            await onNotification(msg.payload);
+            break;
+          case "revocation":
+            console.warn("Subscription revoked: ", msg.payload?.subscription?.type);
+        }
+      } catch (error) {
+        console.error("WebSocket message handling failed:", error);
+        if (!welcomed) {
+          socket.close();
+          reject(error);
+        }
       }
-      case "notification":
-        await onNotification(msg.payload);
-        break;
-      case "revocation":
-        console.warn("Subscription revoked: ", msg.payload?.subscription?.type);
-    }
-  });
+    });
 
-  ws.on("close", (code: any) => {
-    if (reconnecting) {
-      reconnecting = false;
-      return;
-    }
-    console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
-    if (code !== 1000) setTimeout(() => connectWebSocket(currentUrl), 5000);
-  });
+    socket.on("close", (code: any) => {
+      if (!welcomed) {
+        reject(new Error(`WebSocket closed before welcome (code ${code})`));
+      }
+      if (socket !== ws) return;
 
-  ws.on("error", (e: any) => console.error("WebSocket error:", e.message));
+      ws = undefined;
+      if (reconnectingFrom === socket) return;
+
+      console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
+      if (code !== 1000) scheduleReconnect(currentUrl);
+    });
+
+    socket.on("error", (error: any) => {
+      console.error("WebSocket error:", error.message);
+      if (!welcomed) reject(error);
+    });
+  });
 }
