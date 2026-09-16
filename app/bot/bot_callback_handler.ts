@@ -284,6 +284,10 @@ router.callbackQuery(/^manage_(twitch|kick)_(\d+)$/, async (ctx) => {
   }
   const channel = await getChannelByChannelId(channel_id);
   const url = platform === "twitch" ? `https://twitch.tv/${channel?.channel_name}` : `https://kick.com/${channel?.channel_name}`;
+  const deepLink = channel?.channel_name && ctx.me.username
+    ? `https://t.me/${ctx.me.username}?start=prefollow_${platform}_${channel.channel_name}`
+    : undefined;
+  const shareUrl = deepLink ? `https://t.me/share/url?url=${encodeURIComponent(deepLink)}` : undefined;
   const message = t("follow.management.info", locale)
     .replace("{name}", channel?.channel_name || `ID:${channel_id}`)
     .replace("{platform}", t(`platform.${platform}`, locale))
@@ -291,7 +295,7 @@ router.callbackQuery(/^manage_(twitch|kick)_(\d+)$/, async (ctx) => {
     .replace("{date}", formatDateUTC(follow.created));
   await ctx.editMessageText(message, {
     parse_mode: "HTML",
-    reply_markup: buildFollowManagementKeyboard(platform, channel_id, locale),
+    reply_markup: buildFollowManagementKeyboard(platform, channel_id, locale, shareUrl),
     disable_web_page_preview: true,
   });
 });

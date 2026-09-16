@@ -152,6 +152,7 @@
   "follow.management.info": "📝 <b>Управление подпиской</b>\n━━━━━━━━━━━━━━━━━━━━\n\n📺 Канал: <b><a href=\"{url}\">{name}</a></b>\n🌐 Платформа: {platform}\n📅 Подписаны с: {date}\n\nВыберите действие:",
   "follow.management.unfollow": "❌ Отписаться",
   "follow.management.check_online": "🟢 Онлайн",
+  "follow.management.share": "📤 Поделиться подпиской",
   "follow.management.back": "← Назад",
   "follow.management.not_found": "Подписка не найдена",
   "follow.management.unfollow_success": "✅ Вы отписались от {name}",
