@@ -152,6 +152,7 @@
   "follow.management.info": "📝 <b>Manage Follow</b>\n━━━━━━━━━━━━━━━━━━━━\n\n📺 Channel: <b><a href=\"{url}\">{name}</a></b>\n🌐 Platform: {platform}\n📅 Following since: {date}\n\nSelect an action:",
   "follow.management.unfollow": "❌ Unfollow",
   "follow.management.check_online": "🟢 Online",
+  "follow.management.share": "📤 Share follow",
   "follow.management.back": "← Back",
   "follow.management.not_found": "Follow not found",
   "follow.management.unfollow_success": "✅ Unfollowed {name}",

@@ -111,6 +111,23 @@ docker pull ghcr.io/infybtw/twnotifier:latest
 bun test
 ```
 
+### Deep Links
+
+To open the bot and automatically follow a Twitch or Kick channel, use its platform and channel name in the `start` payload:
+
+```
+https://t.me/<bot_username>?start=prefollow_<platform>_<channel_name>
+```
+
+For example:
+
+```
+https://t.me/<bot_username>?start=prefollow_twitch_justovich221337
+https://t.me/<bot_username>?start=prefollow_kick_justovich221337
+```
+
+Telegram deep links use the `start` parameter, so `?prefollow=twitch/justovich221337` is not delivered to the bot.
+
 ## Architecture
 
 ```

@@ -2,6 +2,8 @@ import { Composer } from "grammy";
 import logger from "../logger";
 import {
   checkOrCreateUser,
+  checkOrCreateChannel,
+  checkOrCreateFollow,
   getChannelByChannelId,
   getChannelsByUsername,
   getFollowByUserIdAndChannelId,
@@ -12,6 +14,8 @@ import {
   makeUserAdmin
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
+import { subscribeToChannelOffline, subscribeToChannelOnline } from "../twitchAPI/subscriptions";
+import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
 import {
   buildHomeKeyboard,
   buildAddConfirmationKeyboard,
@@ -39,13 +43,76 @@ export const router = new Composer<MyContext>();
 
 router.command("start", async (ctx) => {
   const locale = await getUserLocale(ctx.from?.id!);
-  ctx.reply(t("start.welcome", locale), { reply_markup: await buildHomeKeyboard(ctx.from?.id!, locale), parse_mode: "HTML" });
-  const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username!, ctx.from?.first_name!)
+  const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username ?? "", ctx.from?.first_name ?? "")
   if (!newUser) {
-    ctx.reply(t("commands.registration_error", locale))
-  } else if(!newUser.isNew) {
+    return ctx.reply(t("commands.registration_error", locale));
+  }
+
+  const prefollowMatch = ctx.match.trim().match(/^prefollow_(twitch|kick)_([a-zA-Z0-9_-]{1,25})$/);
+  if (prefollowMatch) {
+    const platform = prefollowMatch[1] as "twitch" | "kick";
+    const channelName = prefollowMatch[2].toLowerCase();
+
+    if (platform === "twitch") {
+      const twitchChannel = await getUserByLogin(channelName);
+      if (!twitchChannel) {
+        await ctx.reply(t("commands.channel_not_found", locale));
+      } else {
+        const channelId = Number(twitchChannel.id);
+        const displayName = twitchChannel.display_name;
+        const existingFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channelId, platform);
+
+        if (existingFollow) {
+          await ctx.reply(t("add.already_exists", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+        } else {
+          await checkOrCreateChannel(channelId, displayName, platform);
+          const onlineStatus = await subscribeToChannelOnline(channelId, displayName);
+          const offlineStatus = await subscribeToChannelOffline(channelId, displayName);
+
+          if (onlineStatus < 0 || offlineStatus < 0) {
+            log.error("prefollow subscription error", { channelId, onlineStatus, offlineStatus, platform });
+            await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
+          } else {
+            await checkOrCreateFollow(ctx.from.id, channelId, platform);
+            await ctx.reply(t("add.success", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+            log.info("new follow from start link", { userId: ctx.from.id, channel: displayName, platform });
+          }
+        }
+      }
+    } else {
+      const kickChannel = await getKickChannelByUsername(channelName);
+      const channel = kickChannel.data[0];
+
+      if (!channel) {
+        await ctx.reply(t("commands.channel_not_found", locale));
+      } else {
+        const channelId = Number(channel.broadcaster_user_id);
+        const displayName = channel.slug;
+        const existingFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channelId, platform);
+
+        if (existingFollow) {
+          await ctx.reply(t("add.already_exists", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+        } else {
+          await checkOrCreateChannel(channelId, displayName, platform);
+          const subscriptionStatus = await subscribeToKickChannelOnline(channelId);
+
+          if (subscriptionStatus < 0) {
+            log.error("prefollow subscription error", { channelId, subscriptionStatus, platform });
+            await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
+          } else {
+            await checkOrCreateFollow(ctx.from.id, channelId, platform);
+            await ctx.reply(t("add.success", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+            log.info("new follow from start link", { userId: ctx.from.id, channel: displayName, platform });
+          }
+        }
+      }
+    }
+  }
+
+  await ctx.reply(t("start.welcome", locale), { reply_markup: await buildHomeKeyboard(ctx.from.id, locale), parse_mode: "HTML" });
+  if(!newUser.isNew) {
     log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name});
-  } else if (newUser.isNew) {
+  } else {
     log.info("user registered", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name });
   }
 });

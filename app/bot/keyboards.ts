@@ -199,11 +199,16 @@ export async function buildMySubscriptionsManageKeyboard(user_id: number, locale
   return kb;
 }
 
-export function buildFollowManagementKeyboard(platform: "kick" | "twitch", channel_id: number, locale: Locale = "ru"): InlineKeyboard {
-  return new InlineKeyboard()
+export function buildFollowManagementKeyboard(platform: "kick" | "twitch", channel_id: number, locale: Locale = "ru", shareUrl?: string): InlineKeyboard {
+  const keyboard = new InlineKeyboard()
     .text(t("follow.management.unfollow", locale), `manage_unfollow_${platform}_${channel_id}`)
-    .text(t("follow.management.check_online", locale), `manage_online_${platform}_${channel_id}`).row()
-    .text(t("follow.management.back", locale), "manage_back");
+    .text(t("follow.management.check_online", locale), `manage_online_${platform}_${channel_id}`).row();
+
+  if (shareUrl) {
+    keyboard.url(t("follow.management.share", locale), shareUrl).row();
+  }
+
+  return keyboard.text(t("follow.management.back", locale), "manage_back");
 }
 
 export function buildMySubscriptionsAddBackKeyboard(locale: Locale = "ru"): InlineKeyboard {
