@@ -7,7 +7,7 @@ const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
 const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
 let ws: WebSocket | undefined;
-let currentUrl: string;
+let baseUrl: string;
 let reconnectingFrom: WebSocket | undefined;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -42,24 +42,24 @@ export async function updateShard(sessionId: string,shardId: number): Promise<vo
   console.log(`Shard updated successfully. Session ID: `, sessionId);
 }
 
-function scheduleReconnect(url: string, previousWs?: WebSocket): void {
+function scheduleReconnect(previousWs?: WebSocket): void {
   if (reconnectTimer) clearTimeout(reconnectTimer);
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
-    connect(url, previousWs).catch((error) => {
+    connect(baseUrl, previousWs).catch((error) => {
       console.error("WebSocket reconnect failed:", error);
-      scheduleReconnect(url, previousWs);
+      scheduleReconnect(previousWs);
     });
   }, 5000);
 }
 
 export function connectWebSocket(url: string): Promise<void> {
+  baseUrl = url;
   return connect(url);
 }
 
 function connect(url: string, previousWs?: WebSocket): Promise<void> {
-  currentUrl = url;
   console.log("Connecting to EventSub...");
   const socket = new WebSocket(url);
 
@@ -100,7 +100,8 @@ function connect(url: string, previousWs?: WebSocket): Promise<void> {
               console.error("WebSocket reconnect failed:", error);
               if (!ws || ws === socket) {
                 reconnectingFrom = undefined;
-                scheduleReconnect(reconnectUrl, socket);
+                // A reconnect URL becomes invalid after an unsuccessful attempt.
+                scheduleReconnect(socket);
               }
             });
             break;
@@ -130,7 +131,7 @@ function connect(url: string, previousWs?: WebSocket): Promise<void> {
       if (reconnectingFrom === socket) return;
 
       console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
-      if (code !== 1000) scheduleReconnect(currentUrl);
+      if (code !== 1000) scheduleReconnect();
     });
 
     socket.on("error", (error: any) => {
