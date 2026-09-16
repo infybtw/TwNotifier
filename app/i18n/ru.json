@@ -58,6 +58,7 @@
   "subscriptions.online_header": "🟢 <b>Каналы онлайн</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
   "subscriptions.add_cancelled": "🚫 <b>Добавление отменено</b>\n\nКанал {name} не добавлен.",
   "subscriptions.manage_title": "📝 <b>Управление подписками</b>\n━━━━━━━━━━━━━━━━━━━━\n\nВыберите канал:",
+  "subscriptions.page_header": "📊 <b>Мои подписки</b>\n━━━━━━━━━━━━━━━━━━━━\nВсего: <b>{total}</b> · 🟢 Онлайн: <b>{online}</b>\n\nВыберите канал для управления:",
   "notifications.stream_online": "<a href=\"{url}\"><b>{name}</b></a> ведет прямую трансляцию.\n{title}\n<i>{game}</i>",
   "notifications.stream_online_kick": "<a href=\"{url}\"><b>{name}</b></a> ведет прямую трансляцию.\n{title}",
   "notifications.stream_offline": "*{name}* завершил прямую трансляцию.",

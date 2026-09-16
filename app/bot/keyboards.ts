@@ -1,10 +1,11 @@
 import { InlineKeyboard } from "grammy";
-import { getAdminSettings, getAllAdminKeys, getAllFollowsWithDetails, getFollowsWithChannelByUserId, getSettingsStateByUserId, getUserByUserId } from "../database/db";
+import { getAdminSettings, getAllAdminKeys, getAllFollowsWithDetails, getSettingsStateByUserId, getUserByUserId } from "../database/db";
 import { Channel, User } from "../database/schema";
 import { ADMINER_URL, PGBACKWEB_URL } from "../config";
 import { t, Locale } from "../i18n";
 
 const ADMIN_PAGE_SIZE = 10;
+const MY_SUBS_PAGE_SIZE = 8;
 
 type AdminKeyWithIssuer = Awaited<ReturnType<typeof getAllAdminKeys>>[number];
 type FollowWithDetails = Awaited<ReturnType<typeof getAllFollowsWithDetails>>[number];
@@ -13,6 +14,8 @@ export async function buildHomeKeyboard(user_id: number, locale: Locale = "ru"):
   const user = await getUserByUserId(user_id);
   const kb = new InlineKeyboard()
     .text(t("buttons.my_subscriptions", locale), "mySubscriptionsCMD")
+    .row()
+    .text(t("buttons.online_channels", locale), "mySubscriptionsOnline")
     .row()
     .text(t("buttons.settings", locale), "settingsCMD")
     .text(t("buttons.info", locale), "infoCMD")
@@ -179,23 +182,32 @@ export function buildMySubscriptionsEmptyKeyboard(locale: Locale = "ru"): Inline
     .text(t("buttons.back", locale), "settingsBACK");
 }
 
-export function buildMySubscriptionsKeyboard(locale: Locale = "ru"): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(t("buttons.add", locale), "mySubscriptionsAdd")
-    .text(t("buttons.remove", locale), "mySubscriptionsRemove").row()
-    .text(t("buttons.online_channels", locale), "mySubscriptionsOnline").row()
-    .text(t("buttons.manage", locale), "mySubscriptionsManage").row()
-    .text(t("buttons.back", locale), "settingsBACK");
+export function followOnlineKey(platform: string | null, channel_id: number, channel_name: string | null): string {
+  if (platform === "twitch") return `twitch:${channel_id}`;
+  return `kick:${(channel_name ?? "").toLowerCase()}`;
 }
 
-export async function buildMySubscriptionsManageKeyboard(user_id: number, locale: Locale = "ru"): Promise<InlineKeyboard> {
-  const follows = await getFollowsWithChannelByUserId(user_id);
+export function buildMySubscriptionsKeyboard(
+  follows: { channel_id: number | null; channel_name: string | null; platform: string | null }[],
+  page: number = 0,
+  locale: Locale = "ru",
+  onlineKeys: Set<string> = new Set(),
+): InlineKeyboard {
   const kb = new InlineKeyboard();
-  for (const follow of follows) {
-    const icon = follow.platform === "twitch" ? "🟣" : "🟢";
-    kb.text(`${icon} ${follow.channel_name}`, `manage_${follow.platform}_${follow.channel_id}`).row();
+  const pageCount = Math.max(1, Math.ceil(follows.length / MY_SUBS_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), pageCount - 1);
+  const pageFollows = follows.slice(safePage * MY_SUBS_PAGE_SIZE, (safePage + 1) * MY_SUBS_PAGE_SIZE);
+  for (const follow of pageFollows) {
+    const platformIcon = follow.platform === "twitch" ? "🟣" : "🟢";
+    const name = follow.channel_name || `ID:${follow.channel_id}`;
+    const live = onlineKeys.has(followOnlineKey(follow.platform, follow.channel_id!, follow.channel_name)) ? " 🔴" : "";
+    kb.text(`${platformIcon} ${name}${live}`, `manage_${follow.platform}_${follow.channel_id}`).row();
   }
-  kb.text(t("buttons.back", locale), "mySubscriptionsCMD");
+  if (pageCount > 1) {
+    addPaginationRow(kb, safePage, pageCount, "mySubscriptionsPage", false);
+  }
+  kb.text(t("buttons.add", locale), "mySubscriptionsAdd").row();
+  kb.text(t("buttons.back", locale), "settingsBACK");
   return kb;
 }
 
@@ -228,14 +240,17 @@ export function buildLanguageKeyboard(locale: Locale = "ru"): InlineKeyboard {
     .text(t("buttons.back", locale), "settingsBACK");
 }
 
-function addPaginationRow(kb: InlineKeyboard, page: number, pageCount: number, pageCallbackPrefix: string): InlineKeyboard {
+function addPaginationRow(kb: InlineKeyboard, page: number, pageCount: number, pageCallbackPrefix: string, wrap: boolean = true): InlineKeyboard {
   const prevPage = (page - 1 + pageCount) % pageCount;
   const nextPage = (page + 1) % pageCount;
-  return kb
-    .text("←", `${pageCallbackPrefix}_${prevPage}`)
-    .text(`<${page + 1}/${pageCount}>`, "noop")
-    .text("→", `${pageCallbackPrefix}_${nextPage}`)
-    .row();
+  if (wrap || page > 0) {
+    kb.text("←", `${pageCallbackPrefix}_${prevPage}`);
+  }
+  kb.text(`<${page + 1}/${pageCount}>`, "noop");
+  if (wrap || page < pageCount - 1) {
+    kb.text("→", `${pageCallbackPrefix}_${nextPage}`);
+  }
+  return kb.row();
 }
 
 export function buildAdminUsersKeyboard(users: User[], page: number = 0, locale: Locale = "ru"): InlineKeyboard {

@@ -4,12 +4,9 @@ import {
   checkOrCreateUser,
   checkOrCreateChannel,
   checkOrCreateFollow,
-  getChannelByChannelId,
   getChannelsByUsername,
   getFollowByUserIdAndChannelId,
   getFollowByUserIdChannelIdAndPlatform,
-  getFollowsByUserId,
-  getFollowsByUserIdAndPlatform,
   getUserByUserId,
   makeUserAdmin
 } from "../database/db";
@@ -25,9 +22,9 @@ import {
   buildRemovePlatformSelectKeyboard,
   buildAdminBackKeyboard,
   buildBroadcastConfirmKeyboard,
-  buildBackHomeKeyboard,
   buildMySubscriptionsAddBackKeyboard,
 } from "./keyboards";
+import { buildMySubscriptionsView } from "./my_subscriptions";
 import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
@@ -35,7 +32,7 @@ import { Channel, UserFollow } from "../database/schema";
 import { t, Locale } from "../i18n";
 import { getUserLocale } from "../utils/locale";
 import { STARTUP_TIME } from "../config";
-import { formatDateUTC, formatUptime } from "../utils/time";
+import { formatUptime } from "../utils/time";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
@@ -325,32 +322,11 @@ router.command("remove", async (ctx) => {
 
 router.command("list", async (ctx) => {
   const locale = await getUserLocale(ctx.from?.id!);
-  const user_id = ctx.from?.id
-  const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick")
-  const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch")
-  if (kickFollows.length < 1 && twitchFollows.length < 1) {
+  const view = await buildMySubscriptionsView(ctx.from!.id, 0, locale);
+  if (!view) {
     return ctx.reply(t("commands.list_empty", locale), { parse_mode: "HTML" });
   }
-  const total = kickFollows.length + twitchFollows.length
-  let reply_text = t("commands.list_header", locale).replace("{total}", String(total))
-  if (twitchFollows.length >= 1) {
-    reply_text += `\n\n🟣 <b>Twitch</b>\n`
-    for (const sub of twitchFollows) {
-        const channel = await getChannelByChannelId(sub.channel_id!);
-        reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
-        reply_text += `      📅 ${formatDateUTC(sub.created)}\n`;
-    }
-  }
-  if (kickFollows.length >= 1) {
-    reply_text += `\n\n🟢 <b>Kick</b>\n`
-    for (const sub of kickFollows) {
-        const channel = await getChannelByChannelId(sub.channel_id!);
-        reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`
-        reply_text += `      📅 ${formatDateUTC(sub.created)}\n`;
-    }
-  }
-
-  ctx.reply(reply_text.trimEnd(), {parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale)});
+  return ctx.reply(view.text, { parse_mode: "HTML", reply_markup: view.keyboard });
 });
 
 router.command("admin", async (ctx) => {

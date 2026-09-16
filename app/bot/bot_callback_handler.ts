@@ -15,8 +15,6 @@ import {
   buildAdminAddConfirmKeyboard,
   buildBackHomeKeyboard,
   buildMySubscriptionsEmptyKeyboard,
-  buildMySubscriptionsKeyboard,
-  buildMySubscriptionsManageKeyboard,
   buildFollowManagementKeyboard,
   buildMySubscriptionsAddBackKeyboard,
   buildRestartConfirmKeyboard,
@@ -54,7 +52,6 @@ import {
   getFollowByUserIdChannelIdAndPlatform,
   getFollowsByUserId,
   getFollowsByUserIdAndPlatform,
-  getFollowsWithChannelByUserId,
   getRecentStreamLogs,
   getUsers,
   removeFollowByUserIdChannelIdAndPlatfrom,
@@ -82,6 +79,7 @@ import { getUserLocale } from "../utils/locale";
 import { TWITCH_EVENT_TRANSPORT, STARTUP_TIME } from "../config";
 import { formatDateForAdmin, formatDateUTC, formatTimeForAdmin, formatUptime } from "../utils/time";
 import { renderProgressBar } from "../utils/progress";
+import { buildMySubscriptionsView } from "./my_subscriptions";
 
 export const router = new Composer<MyContext>();
 
@@ -114,39 +112,32 @@ router.callbackQuery("adminCMD", async (ctx) => {
   await ctx.editMessageText(message, { reply_markup: buildAdminKeyboard(locale), parse_mode: "HTML" });
 });
 
-router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
-  const locale = await getUserLocale(ctx.from.id);
-  ctx.session.awaitingAddInput = undefined;
-  ctx.session.awaitingRemoveInput = undefined;
+async function renderMySubscriptionsPage(ctx: MyContext, page: number, locale: Locale) {
   const user_id = ctx.from?.id;
-  const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
-  const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
-  if (kickFollows.length < 1 && twitchFollows.length < 1) {
+  const view = await buildMySubscriptionsView(user_id!, page, locale);
+  if (!view) {
     await ctx.editMessageText(t("subscriptions.empty", locale), {
       parse_mode: "HTML",
       reply_markup: buildMySubscriptionsEmptyKeyboard(locale),
     });
     return;
   }
-  const total = kickFollows.length + twitchFollows.length;
-  let reply_text = t("commands.list_header", locale).replace("{total}", total.toString()) + "\n";
-  if (twitchFollows.length >= 1) {
-    reply_text += `\n🟣 <b>Twitch</b>\n`;
-    for (const sub of twitchFollows) {
-      const channel = await getChannelByChannelId(sub.channel_id!);
-      reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${formatDateUTC(sub.created)}\n\n`;
-    }
-  }
-  if (kickFollows.length >= 1) {
-    reply_text += `\n🟢 <b>Kick</b>\n`;
-    for (const sub of kickFollows) {
-      const channel = await getChannelByChannelId(sub.channel_id!);
-      reply_text += `   📺 ${channel?.channel_name || `ID:${sub.channel_id}`}\n`;
-      reply_text += `      📅 ${formatDateUTC(sub.created)}\n\n`;
-    }
-  }
-  await ctx.editMessageText(reply_text.trimEnd(), { parse_mode: "HTML", reply_markup: buildMySubscriptionsKeyboard(locale) });
+  await ctx.editMessageText(view.text, {
+    parse_mode: "HTML",
+    reply_markup: view.keyboard,
+  });
+}
+
+router.callbackQuery("mySubscriptionsCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  ctx.session.awaitingAddInput = undefined;
+  ctx.session.awaitingRemoveInput = undefined;
+  await renderMySubscriptionsPage(ctx, 0, locale);
+});
+
+router.callbackQuery(/^mySubscriptionsPage_(\d+)$/, async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  await renderMySubscriptionsPage(ctx, Number(ctx.match[1]), locale);
 });
 
 router.callbackQuery("mySubscriptionsAdd", async (ctx) => {
@@ -218,7 +209,7 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
     }
   }
 
-  const backKb = new InlineKeyboard().text(t("buttons.back", locale), "mySubscriptionsCMD");
+  const backKb = new InlineKeyboard().text(t("buttons.back", locale), "settingsBACK");
 
   const totalOnline = onlineTwitch.length + onlineKick.length;
   if (totalOnline === 0) {
@@ -259,19 +250,7 @@ router.callbackQuery("mySubscriptionsManage", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
   ctx.session.awaitingAddInput = undefined;
   ctx.session.awaitingRemoveInput = undefined;
-  const user_id = ctx.from?.id;
-  const follows = await getFollowsWithChannelByUserId(user_id!);
-  if (follows.length < 1) {
-    await ctx.editMessageText(t("subscriptions.empty", locale), {
-      parse_mode: "HTML",
-      reply_markup: buildMySubscriptionsEmptyKeyboard(locale),
-    });
-    return;
-  }
-  await ctx.editMessageText(t("subscriptions.manage_title", locale), {
-    parse_mode: "HTML",
-    reply_markup: await buildMySubscriptionsManageKeyboard(user_id!, locale),
-  });
+  await renderMySubscriptionsPage(ctx, 0, locale);
 });
 
 router.callbackQuery(/^manage_(twitch|kick)_(\d+)$/, async (ctx) => {
@@ -309,18 +288,7 @@ router.callbackQuery(/^manage_unfollow_(twitch|kick)_(\d+)$/, async (ctx) => {
   await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, channel_id, platform);
   log.info("unfollowed via management", { userId: ctx.from.id, channel: channelName, channelId: channel_id, platform });
   await ctx.answerCallbackQuery({ text: t("follow.management.unfollow_success", locale).replace("{name}", channelName) });
-  const follows = await getFollowsWithChannelByUserId(ctx.from.id);
-  if (follows.length < 1) {
-    await ctx.editMessageText(t("subscriptions.empty", locale), {
-      parse_mode: "HTML",
-      reply_markup: buildMySubscriptionsEmptyKeyboard(locale),
-    });
-    return;
-  }
-  await ctx.editMessageText(t("subscriptions.manage_title", locale), {
-    parse_mode: "HTML",
-    reply_markup: await buildMySubscriptionsManageKeyboard(ctx.from.id, locale),
-  });
+  await renderMySubscriptionsPage(ctx, 0, locale);
 });
 
 router.callbackQuery(/^manage_online_(twitch|kick)_(\d+)$/, async (ctx) => {
@@ -380,19 +348,7 @@ router.callbackQuery(/^manage_online_(twitch|kick)_(\d+)$/, async (ctx) => {
 
 router.callbackQuery("manage_back", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  const user_id = ctx.from?.id;
-  const follows = await getFollowsWithChannelByUserId(user_id!);
-  if (follows.length < 1) {
-    await ctx.editMessageText(t("subscriptions.empty", locale), {
-      parse_mode: "HTML",
-      reply_markup: buildMySubscriptionsEmptyKeyboard(locale),
-    });
-    return;
-  }
-  await ctx.editMessageText(t("subscriptions.manage_title", locale), {
-    parse_mode: "HTML",
-    reply_markup: await buildMySubscriptionsManageKeyboard(user_id!, locale),
-  });
+  await renderMySubscriptionsPage(ctx, 0, locale);
 });
 
 router.callbackQuery("infoCMD", async (ctx) => {
