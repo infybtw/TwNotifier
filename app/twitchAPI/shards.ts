@@ -47,7 +47,7 @@ function scheduleReconnect(previousWs?: WebSocket): void {
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
-    connect(baseUrl, previousWs).catch((error) => {
+    connect(baseUrl, previousWs, true).catch((error) => {
       console.error("WebSocket reconnect failed:", error);
       scheduleReconnect(previousWs);
     });
@@ -56,10 +56,14 @@ function scheduleReconnect(previousWs?: WebSocket): void {
 
 export function connectWebSocket(url: string): Promise<void> {
   baseUrl = url;
-  return connect(url);
+  return connect(url, undefined, true);
 }
 
-function connect(url: string, previousWs?: WebSocket): Promise<void> {
+function connect(
+  url: string,
+  previousWs?: WebSocket,
+  shouldUpdateShard = false,
+): Promise<void> {
   console.log("Connecting to EventSub...");
   const socket = new WebSocket(url);
 
@@ -78,16 +82,20 @@ function connect(url: string, previousWs?: WebSocket): Promise<void> {
         const type = msg.metadata?.message_type;
 
         switch (type) {
-          case "session_welcome":
-            await onSessionWelcome(msg.payload.session.id);
+          case "session_welcome": {
             welcomed = true;
             ws = socket;
             reconnectingFrom = undefined;
-            resolve();
 
             // Twitch keeps the old connection alive until this Welcome arrives.
+            // A reconnect URL already transfers the conduit shard automatically.
+            if (shouldUpdateShard) {
+              await onSessionWelcome(msg.payload.session.id);
+            }
             if (previousWs && previousWs !== socket) previousWs.close();
+            resolve();
             break;
+          }
           case "session_keepalive":
             break;
           case "session_reconnect": {
