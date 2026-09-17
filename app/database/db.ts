@@ -99,6 +99,19 @@ export async function getUsers(): Promise<User[]>{
   return res
 }
 
+export async function getUsersWithNotificationStatus(): Promise<(User & Pick<UserSettings, "is_bot_blocked">)[]> {
+  return db.select({
+    user_id: users.user_id,
+    username: users.username,
+    first_name: users.first_name,
+    created: users.created,
+    is_admin: users.is_admin,
+    is_bot_blocked: users_settings.is_bot_blocked,
+  })
+    .from(users)
+    .innerJoin(users_settings, eq(users.user_id, users_settings.user_id))
+}
+
 export async function getUsersForNotifications(): Promise<User[]> {
   return db.select({
     user_id: users.user_id,
