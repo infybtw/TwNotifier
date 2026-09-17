@@ -99,6 +99,19 @@ export async function getUsers(): Promise<User[]>{
   return res
 }
 
+export async function getUsersForNotifications(): Promise<User[]> {
+  return db.select({
+    user_id: users.user_id,
+    username: users.username,
+    first_name: users.first_name,
+    created: users.created,
+    is_admin: users.is_admin,
+  })
+    .from(users)
+    .innerJoin(users_settings, eq(users.user_id, users_settings.user_id))
+    .where(eq(users_settings.is_bot_blocked, 0))
+}
+
 export async function getAdmins(): Promise<User[]>{
   const res = await db.select().from(users).where(eq(users.is_admin, true))
   return res
@@ -294,6 +307,11 @@ export async function setLinkPreviewStateByUserId(user_id: number, state: number
 
 export async function setLanguageByUserId(user_id: number, language: string): Promise<NewUserSettings> {
   const [newUserSettings] = await db.update(users_settings).set({ language }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
+export async function setBotBlockedStateByUserId(user_id: number, is_bot_blocked: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ is_bot_blocked }).where(eq(users_settings.user_id, user_id)).returning()
   return newUserSettings
 }
 

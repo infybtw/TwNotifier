@@ -8,7 +8,8 @@ import {
   getFollowByUserIdAndChannelId,
   getFollowByUserIdChannelIdAndPlatform,
   getUserByUserId,
-  makeUserAdmin
+  makeUserAdmin,
+  setBotBlockedStateByUserId
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
 import { subscribeToChannelOffline, subscribeToChannelOnline } from "../twitchAPI/subscriptions";
@@ -44,6 +45,7 @@ router.command("start", async (ctx) => {
   if (!newUser) {
     return ctx.reply(t("commands.registration_error", locale));
   }
+  await setBotBlockedStateByUserId(ctx.from.id, 0);
 
   const prefollowMatch = ctx.match.trim().match(/^prefollow_(twitch|kick)_([a-zA-Z0-9_-]{1,25})$/);
   if (prefollowMatch) {
