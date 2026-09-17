@@ -47,7 +47,8 @@ export const users_settings = pgTable("users_settings", {
   online_notification: integer().default(1),
   offline_notification: integer().default(1),
   link_preview: integer().default(1),
-  language: varchar({ length: 5 }).default("ru")
+  language: varchar({ length: 5 }).default("ru"),
+  is_bot_blocked: integer().default(0).notNull()
 })
 
 export type UserSettings = typeof users_settings.$inferSelect

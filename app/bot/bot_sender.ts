@@ -1,10 +1,29 @@
 import { InlineKeyboard } from "grammy";
-import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsers, insertStreamLog } from "../database/db";
+import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
+
+function isBotBlockedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const { error_code, description } = error as { error_code?: unknown; description?: unknown };
+  return error_code === 403
+    && typeof description === "string"
+    && description.toLowerCase().includes("bot was blocked by the user");
+}
+
+async function handleSendError(userId: number, notification: string, error: unknown): Promise<void> {
+  if (isBotBlockedError(error)) {
+    await setBotBlockedStateByUserId(userId, 1);
+    log.info("user blocked bot; notifications disabled", { user_id: userId });
+    return;
+  }
+
+  log.error(`failed to send ${notification}`, { user_id: userId, error });
+}
 
 export async function notifyAdminsAndExit(stepName: string, error: unknown): Promise<never> {
   const errorMessage = error instanceof Error ? error.message : String(error);
@@ -31,7 +50,7 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.online_notification === 1) {
+      if (userSettings?.online_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         //@ts-ignore
@@ -58,7 +77,7 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
           );
           log.info("message sent", { user_id: follower.user_id, text });
         } catch (err) {
-          log.error("failed to send twitch online notification", { user_id: follower.user_id, error: err });
+          await handleSendError(follower.user_id!, "twitch online notification", err);
         }
       }
     }
@@ -69,7 +88,7 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.offline_notification === 1) {
+      if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
@@ -84,7 +103,7 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
           );
           log.info("message sent", { user_id: follower.user_id, text });
         } catch (err) {
-          log.error("failed to send twitch offline notification", { user_id: follower.user_id, error: err });
+          await handleSendError(follower.user_id!, "twitch offline notification", err);
         }
       }
     }
@@ -95,7 +114,7 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "kick");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.online_notification === 1) {
+      if (userSettings?.online_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_online_kick", locale)
@@ -118,7 +137,7 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
           );
           log.info("message sent", { user_id: follower.user_id, text });
         } catch (err) {
-          log.error("failed to send kick online notification", { user_id: follower.user_id, error: err });
+          await handleSendError(follower.user_id!, "kick online notification", err);
         }
       }
     }
@@ -129,7 +148,7 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "kick");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.offline_notification === 1) {
+      if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
@@ -144,7 +163,7 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
           );
           log.info("message sent", { user_id: follower.user_id, text });
         } catch (err) {
-          log.error("failed to send kick offline notification", { user_id: follower.user_id, error: err });
+          await handleSendError(follower.user_id!, "kick offline notification", err);
         }
       }
     }
@@ -155,7 +174,7 @@ export async function sendBroadcastMessage(
   messageText: string | undefined,
   photoFileId: string | undefined,
 ): Promise<{ sent: number; failed: number }> {
-  const users = await getUsers();
+  const users = await getUsersForNotifications();
   log.info("broadcast started", { total_users: users.length, has_photo: !!photoFileId });
   let sent = 0;
   let failed = 0;
@@ -176,7 +195,7 @@ export async function sendBroadcastMessage(
       sent++;
     } catch (err) {
       failed++;
-      log.error("broadcast send failed", { user_id: user.user_id, error: err });
+      await handleSendError(user.user_id, "broadcast", err);
     }
   }
   log.info("broadcast finished", { sent, failed, total: users.length });
