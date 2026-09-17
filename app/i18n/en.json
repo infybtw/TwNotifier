@@ -72,6 +72,7 @@
   "admin.exited": "👋 <b>Panel exited</b>\n━━━━━━━━━━━━━━━━━━━━\n\nYou have successfully exited the control panel.",
   "admin.channels": "📺 <b>Channel Management</b>\n━━━━━━━━━━━━━━━━━━━━\nTotal tracked: <b>{count}</b> channel(s)\n\n",
   "admin.users": "👥 <b>Registered Users</b>\n━━━━━━━━━━━━━━━━━━━━\nTotal: <b>{count}</b>\n\n",
+  "admin.users.inactive_legend": "🚫 — inactive (bot blocked)",
   "admin.channel_info": "{icon} <b>{name}</b>\n━━━━━━━━━━━━━━━━━━━━\n🌐 Platform: <b>{platform}</b>\n🆔 ID: <code>{id}</code>\n👥 Followers: <b>{followers}</b>",
   "admin.channel_not_found": "Channel not found",
   "admin.user_info": "👤 <b>{name}</b> ({username})\n━━━━━━━━━━━━━━━━━━━━\n🆔 ID: <code>{id}</code>\n📅 Registered: {date}\n📺 Follows: <b>{follows}</b>\n🛡️ Admin: {is_admin}",

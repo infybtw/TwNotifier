@@ -53,7 +53,7 @@ import {
   getFollowsByUserId,
   getFollowsByUserIdAndPlatform,
   getRecentStreamLogs,
-  getUsers,
+  getUsersWithNotificationStatus,
   removeFollowByUserIdChannelIdAndPlatfrom,
   revokeAdminKey,
 } from "../database/db";
@@ -653,8 +653,11 @@ router.callbackQuery(/^admin_channel_(\d+)$/, async (ctx) => {
 })
 
 async function renderAdminUsersPage(ctx: MyContext, page: number, locale: Locale) {
-  const users = await getUsers()
-  const message = t("admin.users", locale).replace("{count}", users.length.toString())
+  const users = await getUsersWithNotificationStatus()
+  const inactiveLegend = users.some((user) => user.is_bot_blocked === 1)
+    ? `${t("admin.users.inactive_legend", locale)}\n\n`
+    : "";
+  const message = t("admin.users", locale).replace("{count}", users.length.toString()) + inactiveLegend
   await ctx.editMessageText(message, { reply_markup: buildAdminUsersKeyboard(users, page, locale), parse_mode: "HTML" })
 }
 

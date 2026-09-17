@@ -1,6 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { getAdminSettings, getAllAdminKeys, getAllFollowsWithDetails, getSettingsStateByUserId, getUserByUserId } from "../database/db";
-import { Channel, User } from "../database/schema";
+import { Channel, User, UserSettings } from "../database/schema";
 import { ADMINER_URL, PGBACKWEB_URL } from "../config";
 import { t, Locale } from "../i18n";
 
@@ -253,14 +253,15 @@ function addPaginationRow(kb: InlineKeyboard, page: number, pageCount: number, p
   return kb.row();
 }
 
-export function buildAdminUsersKeyboard(users: User[], page: number = 0, locale: Locale = "ru"): InlineKeyboard {
+export function buildAdminUsersKeyboard(users: (User & Pick<UserSettings, "is_bot_blocked">)[], page: number = 0, locale: Locale = "ru"): InlineKeyboard {
   const kb = new InlineKeyboard();
   const pageCount = Math.max(1, Math.ceil(users.length / ADMIN_PAGE_SIZE));
   const safePage = Math.min(Math.max(page, 0), pageCount - 1);
   const pageUsers = users.slice(safePage * ADMIN_PAGE_SIZE, (safePage + 1) * ADMIN_PAGE_SIZE);
   for (const user of pageUsers) {
     const username = user.username ? ` (@${user.username})` : "";
-    kb.text(`👤 ${user.first_name ?? user.user_id}${username}`, `admin_user_${user.user_id}`).row();
+    const icon = user.is_bot_blocked === 1 ? "🚫" : "👤";
+    kb.text(`${icon} ${user.first_name ?? user.user_id}${username}`, `admin_user_${user.user_id}`).row();
   }
   if (pageCount > 1) {
     addPaginationRow(kb, safePage, pageCount, "admin_users_page");
