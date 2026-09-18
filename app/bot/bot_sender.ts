@@ -209,15 +209,11 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = userSettings?.stream_metadata === 1
-          ? t("notifications.stream_offline", locale)
-            .replace("{name}", escapeHtml(channel_name))
-            .replace("{url}", `https://kick.com/${channel_name}`)
-            .replace("{duration}", "—")
-            .replace("{categories}", t("notifications.no_category_history", locale))
-          : t("notifications.stream_offline_simple", locale)
-            .replace("{name}", escapeHtml(channel_name))
-            .replace("{url}", `https://kick.com/${channel_name}`);
+        // Метаданные стрима для Kick не собираются, поэтому всегда короткое сообщение
+        // без бессмысленных "Длительность: —" и "Категории: Нет данных".
+        const text = t("notifications.stream_offline_simple", locale)
+          .replace("{name}", escapeHtml(channel_name))
+          .replace("{url}", `https://kick.com/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,
