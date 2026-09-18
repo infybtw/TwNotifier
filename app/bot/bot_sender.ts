@@ -141,7 +141,7 @@ async function sendTwitchStreamUpdateNotification(
   const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
   for (const follower of followers) {
     const settings = await getSettingsStateByUserId(follower.user_id!);
-    if (settings?.online_notification !== 1 || settings.is_bot_blocked !== 0) continue;
+    if (!settings || settings.is_bot_blocked !== 0) continue;
     if (settings[settingsKey] !== 1) continue;
     const locale = (settings.language as Locale) || "ru";
     const text = t(notificationKey, locale)
