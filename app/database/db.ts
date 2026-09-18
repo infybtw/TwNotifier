@@ -376,7 +376,7 @@ export interface StreamSummary {
   categories: StreamCategory[];
 }
 
-type ActiveSessionResolution = "duplicate" | "adopted" | "replaced" | "none";
+type ActiveSessionResolution = "duplicate" | "adopted" | "replaced" | "outdated" | "none";
 
 async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: string, startedAt: string): Promise<ActiveSessionResolution> {
   const [activeStream] = await tx.select().from(stream_sessions)
@@ -396,6 +396,20 @@ async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: s
     await tx.update(stream_sessions).set({ stream_id: streamId }).where(eq(stream_sessions.id, activeStream.id));
     log.info("backfilled stream session adopted", { channel_id: channelId, stream_id: streamId });
     return "adopted";
+  }
+
+  // Запоздавший retry события СТАРОГО стрима: активная сессия новее входящей —
+  // не даём ей закрыть и подменить текущий стрим (in-memory dedup после
+  // рестарта уже не спасает)
+  if (new Date(startedAt).getTime() <= new Date(activeStream.started_at).getTime()) {
+    log.warn("outdated stream.online ignored", {
+      channel_id: channelId,
+      active_session_id: activeStream.id,
+      active_started_at: activeStream.started_at,
+      incoming_stream_id: streamId,
+      incoming_started_at: startedAt,
+    });
+    return "outdated";
   }
 
   // Незакрытая сессия предыдущего стрима (stream.offline был пропущен) —
@@ -440,7 +454,7 @@ async function insertStreamSession(tx: Tx, channelId: number, streamId: string, 
 export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<void> {
   await db.transaction(async (tx) => {
     const state = await resolveActiveStreamSession(tx, channelId, streamId, startedAt);
-    if (state === "duplicate" || state === "adopted") return;
+    if (state !== "none" && state !== "replaced") return;
     await insertStreamSession(tx, channelId, streamId, title, startedAt, categoryName, startedAt);
   });
 }
@@ -449,7 +463,7 @@ export async function backfillTwitchStream(channelId: number, streamId: string, 
   const now = new Date().toISOString();
   await db.transaction(async (tx) => {
     const state = await resolveActiveStreamSession(tx, channelId, streamId, streamStartedAt);
-    if (state === "duplicate" || state === "adopted") return;
+    if (state !== "none" && state !== "replaced") return;
     // Историю категорий до moment восстановления мы не знаем: стрим мог идти часами
     // в другой категории. Текущая категория достоверно известна только с этого события.
     await insertStreamSession(tx, channelId, streamId, title, streamStartedAt, categoryName, now);
@@ -567,7 +581,7 @@ export async function startKickStream(channelId: number, title: string, startedA
   });
 }
 
-export async function finishKickStream(channelId: number): Promise<number | undefined> {
+export async function finishKickStream(channelId: number, expectedStartedAt?: string, endedAt?: string): Promise<number | undefined> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     const [activeStream] = await tx.select().from(stream_sessions)
@@ -576,8 +590,28 @@ export async function finishKickStream(channelId: number): Promise<number | unde
       .for("update");
     if (!activeStream) return undefined;
 
-    await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, activeStream.id));
-    return new Date(now).getTime() - new Date(activeStream.started_at).getTime();
+    // Payload завершения стрима содержит started_at: сверяем его с активной сессией,
+    // чтобы запоздавший offline предыдущего стрима не закрыл текущий
+    const expectedStart = expectedStartedAt ? new Date(expectedStartedAt) : null;
+    if (expectedStart && !isNaN(expectedStart.getTime()) && activeStream.started_at !== expectedStart.toISOString()) {
+      log.warn("kick stream.offline for a different stream ignored", {
+        channel_id: channelId,
+        active_session_id: activeStream.id,
+        active_started_at: activeStream.started_at,
+        event_started_at: expectedStart.toISOString(),
+      });
+      return undefined;
+    }
+
+    // Если Kick прислал корректный ended_at — используем его (точнее времени обработки)
+    const sessionStartMs = new Date(activeStream.started_at).getTime();
+    const payloadEnd = endedAt ? new Date(endedAt) : null;
+    const effectiveEnd = payloadEnd && !isNaN(payloadEnd.getTime()) && payloadEnd.getTime() >= sessionStartMs
+      ? payloadEnd.toISOString()
+      : now;
+
+    await tx.update(stream_sessions).set({ ended_at: effectiveEnd }).where(eq(stream_sessions.id, activeStream.id));
+    return new Date(effectiveEnd).getTime() - sessionStartMs;
   });
 }
 

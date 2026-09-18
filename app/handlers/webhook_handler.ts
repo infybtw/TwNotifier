@@ -91,7 +91,7 @@ async function processKickEvent(eventType: string, payload: KickWebhookPayload) 
           break
         }
         case false:
-          const durationMs = await finishKickStream(payload.broadcaster.user_id)
+          const durationMs = await finishKickStream(payload.broadcaster.user_id, payload.started_at, payload.ended_at)
           await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, durationMs)
           break
         default:
