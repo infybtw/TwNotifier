@@ -60,12 +60,12 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         //@ts-ignore
         const text = t("notifications.stream_online", locale)
-          .replace("{name}", channel_name)
+          .replace("{name}", escapeHtml(channel_name))
           .replace("{url}", `https://twitch.tv/${channel_name}`)
           //@ts-ignore
-          .replace("{title}", data.title)
+          .replace("{title}", escapeHtml(data.title))
           //@ts-ignore
-          .replace("{game}", data.game_name);
+          .replace("{game}", escapeHtml(data.game_name));
         const keyboard = new InlineKeyboard().url(
           t("platform.twitch", locale),
           `https://twitch.tv/${channel_name}`
@@ -178,9 +178,9 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_online_kick", locale)
-          .replace("{name}", channel_name)
+          .replace("{name}", escapeHtml(channel_name))
           .replace("{url}", `https://kick.com/${channel_name}`)
-          .replace("{title}", title);
+          .replace("{title}", escapeHtml(title));
         const keyboard = new InlineKeyboard().url(
           t("platform.kick", locale),
           `https://kick.com/${channel_name}`
