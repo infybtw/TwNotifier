@@ -58,7 +58,7 @@
   "remove.not_found": "Канал с таким именем не найден",
   "subscriptions.empty": "📭 <b>Нет подписок</b>\n\nВы пока не отслеживаете ни одного канала.",
   "subscriptions.no_online": "🔴 <b>Онлайн каналов нет</b>\n\nСейчас ни один из ваших каналов не в эфире.",
-  "subscriptions.online_header": "🟢 <b>Каналы онлайн</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
+  "subscriptions.online_header": "🟢 <b>Каналы онлайн</b>\n━━━━━━━━━━━━━━━━━━━━\nВ эфире: <b>{count}</b>\n\nВыберите канал:",
   "subscriptions.add_cancelled": "🚫 <b>Добавление отменено</b>\n\nКанал {name} не добавлен.",
   "subscriptions.manage_title": "📝 <b>Управление подписками</b>\n━━━━━━━━━━━━━━━━━━━━\n\nВыберите канал:",
   "subscriptions.page_header": "📊 <b>Мои подписки</b>\n━━━━━━━━━━━━━━━━━━━━\nВсего: <b>{total}</b> · 🟢 Онлайн: <b>{online}</b>\n\nВыберите канал для управления:",

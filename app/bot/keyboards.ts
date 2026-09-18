@@ -6,6 +6,7 @@ import { t, Locale } from "../i18n";
 
 const ADMIN_PAGE_SIZE = 10;
 const MY_SUBS_PAGE_SIZE = 8;
+const ONLINE_CHANNELS_PAGE_SIZE = 8;
 
 type AdminKeyWithIssuer = Awaited<ReturnType<typeof getAllAdminKeys>>[number];
 type FollowWithDetails = Awaited<ReturnType<typeof getAllFollowsWithDetails>>[number];
@@ -231,6 +232,34 @@ export function buildMySubscriptionsKeyboard(
     addPaginationRow(kb, safePage, pageCount, "mySubscriptionsPage", false);
   }
   kb.text(t("buttons.add", locale), "mySubscriptionsAdd").row();
+  kb.text(t("buttons.back", locale), "settingsBACK");
+  return kb;
+}
+
+export function buildOnlineChannelsKeyboard(
+  channels: { name: string; platform: "twitch" | "kick" }[],
+  page: number = 0,
+  locale: Locale = "ru",
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  const pageCount = Math.max(1, Math.ceil(channels.length / ONLINE_CHANNELS_PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), pageCount - 1);
+  const pageChannels = channels.slice(
+    safePage * ONLINE_CHANNELS_PAGE_SIZE,
+    (safePage + 1) * ONLINE_CHANNELS_PAGE_SIZE,
+  );
+
+  for (const channel of pageChannels) {
+    const icon = channel.platform === "twitch" ? "🟣" : "🟢";
+    const url = channel.platform === "twitch"
+      ? `https://twitch.tv/${encodeURIComponent(channel.name)}`
+      : `https://kick.com/${encodeURIComponent(channel.name)}`;
+    kb.url(`${icon} ${channel.name}`, url).row();
+  }
+
+  if (pageCount > 1) {
+    addPaginationRow(kb, safePage, pageCount, "mySubscriptionsOnlinePage", false);
+  }
   kb.text(t("buttons.back", locale), "settingsBACK");
   return kb;
 }

@@ -35,6 +35,7 @@ import {
   buildAdminKeysBackKeyboard,
   buildAdminFollowsKeyboard,
   buildAdminFollowDetailKeyboard,
+  buildOnlineChannelsKeyboard,
 } from "./keyboards";
 import { getAdminSettings, getUserByUserId, setAdminTimezoneOffset, setLanguageByUserId } from "../database/db";
 import {
@@ -160,9 +161,7 @@ router.callbackQuery("mySubscriptionsRemove", async (ctx) => {
   );
 });
 
-router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
-  await ctx.answerCallbackQuery();
-  const locale = await getUserLocale(ctx.from.id);
+async function renderOnlineChannelsPage(ctx: MyContext, page: number, locale: Locale) {
   const user_id = ctx.from?.id;
   const kickFollows = await getFollowsByUserIdAndPlatform(user_id!, "kick");
   const twitchFollows = await getFollowsByUserIdAndPlatform(user_id!, "twitch");
@@ -177,18 +176,15 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
     return;
   }
 
-  let onlineTwitch: { name: string; title: string; game: string; viewers: number }[] = [];
-  let onlineKick: { name: string; title: string; viewers: number }[] = [];
+  const onlineChannels: { name: string; platform: "twitch" | "kick" }[] = [];
 
   if (twitchFollows.length >= 1) {
     const twitchIds = twitchFollows.map((f) => Number(f.channel_id));
     const streams = await getStreamsByUserIds(twitchIds);
     for (const stream of streams) {
-      onlineTwitch.push({
+      onlineChannels.push({
         name: stream.user_name,
-        title: stream.title,
-        game: stream.game_name,
-        viewers: stream.viewer_count,
+        platform: "twitch",
       });
     }
   }
@@ -202,10 +198,9 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
     const kickChannels = await getKickChannelsOnline(kickChannelNames);
     for (const ch of kickChannels) {
       if (ch.is_live) {
-        onlineKick.push({
+        onlineChannels.push({
           name: ch.slug,
-          title: ch.stream_title,
-          viewers: ch.viewer_count,
+          platform: "kick",
         });
       }
     }
@@ -213,7 +208,7 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
 
   const backKb = new InlineKeyboard().text(t("buttons.back", locale), "settingsBACK");
 
-  const totalOnline = onlineTwitch.length + onlineKick.length;
+  const totalOnline = onlineChannels.length;
   if (totalOnline === 0) {
     try {
       await ctx.editMessageText(t("subscriptions.no_online", locale), {
@@ -224,28 +219,27 @@ router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
     return;
   }
 
-  let text = t("subscriptions.online_header", locale);
-
-  if (onlineTwitch.length >= 1) {
-    text += `🟣 <b>Twitch</b>\n`;
-    for (const s of onlineTwitch) {
-      text += `   📺 <b><a href="https://twitch.tv/${s.name}">${s.name}</a></b> — 👁 ${s.viewers}\n`;
-      text += `      🎮 ${s.game}\n`;
-      text += `      📝 ${s.title.slice(0, 80)}\n\n`;
-    }
-  }
-
-  if (onlineKick.length >= 1) {
-    text += `🟢 <b>Kick</b>\n`;
-    for (const s of onlineKick) {
-      text += `   📺 <b><a href="https://kick.com/${s.name}">${s.name}</a></b> — 👁 ${s.viewers}\n`;
-      text += `      📝 ${s.title.slice(0, 80)}\n\n`;
-    }
-  }
+  const text = t("subscriptions.online_header", locale).replace("{count}", String(totalOnline));
 
   try {
-    await ctx.editMessageText(text.trimEnd(), { parse_mode: "HTML", reply_markup: backKb, disable_web_page_preview: true });
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: buildOnlineChannelsKeyboard(onlineChannels, page, locale),
+      disable_web_page_preview: true,
+    });
   } catch {}
+}
+
+router.callbackQuery("mySubscriptionsOnline", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const locale = await getUserLocale(ctx.from.id);
+  await renderOnlineChannelsPage(ctx, 0, locale);
+});
+
+router.callbackQuery(/^mySubscriptionsOnlinePage_(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const locale = await getUserLocale(ctx.from.id);
+  await renderOnlineChannelsPage(ctx, Number(ctx.match[1]), locale);
 });
 
 router.callbackQuery("mySubscriptionsManage", async (ctx) => {
