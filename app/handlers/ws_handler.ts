@@ -46,21 +46,22 @@ export async function onNotification(payload: any) {
       log.info("stream offline", { payload: payload });
        // Сверяем id стрима из события с активной сессией: запоздавший offline
        // предыдущего стрима не должен закрыть текущий
-       const summary = await finishTwitchStream(
+       const result = await finishTwitchStream(
          Number(payload.event.broadcaster_user_id),
          payload.event.id ? String(payload.event.id) : undefined,
        );
-       if (!summary) {
-         log.info("no matching active stream session for offline", {
+       if (result.outcome === "stream_mismatch") break;
+       if (result.outcome === "no_session") {
+         // Стрим не был учтён (например, бот перезапущен во время стрима и
+         // channel.update не приходил) — уведомляем без метаданных
+         log.info("no active stream session for offline, sending plain notification", {
            channel_id: payload.event.broadcaster_user_id,
-           stream_id: payload.event.id ?? null,
          });
-         break;
        }
        await sendTwitchStreamOfflineNotificationToUsers(
          Number(payload.event.broadcaster_user_id),
          payload.event.broadcaster_user_name,
-         summary,
+         result.outcome === "closed" ? result.summary : undefined,
        );
        break;
     case "channel.update": {

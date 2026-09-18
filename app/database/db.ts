@@ -506,7 +506,12 @@ export async function updateTwitchStream(channelId: number, title: string, categ
   });
 }
 
-export async function finishTwitchStream(channelId: number, streamId?: string): Promise<StreamSummary | undefined> {
+export type FinishStreamResult =
+  | { outcome: "closed"; summary: StreamSummary }
+  | { outcome: "no_session" }
+  | { outcome: "stream_mismatch" };
+
+export async function finishTwitchStream(channelId: number, streamId?: string): Promise<FinishStreamResult> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     // Закрываем все незакрытые сессии канала: если накопились zombie-сессии
@@ -515,7 +520,7 @@ export async function finishTwitchStream(channelId: number, streamId?: string): 
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
       .orderBy(desc(stream_sessions.id))
       .for("update");
-    if (activeSessions.length === 0) return undefined;
+    if (activeSessions.length === 0) return { outcome: "no_session" };
 
     const latest = activeSessions[0];
 
@@ -528,7 +533,7 @@ export async function finishTwitchStream(channelId: number, streamId?: string): 
         active_stream_id: latest.stream_id,
         event_stream_id: streamId,
       });
-      return undefined;
+      return { outcome: "stream_mismatch" };
     }
 
     const activeIds = activeSessions.map((session) => session.id);
@@ -541,7 +546,10 @@ export async function finishTwitchStream(channelId: number, streamId?: string): 
     if (activeSessions.length > 1) {
       log.warn("closed multiple active stream sessions", { channel_id: channelId, count: activeSessions.length });
     }
-    return { durationMs: new Date(now).getTime() - new Date(latest.started_at).getTime(), categories };
+    return {
+      outcome: "closed",
+      summary: { durationMs: new Date(now).getTime() - new Date(latest.started_at).getTime(), categories },
+    };
   });
 }
 

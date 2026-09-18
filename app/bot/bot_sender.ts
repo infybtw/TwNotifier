@@ -96,12 +96,14 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = userSettings?.stream_metadata === 1
+        // Без summary (стрим не был учтён) — всегда короткое сообщение,
+        // чтобы не отправлять заглушки "Длительность: —"
+        const text = summary && userSettings?.stream_metadata === 1
           ? t("notifications.stream_offline", locale)
             .replace("{name}", escapeHtml(channel_name))
             .replace("{url}", `https://twitch.tv/${channel_name}`)
-            .replace("{duration}", summary ? formatDuration(summary.durationMs, locale) : "—")
-            .replace("{categories}", summary ? formatCategoryHistory(summary, locale) : t("notifications.no_category_history", locale))
+            .replace("{duration}", formatDuration(summary.durationMs, locale))
+            .replace("{categories}", formatCategoryHistory(summary, locale))
           : t("notifications.stream_offline_simple", locale)
             .replace("{name}", escapeHtml(channel_name))
             .replace("{url}", `https://twitch.tv/${channel_name}`);
