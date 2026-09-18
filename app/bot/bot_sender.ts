@@ -96,10 +96,15 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = t("notifications.stream_offline", locale)
-          .replace("{name}", escapeHtml(channel_name))
-          .replace("{duration}", summary ? formatDuration(summary.durationMs, locale) : "—")
-          .replace("{categories}", summary ? formatCategoryHistory(summary, locale) : t("notifications.no_category_history", locale));
+        const text = userSettings?.stream_metadata === 1
+          ? t("notifications.stream_offline", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://twitch.tv/${channel_name}`)
+            .replace("{duration}", summary ? formatDuration(summary.durationMs, locale) : "—")
+            .replace("{categories}", summary ? formatCategoryHistory(summary, locale) : t("notifications.no_category_history", locale))
+          : t("notifications.stream_offline_simple", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://twitch.tv/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,
@@ -130,21 +135,25 @@ async function sendTwitchStreamUpdateNotification(
   channelId: number,
   channelName: string,
   notificationKey: "notifications.stream_title_changed" | "notifications.stream_category_changed",
+  settingsKey: "title_change_notification" | "category_change_notification",
   value: string,
 ): Promise<void> {
   const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
   for (const follower of followers) {
     const settings = await getSettingsStateByUserId(follower.user_id!);
     if (settings?.online_notification !== 1 || settings.is_bot_blocked !== 0) continue;
+    if (settings[settingsKey] !== 1) continue;
     const locale = (settings.language as Locale) || "ru";
     const text = t(notificationKey, locale)
       .replace("{name}", escapeHtml(channelName))
+      .replace("{url}", `https://twitch.tv/${channelName}`)
       .replace("{value}", escapeHtml(value));
     try {
       await bot.api.sendMessage(follower.user_id!, text, {
         parse_mode: "HTML",
-        link_preview_options: { is_disabled: settings.link_preview === 0 },
+        link_preview_options: { is_disabled: true },
       });
+      log.info("message sent", { user_id: follower.user_id, text });
     } catch (err) {
       await handleSendError(follower.user_id!, "twitch stream update notification", err);
     }
@@ -152,11 +161,11 @@ async function sendTwitchStreamUpdateNotification(
 }
 
 export function sendTwitchStreamTitleChangedNotificationToUsers(channelId: number, channelName: string, title: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", title);
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", "title_change_notification", title);
 }
 
 export function sendTwitchStreamCategoryChangedNotificationToUsers(channelId: number, channelName: string, category: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", category);
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", "category_change_notification", category);
 }
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
@@ -200,10 +209,15 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = t("notifications.stream_offline", locale)
-          .replace("{name}", escapeHtml(channel_name))
-          .replace("{duration}", "—")
-          .replace("{categories}", t("notifications.no_category_history", locale));
+        const text = userSettings?.stream_metadata === 1
+          ? t("notifications.stream_offline", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`)
+            .replace("{duration}", "—")
+            .replace("{categories}", t("notifications.no_category_history", locale))
+          : t("notifications.stream_offline_simple", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,

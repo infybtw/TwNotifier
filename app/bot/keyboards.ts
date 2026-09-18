@@ -46,6 +46,9 @@ export async function buildSettingsKeyboard(user_id: number, locale: Locale = "r
   }
   let onlineNotificationText = t("settings.stream_start", locale);
   let offlineNotificationText = t("settings.stream_end", locale);
+  let titleChangeNotificationText = t("settings.title_change", locale);
+  let categoryChangeNotificationText = t("settings.category_change", locale);
+  let streamMetadataText = t("settings.stream_metadata", locale);
   let linkPreviewText = t("settings.link_preview", locale);
   if (user_settings?.online_notification === 1) {
     onlineNotificationText += "✅";
@@ -57,6 +60,21 @@ export async function buildSettingsKeyboard(user_id: number, locale: Locale = "r
   } else {
     offlineNotificationText += "🚫";
   }
+  if (user_settings?.title_change_notification === 1) {
+    titleChangeNotificationText += "✅";
+  } else {
+    titleChangeNotificationText += "🚫";
+  }
+  if (user_settings?.category_change_notification === 1) {
+    categoryChangeNotificationText += "✅";
+  } else {
+    categoryChangeNotificationText += "🚫";
+  }
+  if (user_settings?.stream_metadata === 1) {
+    streamMetadataText += "✅";
+  } else {
+    streamMetadataText += "🚫";
+  }
   if (user_settings?.link_preview === 1) {
     linkPreviewText += "✅";
   } else {
@@ -67,6 +85,12 @@ export async function buildSettingsKeyboard(user_id: number, locale: Locale = "r
     .text(onlineNotificationText, "toogleOnlineNotificationCMD")
     .row()
     .text(offlineNotificationText, "toggleOfflineNotificationCMD")
+    .row()
+    .text(titleChangeNotificationText, "toggleTitleNotificationCMD")
+    .row()
+    .text(categoryChangeNotificationText, "toggleCategoryNotificationCMD")
+    .row()
+    .text(streamMetadataText, "toggleStreamMetadataCMD")
     .row()
     .text(linkPreviewText, "toggleLinkPreviewCMD")
     .row()

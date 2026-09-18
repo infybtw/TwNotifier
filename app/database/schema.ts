@@ -46,6 +46,9 @@ export const users_settings = pgTable("users_settings", {
   user_id: bigint({mode: "number"}).primaryKey().references(() => users.user_id),
   online_notification: integer().default(1),
   offline_notification: integer().default(1),
+  title_change_notification: integer().default(1),
+  category_change_notification: integer().default(1),
+  stream_metadata: integer().default(1),
   link_preview: integer().default(1),
   language: varchar({ length: 5 }).default("ru"),
   is_bot_blocked: integer().default(0).notNull()

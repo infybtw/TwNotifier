@@ -4,10 +4,10 @@ import {
   sendTwitchStreamOnlineNotificationToUsers,
   sendTwitchStreamTitleChangedNotificationToUsers,
 } from "../bot/bot_sender";
-import { finishTwitchStream, startTwitchStream, updateTwitchStream } from "../database/db";
+import { finishTwitchStream, startTwitchStream, startTwitchStreamAt, updateTwitchStream } from "../database/db";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
-import { getChannelInfo } from "../twitchAPI/users";
+import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
 
 export async function onSessionWelcome(sessionId: any) {
   console.log("Session ID: ", sessionId);
@@ -48,12 +48,36 @@ export async function onNotification(payload: any) {
     case "channel.update": {
        log.info("channel updated", { payload });
        const channelId = Number(event.broadcaster_user_id);
-       const changes = await updateTwitchStream(channelId, event.title ?? "", event.category_name ?? "Без категории");
-       if (changes.titleChanged) {
-         await sendTwitchStreamTitleChangedNotificationToUsers(channelId, event.broadcaster_user_name, event.title ?? "");
+       const newTitle = event.title ?? "";
+       const newCategory = event.category_name ?? "Без категории";
+       const changes = await updateTwitchStream(channelId, newTitle, newCategory);
+       let titleChanged = changes.titleChanged;
+       let categoryChanged = changes.categoryChanged;
+
+       if (!changes.hadActiveSession) {
+         // Сессия не записана (например, бот перезапущен во время стрима).
+         // Если канал реально в эфире — восстанавливаем сессию с started_at от Twitch.
+         const [live] = await getStreamsByUserIds([channelId]);
+         if (live) {
+           await startTwitchStreamAt(channelId, newTitle, newCategory, live.started_at);
+           titleChanged = true;
+           categoryChanged = true;
+         }
+       } else if (titleChanged || categoryChanged) {
+         // Если канал на самом деле офлайн — закрываем зависшую сессию без уведомлений.
+         const [live] = await getStreamsByUserIds([channelId]);
+         if (!live) {
+           await finishTwitchStream(channelId);
+           titleChanged = false;
+           categoryChanged = false;
+         }
        }
-       if (changes.categoryChanged) {
-         await sendTwitchStreamCategoryChangedNotificationToUsers(channelId, event.broadcaster_user_name, event.category_name ?? "Без категории");
+
+       if (titleChanged) {
+         await sendTwitchStreamTitleChangedNotificationToUsers(channelId, event.broadcaster_user_name, newTitle);
+       }
+       if (categoryChanged) {
+         await sendTwitchStreamCategoryChangedNotificationToUsers(channelId, event.broadcaster_user_name, newCategory);
        }
        break;
     }

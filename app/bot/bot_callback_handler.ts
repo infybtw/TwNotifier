@@ -71,7 +71,7 @@ import { getStreamsByUserIds } from "../twitchAPI/users";
 import { getKickChannelsOnline } from "../kickAPI/users";
 import logger from "../logger";
 import { MyContext } from "./bot";
-import { toggleLinkPreviewStateByUserId, toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
+import { toggleCategoryNotificationStateByUserId, toggleLinkPreviewStateByUserId, toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId, toggleStreamMetadataStateByUserId, toggleTitleNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
 import { deleteKickSubscription, deleteKickSubscriptions, getKickSubscriptions, subscribeToKickChannelOnline, subscribeToKickChannelsOnline } from "../kickAPI/subscription";
@@ -400,6 +400,45 @@ router.callbackQuery("toggleLinkPreviewCMD", async (ctx) => {
   log.info("settings changed", {
     user_id: ctx.from.id,
     setting: "linkPreview",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleTitleNotificationCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleTitleNotificationStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "titleChangeNotification",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleCategoryNotificationCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleCategoryNotificationStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "categoryChangeNotification",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleStreamMetadataCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleStreamMetadataStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "streamMetadata",
     new_state: newState,
   });
 });

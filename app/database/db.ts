@@ -313,6 +313,21 @@ export async function setOfflineNotificationStateByUserId(user_id: number, state
   return newUserSettings
 }
 
+export async function setTitleNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ title_change_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
+export async function setCategoryNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ category_change_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
+export async function setStreamMetadataStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ stream_metadata: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
 export async function setLinkPreviewStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
   const [newUserSettings] = await db.update(users_settings).set({ link_preview: state }).where(eq(users_settings.user_id, user_id)).returning()
   return newUserSettings
@@ -375,13 +390,13 @@ export async function startTwitchStream(channelId: number, title: string, catego
   });
 }
 
-export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean }> {
+export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     const [stream] = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
       .orderBy(desc(stream_sessions.id)).limit(1);
-    if (!stream) return { titleChanged: false, categoryChanged: false };
+    if (!stream) return { titleChanged: false, categoryChanged: false, hadActiveSession: false };
 
     const titleChanged = stream.title !== title;
     if (titleChanged) {
@@ -402,7 +417,29 @@ export async function updateTwitchStream(channelId: number, title: string, categ
         started_at: now,
       });
     }
-    return { titleChanged, categoryChanged };
+    return { titleChanged, categoryChanged, hadActiveSession: true };
+  });
+}
+
+export async function startTwitchStreamAt(channelId: number, title: string, categoryName: string, startedAt: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1);
+
+    if (activeStream) return;
+
+    const [stream] = await tx.insert(stream_sessions).values({
+      channel_id: channelId,
+      platform: "twitch",
+      title,
+      started_at: startedAt,
+    }).returning();
+    await tx.insert(stream_categories).values({
+      stream_session_id: stream.id,
+      category_name: categoryName,
+      started_at: startedAt,
+    });
   });
 }
 
