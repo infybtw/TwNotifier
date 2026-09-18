@@ -426,7 +426,7 @@ async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: s
   return "replaced";
 }
 
-async function insertStreamSession(tx: Tx, channelId: number, streamId: string, title: string, sessionStartedAt: string, categoryName: string, categoryStartedAt: string): Promise<void> {
+async function insertStreamSession(tx: Tx, channelId: number, streamId: string, title: string, sessionStartedAt: string, categoryName: string, categoryStartedAt: string): Promise<boolean> {
   // Partial unique index гарантирует одну активную сессию на канал:
   // при гонке параллельных stream.online конфликтующий INSERT просто
   // ничего не вставит (ON CONFLICT DO NOTHING не ломает транзакцию,
@@ -441,7 +441,7 @@ async function insertStreamSession(tx: Tx, channelId: number, streamId: string, 
 
   if (!stream) {
     log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
-    return;
+    return false;
   }
 
   await tx.insert(stream_categories).values({
@@ -449,13 +449,18 @@ async function insertStreamSession(tx: Tx, channelId: number, streamId: string, 
     category_name: categoryName,
     started_at: categoryStartedAt,
   });
+  return true;
 }
 
-export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<void> {
-  await db.transaction(async (tx) => {
+export type StartStreamResult = ActiveSessionResolution | "created";
+
+export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<StartStreamResult> {
+  return db.transaction(async (tx) => {
     const state = await resolveActiveStreamSession(tx, channelId, streamId, startedAt);
-    if (state !== "none" && state !== "replaced") return;
-    await insertStreamSession(tx, channelId, streamId, title, startedAt, categoryName, startedAt);
+    if (state !== "none" && state !== "replaced") return state;
+    const inserted = await insertStreamSession(tx, channelId, streamId, title, startedAt, categoryName, startedAt);
+    if (!inserted) return "duplicate";
+    return state === "replaced" ? "replaced" : "created";
   });
 }
 
@@ -501,7 +506,7 @@ export async function updateTwitchStream(channelId: number, title: string, categ
   });
 }
 
-export async function finishTwitchStream(channelId: number): Promise<StreamSummary | undefined> {
+export async function finishTwitchStream(channelId: number, streamId?: string): Promise<StreamSummary | undefined> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     // Закрываем все незакрытые сессии канала: если накопились zombie-сессии
@@ -513,6 +518,19 @@ export async function finishTwitchStream(channelId: number): Promise<StreamSumma
     if (activeSessions.length === 0) return undefined;
 
     const latest = activeSessions[0];
+
+    // stream.offline содержит id стрима: если он не совпадает с активной сессией,
+    // это запоздавший offline предыдущего стрима — текущий не трогаем
+    if (streamId && latest.stream_id && latest.stream_id !== streamId) {
+      log.warn("stream.offline for a different stream ignored", {
+        channel_id: channelId,
+        active_session_id: latest.id,
+        active_stream_id: latest.stream_id,
+        event_stream_id: streamId,
+      });
+      return undefined;
+    }
+
     const activeIds = activeSessions.map((session) => session.id);
 
     await tx.update(stream_sessions).set({ ended_at: now }).where(inArray(stream_sessions.id, activeIds));

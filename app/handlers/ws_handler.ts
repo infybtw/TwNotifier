@@ -25,22 +25,38 @@ export async function onNotification(payload: any) {
       const streamData = await getChannelInfo(
         payload.event.broadcaster_user_id,
       );
-       await startTwitchStream(
-         Number(payload.event.broadcaster_user_id),
-         String(payload.event.id),
-         streamData?.title ?? "",
-         streamData?.game_name ?? "Без категории",
-         payload.event.started_at ?? new Date().toISOString(),
-       );
-       await sendTwitchStreamOnlineNotificationToUsers(
+      // Уведомление отправляется только когда сессия реально новая:
+      // duplicate/adopted/outdated означают, что стрим уже был учтён
+      const sessionState = await startTwitchStream(
         Number(payload.event.broadcaster_user_id),
-        payload.event.broadcaster_user_name,
-        streamData,
+        String(payload.event.id),
+        streamData?.title ?? "",
+        streamData?.game_name ?? "Без категории",
+        payload.event.started_at ?? new Date().toISOString(),
       );
+      if (sessionState === "created" || sessionState === "replaced") {
+        await sendTwitchStreamOnlineNotificationToUsers(
+          Number(payload.event.broadcaster_user_id),
+          payload.event.broadcaster_user_name,
+          streamData,
+        );
+      }
       break;
     case "stream.offline":
       log.info("stream offline", { payload: payload });
-       const summary = await finishTwitchStream(Number(payload.event.broadcaster_user_id));
+       // Сверяем id стрима из события с активной сессией: запоздавший offline
+       // предыдущего стрима не должен закрыть текущий
+       const summary = await finishTwitchStream(
+         Number(payload.event.broadcaster_user_id),
+         payload.event.id ? String(payload.event.id) : undefined,
+       );
+       if (!summary) {
+         log.info("no matching active stream session for offline", {
+           channel_id: payload.event.broadcaster_user_id,
+           stream_id: payload.event.id ?? null,
+         });
+         break;
+       }
        await sendTwitchStreamOfflineNotificationToUsers(
          Number(payload.event.broadcaster_user_id),
          payload.event.broadcaster_user_name,
