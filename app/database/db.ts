@@ -367,25 +367,50 @@ export interface StreamSummary {
   categories: StreamCategory[];
 }
 
-export async function startTwitchStream(channelId: number, title: string, categoryName: string): Promise<void> {
-  const now = new Date().toISOString();
+export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<void> {
   await db.transaction(async (tx) => {
     const [activeStream] = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
       .orderBy(desc(stream_sessions.id)).limit(1);
 
-    if (activeStream) return;
+    if (activeStream) {
+      // Повторная доставка события для текущего стрима
+      if (activeStream.stream_id === streamId) {
+        log.info("duplicate stream.online ignored", { channel_id: channelId, stream_id: streamId });
+        return;
+      }
+
+      // Сессия была восстановлена через channel.update — по started_at понятно, что это тот же стрим
+      if (activeStream.stream_id === null && activeStream.started_at === startedAt) {
+        await tx.update(stream_sessions).set({ stream_id: streamId, title }).where(eq(stream_sessions.id, activeStream.id));
+        log.info("backfilled stream session adopted", { channel_id: channelId, stream_id: streamId });
+        return;
+      }
+
+      // Незакрытая сессия предыдущего стрима (stream.offline был пропущен) —
+      // закрываем молча, границей станет старт нового стрима
+      log.warn("closing stale stream session", {
+        channel_id: channelId,
+        stale_session_id: activeStream.id,
+        stale_stream_id: activeStream.stream_id,
+        new_stream_id: streamId,
+      });
+      await tx.update(stream_sessions).set({ ended_at: startedAt }).where(eq(stream_sessions.id, activeStream.id));
+      await tx.update(stream_categories).set({ ended_at: startedAt })
+        .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
+    }
 
     const [stream] = await tx.insert(stream_sessions).values({
       channel_id: channelId,
       platform: "twitch",
+      stream_id: streamId,
       title,
-      started_at: now,
+      started_at: startedAt,
     }).returning();
     await tx.insert(stream_categories).values({
       stream_session_id: stream.id,
       category_name: categoryName,
-      started_at: now,
+      started_at: startedAt,
     });
   });
 }
@@ -395,7 +420,8 @@ export async function updateTwitchStream(channelId: number, title: string, categ
   return db.transaction(async (tx) => {
     const [stream] = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
-      .orderBy(desc(stream_sessions.id)).limit(1);
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
     if (!stream) return { titleChanged: false, categoryChanged: false, hadActiveSession: false };
 
     const titleChanged = stream.title !== title;
@@ -418,28 +444,6 @@ export async function updateTwitchStream(channelId: number, title: string, categ
       });
     }
     return { titleChanged, categoryChanged, hadActiveSession: true };
-  });
-}
-
-export async function startTwitchStreamAt(channelId: number, title: string, categoryName: string, startedAt: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [activeStream] = await tx.select().from(stream_sessions)
-      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
-      .orderBy(desc(stream_sessions.id)).limit(1);
-
-    if (activeStream) return;
-
-    const [stream] = await tx.insert(stream_sessions).values({
-      channel_id: channelId,
-      platform: "twitch",
-      title,
-      started_at: startedAt,
-    }).returning();
-    await tx.insert(stream_categories).values({
-      stream_session_id: stream.id,
-      category_name: categoryName,
-      started_at: startedAt,
-    });
   });
 }
 

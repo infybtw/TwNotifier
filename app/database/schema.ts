@@ -93,6 +93,7 @@ export const stream_sessions = pgTable("stream_sessions", {
   id: serial("id").primaryKey(),
   channel_id: bigint({ mode: "number" }).references(() => channels.channel_id).notNull(),
   platform: varchar({ length: 16 }).notNull(),
+  stream_id: text(),
   title: text(),
   started_at: text().notNull(),
   ended_at: text(),

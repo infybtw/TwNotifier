@@ -4,7 +4,7 @@ import {
   sendTwitchStreamOnlineNotificationToUsers,
   sendTwitchStreamTitleChangedNotificationToUsers,
 } from "../bot/bot_sender";
-import { finishTwitchStream, startTwitchStream, startTwitchStreamAt, updateTwitchStream } from "../database/db";
+import { finishTwitchStream, startTwitchStream, updateTwitchStream } from "../database/db";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
 import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
@@ -27,8 +27,10 @@ export async function onNotification(payload: any) {
       );
        await startTwitchStream(
          Number(payload.event.broadcaster_user_id),
+         String(payload.event.id),
          streamData?.title ?? "",
          streamData?.game_name ?? "Без категории",
+         payload.event.started_at ?? new Date().toISOString(),
        );
        await sendTwitchStreamOnlineNotificationToUsers(
         Number(payload.event.broadcaster_user_id),
@@ -56,10 +58,10 @@ export async function onNotification(payload: any) {
 
        if (!changes.hadActiveSession) {
          // Сессия не записана (например, бот перезапущен во время стрима).
-         // Если канал реально в эфире — восстанавливаем сессию с started_at от Twitch.
+         // Если канал реально в эфире — восстанавливаем сессию с данными от Twitch.
          const [live] = await getStreamsByUserIds([channelId]);
          if (live) {
-           await startTwitchStreamAt(channelId, newTitle, newCategory, live.started_at);
+           await startTwitchStream(channelId, String(live.id), newTitle, newCategory, live.started_at);
            titleChanged = true;
            categoryChanged = true;
          }
