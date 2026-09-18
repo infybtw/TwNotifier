@@ -73,10 +73,15 @@ async function processKickEvent(eventType: string, payload: KickWebhookPayload) 
         payload
       })
       switch (payload.is_live) {
-        case true:
-          await startKickStream(payload.broadcaster.user_id, payload.title)
-          await sendKickStreamOnlineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, payload.title)
+        case true: {
+          // Уведомление только когда сессия реально новая: status.updated
+          // приходит и при обновлении метаданных уже идущего стрима.
+          const isNewStream = await startKickStream(payload.broadcaster.user_id, payload.title, payload.started_at)
+          if (isNewStream) {
+            await sendKickStreamOnlineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, payload.title)
+          }
           break
+        }
         case false:
           const durationMs = await finishKickStream(payload.broadcaster.user_id)
           await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, durationMs)

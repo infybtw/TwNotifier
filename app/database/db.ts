@@ -15,9 +15,12 @@ function isUniqueViolation(err: unknown): boolean {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-// Повторная доставка Kick-вебхука приходит в течение секунд:
-// если "начало" стрима совсем свежее, это дубликат, а не новый стрим.
+// Повторная доставка Kick-вебхука приходит в течение секунд,
+// а payload без валидного started_at не даёт отличить дубликат от нового стрима
+// надёжнее, чем по свежести сессии.
 const KICK_DUPLICATE_WINDOW_MS = 60_000;
+// Разумный предел давности начала стрима: значения дальше считаем мусорными.
+const KICK_MAX_STREAM_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
@@ -513,22 +516,42 @@ export async function finishTwitchStream(channelId: number): Promise<StreamSumma
   });
 }
 
-export async function startKickStream(channelId: number, title: string): Promise<void> {
-  const now = new Date().toISOString();
-  await db.transaction(async (tx) => {
+export async function startKickStream(channelId: number, title: string, startedAt?: string): Promise<boolean> {
+  const now = new Date();
+  // Kick присылает started_at в payload — тогда это реальное начало стрима.
+  // Если поля нет или оно мусорное, началом считаем момент получения вебхука.
+  const payloadStart = startedAt ? new Date(startedAt) : null;
+  const payloadStartValid = payloadStart !== null
+    && !isNaN(payloadStart.getTime())
+    && now.getTime() - payloadStart.getTime() <= KICK_MAX_STREAM_AGE_MS
+    && payloadStart.getTime() - now.getTime() <= KICK_DUPLICATE_WINDOW_MS;
+  const effectiveStart = payloadStartValid ? payloadStart!.toISOString() : now.toISOString();
+
+  return db.transaction(async (tx) => {
     const [activeStream] = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
-      .orderBy(desc(stream_sessions.id)).limit(1);
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
 
     if (activeStream) {
-      const activeAgeMs = new Date(now).getTime() - new Date(activeStream.started_at).getTime();
+      // Тот же стрим: status.updated приходит и при обновлении метаданных
+      // (title и др.), и при повторной доставке — обновляем title, сессию не трогаем
+      if (activeStream.started_at === effectiveStart) {
+        if (title && activeStream.title !== title) {
+          await tx.update(stream_sessions).set({ title }).where(eq(stream_sessions.id, activeStream.id));
+        }
+        log.info("kick stream session already active", { channel_id: channelId });
+        return false;
+      }
+
+      const activeAgeMs = now.getTime() - new Date(activeStream.started_at).getTime();
       if (activeAgeMs < KICK_DUPLICATE_WINDOW_MS) {
         log.info("duplicate kick stream.online ignored", { channel_id: channelId });
-        return;
+        return false;
       }
       // Незакрытая сессия предыдущего стрима (offline был пропущен) — закрываем молча
       log.warn("closing stale kick stream session", { channel_id: channelId, stale_session_id: activeStream.id });
-      await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, activeStream.id));
+      await tx.update(stream_sessions).set({ ended_at: effectiveStart }).where(eq(stream_sessions.id, activeStream.id));
     }
 
     try {
@@ -536,13 +559,14 @@ export async function startKickStream(channelId: number, title: string): Promise
         channel_id: channelId,
         platform: "kick",
         title,
-        started_at: now,
+        started_at: effectiveStart,
       });
+      return true;
     } catch (err) {
       // Гонка параллельных вебхуков: активную сессию уже создал другой обработчик
       if (isUniqueViolation(err)) {
         log.warn("active kick stream session already exists", { channel_id: channelId });
-        return;
+        return false;
       }
       throw err;
     }
