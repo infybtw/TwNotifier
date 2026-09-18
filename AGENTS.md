@@ -40,6 +40,16 @@
 - No linting, formatting, or typecheck scripts defined in package.json
 - Build artifacts go to `dist/` directory (git-ignored)
 
+## Git Commit Convention
+- All commits MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) specification
+- Format: `<type>(<optional scope>): <description>`
+- Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Examples:
+  - `feat(bot): add Kick stream notification handler`
+  - `fix(twitch): reconnect websocket on token expiry`
+  - `docs: update .env.example with Kick variables`
+  - `chore(deps): bump drizzle-orm to latest`
+
 ## Important Constraints
 - Database file (`*.db`) and session files (`/sessions`) are git-ignored
 - Logs directory (`logs/`) is git-ignored
