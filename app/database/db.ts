@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamLog, stream_logs, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, eq, sql } from "drizzle-orm";
+import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
@@ -345,6 +345,82 @@ export async function insertStreamLog(channel_id: number, platform: string, even
     event,
     created: new Date().toISOString(),
   })
+}
+
+export interface StreamSummary {
+  durationMs: number;
+  categories: StreamCategory[];
+}
+
+export async function startTwitchStream(channelId: number, title: string, categoryName: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1);
+
+    if (activeStream) return;
+
+    const [stream] = await tx.insert(stream_sessions).values({
+      channel_id: channelId,
+      platform: "twitch",
+      title,
+      started_at: now,
+    }).returning();
+    await tx.insert(stream_categories).values({
+      stream_session_id: stream.id,
+      category_name: categoryName,
+      started_at: now,
+    });
+  });
+}
+
+export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean }> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    const [stream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1);
+    if (!stream) return { titleChanged: false, categoryChanged: false };
+
+    const titleChanged = stream.title !== title;
+    if (titleChanged) {
+      await tx.update(stream_sessions).set({ title }).where(eq(stream_sessions.id, stream.id));
+    }
+
+    const [category] = await tx.select().from(stream_categories)
+      .where(and(eq(stream_categories.stream_session_id, stream.id), isNull(stream_categories.ended_at)))
+      .orderBy(desc(stream_categories.id)).limit(1);
+    const categoryChanged = category?.category_name !== categoryName;
+    if (categoryChanged) {
+      if (category) {
+        await tx.update(stream_categories).set({ ended_at: now }).where(eq(stream_categories.id, category.id));
+      }
+      await tx.insert(stream_categories).values({
+        stream_session_id: stream.id,
+        category_name: categoryName,
+        started_at: now,
+      });
+    }
+    return { titleChanged, categoryChanged };
+  });
+}
+
+export async function finishTwitchStream(channelId: number): Promise<StreamSummary | undefined> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    const [stream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1);
+    if (!stream) return undefined;
+
+    await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, stream.id));
+    await tx.update(stream_categories).set({ ended_at: now })
+      .where(and(eq(stream_categories.stream_session_id, stream.id), isNull(stream_categories.ended_at)));
+    const categories = await tx.select().from(stream_categories)
+      .where(eq(stream_categories.stream_session_id, stream.id)).orderBy(stream_categories.id);
+    return { durationMs: new Date(now).getTime() - new Date(stream.started_at).getTime(), categories };
+  });
 }
 
 export async function getRecentStreamLogs(limit: number = 10): Promise<(StreamLog & { channel_name?: string | null, follower_count?: number })[]> {

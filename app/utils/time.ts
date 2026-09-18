@@ -38,3 +38,11 @@ export function formatUptime(startupTime: number): string {
   const days = Math.floor(diff / 86400000);
   return `${days}d ${hours}h ${minutes}m`;
 }
+
+export function formatDuration(durationMs: number, locale: "ru" | "en"): string {
+  const totalMinutes = Math.max(0, Math.floor(durationMs / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (locale === "ru") return hours > 0 ? `${hours} ч ${minutes} мин` : `${minutes} мин`;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}

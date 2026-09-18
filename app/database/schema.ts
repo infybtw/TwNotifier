@@ -85,3 +85,24 @@ export const stream_logs = pgTable("stream_logs", {
 
 export type StreamLog = typeof stream_logs.$inferSelect
 export type NewStreamLog = typeof stream_logs.$inferInsert
+
+export const stream_sessions = pgTable("stream_sessions", {
+  id: serial("id").primaryKey(),
+  channel_id: bigint({ mode: "number" }).references(() => channels.channel_id).notNull(),
+  platform: varchar({ length: 16 }).notNull(),
+  title: text(),
+  started_at: text().notNull(),
+  ended_at: text(),
+})
+
+export type StreamSession = typeof stream_sessions.$inferSelect
+
+export const stream_categories = pgTable("stream_categories", {
+  id: serial("id").primaryKey(),
+  stream_session_id: integer().references(() => stream_sessions.id).notNull(),
+  category_name: text().notNull(),
+  started_at: text().notNull(),
+  ended_at: text(),
+})
+
+export type StreamCategory = typeof stream_categories.$inferSelect

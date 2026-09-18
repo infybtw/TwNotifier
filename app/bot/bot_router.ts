@@ -12,7 +12,7 @@ import {
   setBotBlockedStateByUserId
 } from "../database/db";
 import { getUserByLogin } from "../twitchAPI/users";
-import { subscribeToChannelOffline, subscribeToChannelOnline } from "../twitchAPI/subscriptions";
+import { subscribeToChannelOffline, subscribeToChannelOnline, subscribeToChannelUpdate } from "../twitchAPI/subscriptions";
 import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
 import {
   buildHomeKeyboard,
@@ -67,9 +67,10 @@ router.command("start", async (ctx) => {
           await checkOrCreateChannel(channelId, displayName, platform);
           const onlineStatus = await subscribeToChannelOnline(channelId, displayName);
           const offlineStatus = await subscribeToChannelOffline(channelId, displayName);
+          const updateStatus = await subscribeToChannelUpdate(channelId, displayName);
 
-          if (onlineStatus < 0 || offlineStatus < 0) {
-            log.error("prefollow subscription error", { channelId, onlineStatus, offlineStatus, platform });
+          if (onlineStatus < 0 || offlineStatus < 0 || updateStatus < 0) {
+            log.error("prefollow subscription error", { channelId, onlineStatus, offlineStatus, updateStatus, platform });
             await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
           } else {
             await checkOrCreateFollow(ctx.from.id, channelId, platform);

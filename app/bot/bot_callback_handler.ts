@@ -62,8 +62,10 @@ import {
   getEventSubList,
   subscribeAllStreamsOffline,
   subscribeAllStreamsOnline,
+  subscribeAllChannelUpdates,
   subscribeToChannelOffline,
   subscribeToChannelOnline,
+  subscribeToChannelUpdate,
 } from "../twitchAPI/subscriptions";
 import { getStreamsByUserIds } from "../twitchAPI/users";
 import { getKickChannelsOnline } from "../kickAPI/users";
@@ -421,6 +423,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   let subOnlineResCode = 100000
   let subOfflineResCode = 100000
+  let subUpdateResCode = 100000
 
   if (platform === "twitch") {
     subOnlineResCode = await subscribeToChannelOnline(
@@ -431,6 +434,10 @@ router.callbackQuery("confirm_add", async (ctx) => {
       channelId,
       displayName || channelName,
     );
+    subUpdateResCode = await subscribeToChannelUpdate(
+      channelId,
+      displayName || channelName,
+    );
   } else if (platform === "kick") {
     await subscribeToKickChannelOnline(channelId)
     subOnlineResCode = 200
@@ -438,8 +445,8 @@ router.callbackQuery("confirm_add", async (ctx) => {
   }
 
 
-  if (subOnlineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOnlineResCode });
+  if (subOnlineResCode < 0 || subOfflineResCode < 0 || subUpdateResCode < 0) {
+    log.error("subscribe error", { subOnlineResCode, subOfflineResCode, subUpdateResCode });
     await ctx.editMessageText(
       t("add.error", locale),
       { parse_mode: "HTML" },
@@ -896,6 +903,7 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     await sleep(2500);
     await subscribeAllStreamsOnline(onProgress);
     await subscribeAllStreamsOffline(onProgress);
+    await subscribeAllChannelUpdates(onProgress);
     const newSubs = await getEventSubList();
     log.warn(`${ctx.from.id} reloaded EventSub`, { before: subs.length, after: newSubs.length });
     const summary = completedPhases.map(p => `${p} ✓`).join("\n");

@@ -200,6 +200,39 @@ export async function subscribeAllStreamsOffline(onProgress?: ProgressCallback) 
   log.info("subscribed to all channels offline", { count: channels.length });
 }
 
+export async function subscribeToChannelUpdate(broadcasterId: number, broadcaster_name: string): Promise<number> {
+  const subscription = {
+    type: "channel.update",
+    version: "2",
+    condition: { broadcaster_user_id: String(broadcasterId) },
+  };
+  const res = await fetch(TWITCH_HELIX + "/helix/eventsub/subscriptions", {
+    method: "POST",
+    headers: { "Client-ID": CLIENT_ID, Authorization: `Bearer ${APP_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...subscription, transport: getTransport() }),
+  });
+  const data = await res.json();
+  if (res.status === 202 || data.status === 409) {
+    log.info(res.status === 202 ? "subscribed to event" : "already subscribed", {
+      type: subscription.type, broadcaster_id: broadcasterId, broadcaster_name, transport: TWITCH_EVENT_TRANSPORT,
+    });
+    return res.status === 202 ? 202 : 409;
+  }
+  log.error("subscription error", {
+    type: subscription.type, broadcaster_id: broadcasterId, broadcaster_name, transport: TWITCH_EVENT_TRANSPORT, error_message: data.message,
+  });
+  return -1;
+}
+
+export async function subscribeAllChannelUpdates(onProgress?: ProgressCallback) {
+  const channels = await getChannelsWithFollowersByPlatform("twitch");
+  for (let i = 0; i < channels.length; i++) {
+    await subscribeToChannelUpdate(channels[i].channel_id, channels[i].channel_name);
+    onProgress?.({ current: i + 1, total: channels.length, phase: "Subscribing channel updates" });
+  }
+  log.info("subscribed to all channel updates", { count: channels.length });
+}
+
 export async function getEventSubList(cursor?: string, retries = 3): Promise<TwitchEventSubSubscription[]> {
   const url = new URL(TWITCH_HELIX + "/helix/eventsub/subscriptions");
   if (cursor) url.searchParams.set("after", cursor);
