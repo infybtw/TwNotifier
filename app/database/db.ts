@@ -1,13 +1,17 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
 const db = drizzle(sqlConnect)
 
 const log = logger.getSubLogger({ name: "db" });
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
+}
 
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
@@ -400,21 +404,29 @@ export async function startTwitchStream(channelId: number, streamId: string, tit
         .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
     }
 
-    const [stream] = await tx.insert(stream_sessions).values({
-      channel_id: channelId,
-      platform: "twitch",
-      stream_id: streamId,
-      title,
-      started_at: startedAt,
-    }).returning();
-    await tx.insert(stream_categories).values({
-      stream_session_id: stream.id,
-      category_name: categoryName,
-      started_at: startedAt,
-    });
+    try {
+      const [stream] = await tx.insert(stream_sessions).values({
+        channel_id: channelId,
+        platform: "twitch",
+        stream_id: streamId,
+        title,
+        started_at: startedAt,
+      }).returning();
+      await tx.insert(stream_categories).values({
+        stream_session_id: stream.id,
+        category_name: categoryName,
+        started_at: startedAt,
+      });
+    } catch (err) {
+      // Гонка параллельных stream.online: активную сессию уже создал другой обработчик
+      if (isUniqueViolation(err)) {
+        log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
+        return;
+      }
+      throw err;
+    }
   });
 }
-
 export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
@@ -450,17 +462,26 @@ export async function updateTwitchStream(channelId: number, title: string, categ
 export async function finishTwitchStream(channelId: number): Promise<StreamSummary | undefined> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
-    const [stream] = await tx.select().from(stream_sessions)
+    // Закрываем все незакрытые сессии канала: если накопились zombie-сессии
+    // (например, созданные до unique-инварианта), они тоже будут закрыты.
+    const activeSessions = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
-      .orderBy(desc(stream_sessions.id)).limit(1);
-    if (!stream) return undefined;
+      .orderBy(desc(stream_sessions.id))
+      .for("update");
+    if (activeSessions.length === 0) return undefined;
 
-    await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, stream.id));
+    const latest = activeSessions[0];
+    const activeIds = activeSessions.map((session) => session.id);
+
+    await tx.update(stream_sessions).set({ ended_at: now }).where(inArray(stream_sessions.id, activeIds));
     await tx.update(stream_categories).set({ ended_at: now })
-      .where(and(eq(stream_categories.stream_session_id, stream.id), isNull(stream_categories.ended_at)));
+      .where(and(inArray(stream_categories.stream_session_id, activeIds), isNull(stream_categories.ended_at)));
     const categories = await tx.select().from(stream_categories)
-      .where(eq(stream_categories.stream_session_id, stream.id)).orderBy(stream_categories.id);
-    return { durationMs: new Date(now).getTime() - new Date(stream.started_at).getTime(), categories };
+      .where(eq(stream_categories.stream_session_id, latest.id)).orderBy(stream_categories.id);
+    if (activeSessions.length > 1) {
+      log.warn("closed multiple active stream sessions", { channel_id: channelId, count: activeSessions.length });
+    }
+    return { durationMs: new Date(now).getTime() - new Date(latest.started_at).getTime(), categories };
   });
 }
 

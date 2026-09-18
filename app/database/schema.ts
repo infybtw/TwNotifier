@@ -4,12 +4,14 @@ import {
   integer,
   pgTable,
   text,
+  uniqueIndex,
   varchar,
   bigint,
   primaryKey,
   serial,
   pgEnum
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 
 export const channels = pgTable("channels", {
@@ -97,7 +99,11 @@ export const stream_sessions = pgTable("stream_sessions", {
   title: text(),
   started_at: text().notNull(),
   ended_at: text(),
-})
+}, (table) => [
+  uniqueIndex("stream_sessions_one_active_per_channel")
+    .on(table.channel_id, table.platform)
+    .where(sql`${table.ended_at} IS NULL`),
+])
 
 export type StreamSession = typeof stream_sessions.$inferSelect
 
