@@ -9,10 +9,6 @@ const db = drizzle(sqlConnect)
 
 const log = logger.getSubLogger({ name: "db" });
 
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
-}
-
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Повторная доставка Kick-вебхука приходит в течение секунд,
@@ -417,27 +413,28 @@ async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: s
 }
 
 async function insertStreamSession(tx: Tx, channelId: number, streamId: string, title: string, sessionStartedAt: string, categoryName: string, categoryStartedAt: string): Promise<void> {
-  try {
-    const [stream] = await tx.insert(stream_sessions).values({
-      channel_id: channelId,
-      platform: "twitch",
-      stream_id: streamId,
-      title,
-      started_at: sessionStartedAt,
-    }).returning();
-    await tx.insert(stream_categories).values({
-      stream_session_id: stream.id,
-      category_name: categoryName,
-      started_at: categoryStartedAt,
-    });
-  } catch (err) {
-    // Гонка параллельных stream.online: активную сессию уже создал другой обработчик
-    if (isUniqueViolation(err)) {
-      log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
-      return;
-    }
-    throw err;
+  // Partial unique index гарантирует одну активную сессию на канал:
+  // при гонке параллельных stream.online конфликтующий INSERT просто
+  // ничего не вставит (ON CONFLICT DO NOTHING не ломает транзакцию,
+  // в отличие от пойманного 23505, после которого tx остаётся в aborted state).
+  const [stream] = await tx.insert(stream_sessions).values({
+    channel_id: channelId,
+    platform: "twitch",
+    stream_id: streamId,
+    title,
+    started_at: sessionStartedAt,
+  }).onConflictDoNothing().returning();
+
+  if (!stream) {
+    log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
+    return;
   }
+
+  await tx.insert(stream_categories).values({
+    stream_session_id: stream.id,
+    category_name: categoryName,
+    started_at: categoryStartedAt,
+  });
 }
 
 export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<void> {
@@ -554,22 +551,19 @@ export async function startKickStream(channelId: number, title: string, startedA
       await tx.update(stream_sessions).set({ ended_at: effectiveStart }).where(eq(stream_sessions.id, activeStream.id));
     }
 
-    try {
-      await tx.insert(stream_sessions).values({
-        channel_id: channelId,
-        platform: "kick",
-        title,
-        started_at: effectiveStart,
-      });
-      return true;
-    } catch (err) {
+    const [inserted] = await tx.insert(stream_sessions).values({
+      channel_id: channelId,
+      platform: "kick",
+      title,
+      started_at: effectiveStart,
+    }).onConflictDoNothing().returning();
+
+    if (!inserted) {
       // Гонка параллельных вебхуков: активную сессию уже создал другой обработчик
-      if (isUniqueViolation(err)) {
-        log.warn("active kick stream session already exists", { channel_id: channelId });
-        return false;
-      }
-      throw err;
+      log.warn("active kick stream session already exists", { channel_id: channelId });
+      return false;
     }
+    return true;
   });
 }
 
