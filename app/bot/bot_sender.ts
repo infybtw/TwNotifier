@@ -202,18 +202,23 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
     await insertStreamLog(channel_id, "kick", "online")
 }
 
-export async function sendKickStreamfflineNotificationToUsers(channel_id: number, channel_name: string) {
+export async function sendKickStreamfflineNotificationToUsers(channel_id: number, channel_name: string, durationMs?: number) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "kick");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        // Метаданные стрима для Kick не собираются, поэтому всегда короткое сообщение
-        // без бессмысленных "Длительность: —" и "Категории: Нет данных".
-        const text = t("notifications.stream_offline_simple", locale)
-          .replace("{name}", escapeHtml(channel_name))
-          .replace("{url}", `https://kick.com/${channel_name}`);
+        // Категории для Kick не собираются, поэтому при включённых метаданных
+        // показываем только длительность стрима.
+        const text = userSettings?.stream_metadata === 1 && durationMs !== undefined
+          ? t("notifications.stream_offline_kick", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`)
+            .replace("{duration}", formatDuration(durationMs, locale))
+          : t("notifications.stream_offline_simple", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,

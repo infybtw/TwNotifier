@@ -15,6 +15,10 @@ function isUniqueViolation(err: unknown): boolean {
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+// Повторная доставка Kick-вебхука приходит в течение секунд:
+// если "начало" стрима совсем свежее, это дубликат, а не новый стрим.
+const KICK_DUPLICATE_WINDOW_MS = 60_000;
+
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   return user
@@ -506,6 +510,56 @@ export async function finishTwitchStream(channelId: number): Promise<StreamSumma
       log.warn("closed multiple active stream sessions", { channel_id: channelId, count: activeSessions.length });
     }
     return { durationMs: new Date(now).getTime() - new Date(latest.started_at).getTime(), categories };
+  });
+}
+
+export async function startKickStream(channelId: number, title: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1);
+
+    if (activeStream) {
+      const activeAgeMs = new Date(now).getTime() - new Date(activeStream.started_at).getTime();
+      if (activeAgeMs < KICK_DUPLICATE_WINDOW_MS) {
+        log.info("duplicate kick stream.online ignored", { channel_id: channelId });
+        return;
+      }
+      // Незакрытая сессия предыдущего стрима (offline был пропущен) — закрываем молча
+      log.warn("closing stale kick stream session", { channel_id: channelId, stale_session_id: activeStream.id });
+      await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, activeStream.id));
+    }
+
+    try {
+      await tx.insert(stream_sessions).values({
+        channel_id: channelId,
+        platform: "kick",
+        title,
+        started_at: now,
+      });
+    } catch (err) {
+      // Гонка параллельных вебхуков: активную сессию уже создал другой обработчик
+      if (isUniqueViolation(err)) {
+        log.warn("active kick stream session already exists", { channel_id: channelId });
+        return;
+      }
+      throw err;
+    }
+  });
+}
+
+export async function finishKickStream(channelId: number): Promise<number | undefined> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
+    if (!activeStream) return undefined;
+
+    await tx.update(stream_sessions).set({ ended_at: now }).where(eq(stream_sessions.id, activeStream.id));
+    return new Date(now).getTime() - new Date(activeStream.started_at).getTime();
   });
 }
 

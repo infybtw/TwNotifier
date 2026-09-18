@@ -66,6 +66,7 @@
   "notifications.stream_online_kick": "<a href=\"{url}\"><b>{name}</b></a> is now live.\n{title}",
   "notifications.stream_offline": "<a href=\"{url}\"><b>{name}</b></a> has ended the stream.\nDuration: <b>{duration}</b>\n\n<b>Categories:</b>\n{categories}",
   "notifications.stream_offline_simple": "<a href=\"{url}\"><b>{name}</b></a> has ended the stream.",
+  "notifications.stream_offline_kick": "<a href=\"{url}\"><b>{name}</b></a> has ended the stream.\nDuration: <b>{duration}</b>",
   "notifications.stream_title_changed": "<a href=\"{url}\"><b>{name}</b></a> changed the stream title:\n{value}",
   "notifications.stream_category_changed": "<a href=\"{url}\"><b>{name}</b></a> changed the stream category:\n<i>{value}</i>",
   "notifications.no_category_history": "No data",

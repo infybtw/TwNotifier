@@ -1,7 +1,9 @@
 import { sendKickStreamfflineNotificationToUsers, sendKickStreamOnlineNotificationToUsers } from "../bot/bot_sender";
+import { finishKickStream, startKickStream } from "../database/db";
 import { getKickPublicKey } from "../kickAPI/publicKey";
 import { verifyKickWebhook } from "../kickAPI/verifyWebhook";
 import logger from "../logger";
+import { isDuplicateEventMessage } from "../twitchAPI/message_dedup";
 
 const log = logger.getSubLogger({name: "handlers:webhook_handler"})
 
@@ -53,6 +55,11 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
     return { status: 401, body: { error: "Invalid signature" } };
   }
 
+  if (isDuplicateEventMessage(messageId)) {
+    log.warn("duplicate Kick webhook skipped", { messageId, eventType });
+    return { status: 200, body: { ok: true } };
+  }
+
   const payload: KickWebhookPayload = JSON.parse(rawBody);
   await processKickEvent(eventType, payload);
 
@@ -67,10 +74,12 @@ async function processKickEvent(eventType: string, payload: KickWebhookPayload) 
       })
       switch (payload.is_live) {
         case true:
+          await startKickStream(payload.broadcaster.user_id, payload.title)
           await sendKickStreamOnlineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, payload.title)
           break
         case false:
-          await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug)
+          const durationMs = await finishKickStream(payload.broadcaster.user_id)
+          await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, durationMs)
           break
         default:
           break
