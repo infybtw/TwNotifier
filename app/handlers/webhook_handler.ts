@@ -90,10 +90,23 @@ async function processKickEvent(eventType: string, payload: KickWebhookPayload) 
           }
           break
         }
-        case false:
-          const durationMs = await finishKickStream(payload.broadcaster.user_id, payload.started_at, payload.ended_at)
-          await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, durationMs)
+        case false: {
+          const finishResult = await finishKickStream(payload.broadcaster.user_id, payload.started_at, payload.ended_at)
+          if (finishResult.outcome === "stream_mismatch") break
+          if (finishResult.outcome === "no_session") {
+            // Стрим не был учтён (например, бот перезапущен во время стрима) —
+            // уведомляем без метаданных
+            log.info("no active kick stream session for offline, sending plain notification", {
+              channel_id: payload.broadcaster.user_id,
+            })
+          }
+          await sendKickStreamfflineNotificationToUsers(
+            payload.broadcaster.user_id,
+            payload.broadcaster.channel_slug,
+            finishResult.outcome === "closed" ? finishResult.durationMs : undefined,
+          )
           break
+        }
         default:
           break
       }

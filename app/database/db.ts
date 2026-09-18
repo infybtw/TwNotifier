@@ -581,6 +581,18 @@ export async function startKickStream(channelId: number, title: string, startedA
         return false;
       }
 
+      // Запоздавший is_live=true СТАРОГО стрима: входящее начало не новее
+      // активной сессии — не даём ему закрыть и подменить текущий стрим
+      if (new Date(effectiveStart).getTime() <= new Date(activeStream.started_at).getTime()) {
+        log.warn("outdated kick stream.online ignored", {
+          channel_id: channelId,
+          active_session_id: activeStream.id,
+          active_started_at: activeStream.started_at,
+          incoming_started_at: effectiveStart,
+        });
+        return false;
+      }
+
       const activeAgeMs = now.getTime() - new Date(activeStream.started_at).getTime();
       if (activeAgeMs < KICK_DUPLICATE_WINDOW_MS) {
         log.info("duplicate kick stream.online ignored", { channel_id: channelId });
@@ -607,14 +619,19 @@ export async function startKickStream(channelId: number, title: string, startedA
   });
 }
 
-export async function finishKickStream(channelId: number, expectedStartedAt?: string, endedAt?: string): Promise<number | undefined> {
+export type FinishKickStreamResult =
+  | { outcome: "closed"; durationMs: number }
+  | { outcome: "no_session" }
+  | { outcome: "stream_mismatch" };
+
+export async function finishKickStream(channelId: number, expectedStartedAt?: string, endedAt?: string): Promise<FinishKickStreamResult> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     const [activeStream] = await tx.select().from(stream_sessions)
       .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
       .orderBy(desc(stream_sessions.id)).limit(1)
       .for("update");
-    if (!activeStream) return undefined;
+    if (!activeStream) return { outcome: "no_session" };
 
     // Payload завершения стрима содержит started_at: сверяем его с активной сессией,
     // чтобы запоздавший offline предыдущего стрима не закрыл текущий
@@ -626,7 +643,7 @@ export async function finishKickStream(channelId: number, expectedStartedAt?: st
         active_started_at: activeStream.started_at,
         event_started_at: expectedStart.toISOString(),
       });
-      return undefined;
+      return { outcome: "stream_mismatch" };
     }
 
     // Если Kick прислал корректный ended_at — используем его (точнее времени обработки)
@@ -637,7 +654,7 @@ export async function finishKickStream(channelId: number, expectedStartedAt?: st
       : now;
 
     await tx.update(stream_sessions).set({ ended_at: effectiveEnd }).where(eq(stream_sessions.id, activeStream.id));
-    return new Date(effectiveEnd).getTime() - sessionStartMs;
+    return { outcome: "closed", durationMs: new Date(effectiveEnd).getTime() - sessionStartMs };
   });
 }
 
