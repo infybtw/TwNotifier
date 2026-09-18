@@ -4,7 +4,7 @@ import {
   sendTwitchStreamOnlineNotificationToUsers,
   sendTwitchStreamTitleChangedNotificationToUsers,
 } from "../bot/bot_sender";
-import { finishTwitchStream, startTwitchStream, updateTwitchStream } from "../database/db";
+import { backfillTwitchStream, finishTwitchStream, startTwitchStream, updateTwitchStream } from "../database/db";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
 import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
@@ -58,12 +58,13 @@ export async function onNotification(payload: any) {
 
        if (!changes.hadActiveSession) {
          // Сессия не записана (например, бот перезапущен во время стрима).
-         // Если канал реально в эфире — восстанавливаем сессию с данными от Twitch.
+         // Восстанавливаем сессию, но БЕЗ уведомлений: channel.update приходит
+         // не только при смене названия/категории (но и языка, content
+         // classification), а без baseline определить, что именно изменилось,
+         // невозможно.
          const [live] = await getStreamsByUserIds([channelId]);
          if (live) {
-           await startTwitchStream(channelId, String(live.id), newTitle, newCategory, live.started_at);
-           titleChanged = true;
-           categoryChanged = true;
+           await backfillTwitchStream(channelId, String(live.id), newTitle, newCategory, live.started_at);
          }
        } else if (titleChanged || categoryChanged) {
          // Если канал на самом деле офлайн — закрываем зависшую сессию без уведомлений.

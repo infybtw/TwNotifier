@@ -13,6 +13,8 @@ function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
   return user
@@ -371,60 +373,82 @@ export interface StreamSummary {
   categories: StreamCategory[];
 }
 
+type ActiveSessionResolution = "duplicate" | "adopted" | "replaced" | "none";
+
+async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: string, startedAt: string): Promise<ActiveSessionResolution> {
+  const [activeStream] = await tx.select().from(stream_sessions)
+    .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+    .orderBy(desc(stream_sessions.id)).limit(1);
+
+  if (!activeStream) return "none";
+
+  // Повторная доставка события для текущего стрима
+  if (activeStream.stream_id === streamId) {
+    log.info("duplicate stream.online ignored", { channel_id: channelId, stream_id: streamId });
+    return "duplicate";
+  }
+
+  // Сессия была восстановлена через channel.update — по started_at понятно, что это тот же стрим
+  if (activeStream.stream_id === null && activeStream.started_at === startedAt) {
+    await tx.update(stream_sessions).set({ stream_id: streamId }).where(eq(stream_sessions.id, activeStream.id));
+    log.info("backfilled stream session adopted", { channel_id: channelId, stream_id: streamId });
+    return "adopted";
+  }
+
+  // Незакрытая сессия предыдущего стрима (stream.offline был пропущен) —
+  // закрываем молча, границей станет старт нового стрима
+  log.warn("closing stale stream session", {
+    channel_id: channelId,
+    stale_session_id: activeStream.id,
+    stale_stream_id: activeStream.stream_id,
+    new_stream_id: streamId,
+  });
+  await tx.update(stream_sessions).set({ ended_at: startedAt }).where(eq(stream_sessions.id, activeStream.id));
+  await tx.update(stream_categories).set({ ended_at: startedAt })
+    .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
+  return "replaced";
+}
+
+async function insertStreamSession(tx: Tx, channelId: number, streamId: string, title: string, sessionStartedAt: string, categoryName: string, categoryStartedAt: string): Promise<void> {
+  try {
+    const [stream] = await tx.insert(stream_sessions).values({
+      channel_id: channelId,
+      platform: "twitch",
+      stream_id: streamId,
+      title,
+      started_at: sessionStartedAt,
+    }).returning();
+    await tx.insert(stream_categories).values({
+      stream_session_id: stream.id,
+      category_name: categoryName,
+      started_at: categoryStartedAt,
+    });
+  } catch (err) {
+    // Гонка параллельных stream.online: активную сессию уже создал другой обработчик
+    if (isUniqueViolation(err)) {
+      log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
+      return;
+    }
+    throw err;
+  }
+}
+
 export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<void> {
   await db.transaction(async (tx) => {
-    const [activeStream] = await tx.select().from(stream_sessions)
-      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
-      .orderBy(desc(stream_sessions.id)).limit(1);
+    const state = await resolveActiveStreamSession(tx, channelId, streamId, startedAt);
+    if (state === "duplicate" || state === "adopted") return;
+    await insertStreamSession(tx, channelId, streamId, title, startedAt, categoryName, startedAt);
+  });
+}
 
-    if (activeStream) {
-      // Повторная доставка события для текущего стрима
-      if (activeStream.stream_id === streamId) {
-        log.info("duplicate stream.online ignored", { channel_id: channelId, stream_id: streamId });
-        return;
-      }
-
-      // Сессия была восстановлена через channel.update — по started_at понятно, что это тот же стрим
-      if (activeStream.stream_id === null && activeStream.started_at === startedAt) {
-        await tx.update(stream_sessions).set({ stream_id: streamId, title }).where(eq(stream_sessions.id, activeStream.id));
-        log.info("backfilled stream session adopted", { channel_id: channelId, stream_id: streamId });
-        return;
-      }
-
-      // Незакрытая сессия предыдущего стрима (stream.offline был пропущен) —
-      // закрываем молча, границей станет старт нового стрима
-      log.warn("closing stale stream session", {
-        channel_id: channelId,
-        stale_session_id: activeStream.id,
-        stale_stream_id: activeStream.stream_id,
-        new_stream_id: streamId,
-      });
-      await tx.update(stream_sessions).set({ ended_at: startedAt }).where(eq(stream_sessions.id, activeStream.id));
-      await tx.update(stream_categories).set({ ended_at: startedAt })
-        .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
-    }
-
-    try {
-      const [stream] = await tx.insert(stream_sessions).values({
-        channel_id: channelId,
-        platform: "twitch",
-        stream_id: streamId,
-        title,
-        started_at: startedAt,
-      }).returning();
-      await tx.insert(stream_categories).values({
-        stream_session_id: stream.id,
-        category_name: categoryName,
-        started_at: startedAt,
-      });
-    } catch (err) {
-      // Гонка параллельных stream.online: активную сессию уже создал другой обработчик
-      if (isUniqueViolation(err)) {
-        log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
-        return;
-      }
-      throw err;
-    }
+export async function backfillTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, streamStartedAt: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const state = await resolveActiveStreamSession(tx, channelId, streamId, streamStartedAt);
+    if (state === "duplicate" || state === "adopted") return;
+    // Историю категорий до moment восстановления мы не знаем: стрим мог идти часами
+    // в другой категории. Текущая категория достоверно известна только с этого события.
+    await insertStreamSession(tx, channelId, streamId, title, streamStartedAt, categoryName, now);
   });
 }
 export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
