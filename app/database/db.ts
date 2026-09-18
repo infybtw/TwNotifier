@@ -1,13 +1,22 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamLog, stream_logs, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, eq, sql } from "drizzle-orm";
+import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import logger from "../logger";
 
 const sqlConnect = new SQL(process.env.DATABASE_URL!)
 const db = drizzle(sqlConnect)
 
 const log = logger.getSubLogger({ name: "db" });
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// Повторная доставка Kick-вебхука приходит в течение секунд,
+// а payload без валидного started_at не даёт отличить дубликат от нового стрима
+// надёжнее, чем по свежести сессии.
+const KICK_DUPLICATE_WINDOW_MS = 60_000;
+// Разумный предел давности начала стрима: значения дальше считаем мусорными.
+const KICK_MAX_STREAM_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function getUserByUserId(user_id: number): Promise<User> {
   const [user] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
@@ -313,6 +322,21 @@ export async function setOfflineNotificationStateByUserId(user_id: number, state
   return newUserSettings
 }
 
+export async function setTitleNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ title_change_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
+export async function setCategoryNotificationStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ category_change_notification: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
+export async function setStreamMetadataStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
+  const [newUserSettings] = await db.update(users_settings).set({ stream_metadata: state }).where(eq(users_settings.user_id, user_id)).returning()
+  return newUserSettings
+}
+
 export async function setLinkPreviewStateByUserId(user_id: number, state: number): Promise<NewUserSettings> {
   const [newUserSettings] = await db.update(users_settings).set({ link_preview: state }).where(eq(users_settings.user_id, user_id)).returning()
   return newUserSettings
@@ -345,6 +369,293 @@ export async function insertStreamLog(channel_id: number, platform: string, even
     event,
     created: new Date().toISOString(),
   })
+}
+
+export interface StreamSummary {
+  durationMs: number;
+  categories: StreamCategory[];
+}
+
+type ActiveSessionResolution = "duplicate" | "adopted" | "replaced" | "outdated" | "none";
+
+async function resolveActiveStreamSession(tx: Tx, channelId: number, streamId: string, startedAt: string): Promise<ActiveSessionResolution> {
+  const [activeStream] = await tx.select().from(stream_sessions)
+    .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+    .orderBy(desc(stream_sessions.id)).limit(1);
+
+  if (!activeStream) return "none";
+
+  // Повторная доставка события для текущего стрима
+  if (activeStream.stream_id === streamId) {
+    log.info("duplicate stream.online ignored", { channel_id: channelId, stream_id: streamId });
+    return "duplicate";
+  }
+
+  // Сессия была восстановлена через channel.update — по started_at понятно, что это тот же стрим
+  if (activeStream.stream_id === null && activeStream.started_at === startedAt) {
+    await tx.update(stream_sessions).set({ stream_id: streamId }).where(eq(stream_sessions.id, activeStream.id));
+    log.info("backfilled stream session adopted", { channel_id: channelId, stream_id: streamId });
+    return "adopted";
+  }
+
+  // Запоздавший retry события СТАРОГО стрима: активная сессия новее входящей —
+  // не даём ей закрыть и подменить текущий стрим (in-memory dedup после
+  // рестарта уже не спасает)
+  if (new Date(startedAt).getTime() <= new Date(activeStream.started_at).getTime()) {
+    log.warn("outdated stream.online ignored", {
+      channel_id: channelId,
+      active_session_id: activeStream.id,
+      active_started_at: activeStream.started_at,
+      incoming_stream_id: streamId,
+      incoming_started_at: startedAt,
+    });
+    return "outdated";
+  }
+
+  // Незакрытая сессия предыдущего стрима (stream.offline был пропущен) —
+  // закрываем молча, границей станет старт нового стрима
+  log.warn("closing stale stream session", {
+    channel_id: channelId,
+    stale_session_id: activeStream.id,
+    stale_stream_id: activeStream.stream_id,
+    new_stream_id: streamId,
+  });
+  await tx.update(stream_sessions).set({ ended_at: startedAt }).where(eq(stream_sessions.id, activeStream.id));
+  await tx.update(stream_categories).set({ ended_at: startedAt })
+    .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
+  return "replaced";
+}
+
+async function insertStreamSession(tx: Tx, channelId: number, streamId: string, title: string, sessionStartedAt: string, categoryName: string, categoryStartedAt: string): Promise<boolean> {
+  // Partial unique index гарантирует одну активную сессию на канал:
+  // при гонке параллельных stream.online конфликтующий INSERT просто
+  // ничего не вставит (ON CONFLICT DO NOTHING не ломает транзакцию,
+  // в отличие от пойманного 23505, после которого tx остаётся в aborted state).
+  const [stream] = await tx.insert(stream_sessions).values({
+    channel_id: channelId,
+    platform: "twitch",
+    stream_id: streamId,
+    title,
+    started_at: sessionStartedAt,
+  }).onConflictDoNothing().returning();
+
+  if (!stream) {
+    log.warn("active stream session already exists", { channel_id: channelId, stream_id: streamId });
+    return false;
+  }
+
+  await tx.insert(stream_categories).values({
+    stream_session_id: stream.id,
+    category_name: categoryName,
+    started_at: categoryStartedAt,
+  });
+  return true;
+}
+
+export type StartStreamResult = ActiveSessionResolution | "created";
+
+export async function startTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, startedAt: string): Promise<StartStreamResult> {
+  return db.transaction(async (tx) => {
+    const state = await resolveActiveStreamSession(tx, channelId, streamId, startedAt);
+    if (state !== "none" && state !== "replaced") return state;
+    const inserted = await insertStreamSession(tx, channelId, streamId, title, startedAt, categoryName, startedAt);
+    if (!inserted) return "duplicate";
+    return state === "replaced" ? "replaced" : "created";
+  });
+}
+
+export async function backfillTwitchStream(channelId: number, streamId: string, title: string, categoryName: string, streamStartedAt: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const state = await resolveActiveStreamSession(tx, channelId, streamId, streamStartedAt);
+    if (state !== "none" && state !== "replaced") return;
+    // Историю категорий до moment восстановления мы не знаем: стрим мог идти часами
+    // в другой категории. Текущая категория достоверно известна только с этого события.
+    await insertStreamSession(tx, channelId, streamId, title, streamStartedAt, categoryName, now);
+  });
+}
+export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    const [stream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
+    if (!stream) return { titleChanged: false, categoryChanged: false, hadActiveSession: false };
+
+    const titleChanged = stream.title !== title;
+    if (titleChanged) {
+      await tx.update(stream_sessions).set({ title }).where(eq(stream_sessions.id, stream.id));
+    }
+
+    const [category] = await tx.select().from(stream_categories)
+      .where(and(eq(stream_categories.stream_session_id, stream.id), isNull(stream_categories.ended_at)))
+      .orderBy(desc(stream_categories.id)).limit(1);
+    const categoryChanged = category?.category_name !== categoryName;
+    if (categoryChanged) {
+      if (category) {
+        await tx.update(stream_categories).set({ ended_at: now }).where(eq(stream_categories.id, category.id));
+      }
+      await tx.insert(stream_categories).values({
+        stream_session_id: stream.id,
+        category_name: categoryName,
+        started_at: now,
+      });
+    }
+    return { titleChanged, categoryChanged, hadActiveSession: true };
+  });
+}
+
+export type FinishStreamResult =
+  | { outcome: "closed"; summary: StreamSummary }
+  | { outcome: "no_session" }
+  | { outcome: "stream_mismatch" };
+
+export async function finishTwitchStream(channelId: number, streamId?: string): Promise<FinishStreamResult> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    // Закрываем все незакрытые сессии канала: если накопились zombie-сессии
+    // (например, созданные до unique-инварианта), они тоже будут закрыты.
+    const activeSessions = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id))
+      .for("update");
+    if (activeSessions.length === 0) return { outcome: "no_session" };
+
+    const latest = activeSessions[0];
+
+    // stream.offline содержит id стрима: если он не совпадает с активной сессией,
+    // это запоздавший offline предыдущего стрима — текущий не трогаем
+    if (streamId && latest.stream_id && latest.stream_id !== streamId) {
+      log.warn("stream.offline for a different stream ignored", {
+        channel_id: channelId,
+        active_session_id: latest.id,
+        active_stream_id: latest.stream_id,
+        event_stream_id: streamId,
+      });
+      return { outcome: "stream_mismatch" };
+    }
+
+    const activeIds = activeSessions.map((session) => session.id);
+
+    await tx.update(stream_sessions).set({ ended_at: now }).where(inArray(stream_sessions.id, activeIds));
+    await tx.update(stream_categories).set({ ended_at: now })
+      .where(and(inArray(stream_categories.stream_session_id, activeIds), isNull(stream_categories.ended_at)));
+    const categories = await tx.select().from(stream_categories)
+      .where(eq(stream_categories.stream_session_id, latest.id)).orderBy(stream_categories.id);
+    if (activeSessions.length > 1) {
+      log.warn("closed multiple active stream sessions", { channel_id: channelId, count: activeSessions.length });
+    }
+    return {
+      outcome: "closed",
+      summary: { durationMs: new Date(now).getTime() - new Date(latest.started_at).getTime(), categories },
+    };
+  });
+}
+
+export async function startKickStream(channelId: number, title: string, startedAt?: string): Promise<boolean> {
+  const now = new Date();
+  // Kick присылает started_at в payload — тогда это реальное начало стрима.
+  // Если поля нет или оно мусорное, началом считаем момент получения вебхука.
+  const payloadStart = startedAt ? new Date(startedAt) : null;
+  const payloadStartValid = payloadStart !== null
+    && !isNaN(payloadStart.getTime())
+    && now.getTime() - payloadStart.getTime() <= KICK_MAX_STREAM_AGE_MS
+    && payloadStart.getTime() - now.getTime() <= KICK_DUPLICATE_WINDOW_MS;
+  const effectiveStart = payloadStartValid ? payloadStart!.toISOString() : now.toISOString();
+
+  return db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
+
+    if (activeStream) {
+      // Тот же стрим: status.updated приходит и при обновлении метаданных
+      // (title и др.), и при повторной доставке — обновляем title, сессию не трогаем
+      if (activeStream.started_at === effectiveStart) {
+        if (title && activeStream.title !== title) {
+          await tx.update(stream_sessions).set({ title }).where(eq(stream_sessions.id, activeStream.id));
+        }
+        log.info("kick stream session already active", { channel_id: channelId });
+        return false;
+      }
+
+      // Запоздавший is_live=true СТАРОГО стрима: входящее начало не новее
+      // активной сессии — не даём ему закрыть и подменить текущий стрим
+      if (new Date(effectiveStart).getTime() <= new Date(activeStream.started_at).getTime()) {
+        log.warn("outdated kick stream.online ignored", {
+          channel_id: channelId,
+          active_session_id: activeStream.id,
+          active_started_at: activeStream.started_at,
+          incoming_started_at: effectiveStart,
+        });
+        return false;
+      }
+
+      const activeAgeMs = now.getTime() - new Date(activeStream.started_at).getTime();
+      if (activeAgeMs < KICK_DUPLICATE_WINDOW_MS) {
+        log.info("duplicate kick stream.online ignored", { channel_id: channelId });
+        return false;
+      }
+      // Незакрытая сессия предыдущего стрима (offline был пропущен) — закрываем молча
+      log.warn("closing stale kick stream session", { channel_id: channelId, stale_session_id: activeStream.id });
+      await tx.update(stream_sessions).set({ ended_at: effectiveStart }).where(eq(stream_sessions.id, activeStream.id));
+    }
+
+    const [inserted] = await tx.insert(stream_sessions).values({
+      channel_id: channelId,
+      platform: "kick",
+      title,
+      started_at: effectiveStart,
+    }).onConflictDoNothing().returning();
+
+    if (!inserted) {
+      // Гонка параллельных вебхуков: активную сессию уже создал другой обработчик
+      log.warn("active kick stream session already exists", { channel_id: channelId });
+      return false;
+    }
+    return true;
+  });
+}
+
+export type FinishKickStreamResult =
+  | { outcome: "closed"; durationMs: number }
+  | { outcome: "no_session" }
+  | { outcome: "stream_mismatch" };
+
+export async function finishKickStream(channelId: number, expectedStartedAt?: string, endedAt?: string): Promise<FinishKickStreamResult> {
+  const now = new Date().toISOString();
+  return db.transaction(async (tx) => {
+    const [activeStream] = await tx.select().from(stream_sessions)
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "kick"), isNull(stream_sessions.ended_at)))
+      .orderBy(desc(stream_sessions.id)).limit(1)
+      .for("update");
+    if (!activeStream) return { outcome: "no_session" };
+
+    // Payload завершения стрима содержит started_at: сверяем его с активной сессией,
+    // чтобы запоздавший offline предыдущего стрима не закрыл текущий
+    const expectedStart = expectedStartedAt ? new Date(expectedStartedAt) : null;
+    if (expectedStart && !isNaN(expectedStart.getTime()) && activeStream.started_at !== expectedStart.toISOString()) {
+      log.warn("kick stream.offline for a different stream ignored", {
+        channel_id: channelId,
+        active_session_id: activeStream.id,
+        active_started_at: activeStream.started_at,
+        event_started_at: expectedStart.toISOString(),
+      });
+      return { outcome: "stream_mismatch" };
+    }
+
+    // Если Kick прислал корректный ended_at — используем его (точнее времени обработки)
+    const sessionStartMs = new Date(activeStream.started_at).getTime();
+    const payloadEnd = endedAt ? new Date(endedAt) : null;
+    const effectiveEnd = payloadEnd && !isNaN(payloadEnd.getTime()) && payloadEnd.getTime() >= sessionStartMs
+      ? payloadEnd.toISOString()
+      : now;
+
+    await tx.update(stream_sessions).set({ ended_at: effectiveEnd }).where(eq(stream_sessions.id, activeStream.id));
+    return { outcome: "closed", durationMs: new Date(effectiveEnd).getTime() - sessionStartMs };
+  });
 }
 
 export async function getRecentStreamLogs(limit: number = 10): Promise<(StreamLog & { channel_name?: string | null, follower_count?: number })[]> {

@@ -1,0 +1,1 @@
+ALTER TABLE "stream_sessions" ADD COLUMN "stream_id" text;

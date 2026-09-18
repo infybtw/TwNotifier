@@ -1,10 +1,15 @@
 import { InlineKeyboard } from "grammy";
-import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId } from "../database/db";
+import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId, StreamSummary } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
+import { formatDuration } from "../utils/time";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 function isBotBlockedError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -84,20 +89,30 @@ export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: numb
     await insertStreamLog(channel_id, "twitch", "online")
 }
 
-export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number, channel_name: string) {
+export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number, channel_name: string, summary?: StreamSummary) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
+        // Без summary (стрим не был учтён) — всегда короткое сообщение,
+        // чтобы не отправлять заглушки "Длительность: —"
+        const text = summary && userSettings?.stream_metadata === 1
+          ? t("notifications.stream_offline", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://twitch.tv/${channel_name}`)
+            .replace("{duration}", formatDuration(summary.durationMs, locale))
+            .replace("{categories}", formatCategoryHistory(summary, locale))
+          : t("notifications.stream_offline_simple", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://twitch.tv/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,
             text,
             {
-              parse_mode: "Markdown",
+              parse_mode: "HTML",
               link_preview_options: { is_disabled: linkPreviewDisabled }
             },
           );
@@ -108,6 +123,51 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
       }
     }
     await insertStreamLog(channel_id, "twitch", "offline")
+}
+
+function formatCategoryHistory(summary: StreamSummary, locale: Locale): string {
+  return summary.categories.map((category) => {
+    const end = category.ended_at ? new Date(category.ended_at).getTime() : Date.now();
+    const duration = formatDuration(end - new Date(category.started_at).getTime(), locale);
+    return `• ${escapeHtml(category.category_name)} (${duration})`;
+  }).join("\n");
+}
+
+async function sendTwitchStreamUpdateNotification(
+  channelId: number,
+  channelName: string,
+  notificationKey: "notifications.stream_title_changed" | "notifications.stream_category_changed",
+  settingsKey: "title_change_notification" | "category_change_notification",
+  value: string,
+): Promise<void> {
+  const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
+  for (const follower of followers) {
+    const settings = await getSettingsStateByUserId(follower.user_id!);
+    if (!settings || settings.is_bot_blocked !== 0) continue;
+    if (settings[settingsKey] !== 1) continue;
+    const locale = (settings.language as Locale) || "ru";
+    const text = t(notificationKey, locale)
+      .replace("{name}", escapeHtml(channelName))
+      .replace("{url}", `https://twitch.tv/${channelName}`)
+      .replace("{value}", escapeHtml(value));
+    try {
+      await bot.api.sendMessage(follower.user_id!, text, {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+      log.info("message sent", { user_id: follower.user_id, text });
+    } catch (err) {
+      await handleSendError(follower.user_id!, "twitch stream update notification", err);
+    }
+  }
+}
+
+export function sendTwitchStreamTitleChangedNotificationToUsers(channelId: number, channelName: string, title: string): Promise<void> {
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", "title_change_notification", title);
+}
+
+export function sendTwitchStreamCategoryChangedNotificationToUsers(channelId: number, channelName: string, category: string): Promise<void> {
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", "category_change_notification", category);
 }
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
@@ -144,20 +204,29 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
     await insertStreamLog(channel_id, "kick", "online")
 }
 
-export async function sendKickStreamfflineNotificationToUsers(channel_id: number, channel_name: string) {
+export async function sendKickStreamfflineNotificationToUsers(channel_id: number, channel_name: string, durationMs?: number) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "kick");
     for (const follower of followers) {
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
         const linkPreviewDisabled = userSettings?.link_preview === 0;
-        const text = t("notifications.stream_offline", locale).replace("{name}", channel_name);
+        // Категории для Kick не собираются, поэтому при включённых метаданных
+        // показываем только длительность стрима.
+        const text = userSettings?.stream_metadata === 1 && durationMs !== undefined
+          ? t("notifications.stream_offline_kick", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`)
+            .replace("{duration}", formatDuration(durationMs, locale))
+          : t("notifications.stream_offline_simple", locale)
+            .replace("{name}", escapeHtml(channel_name))
+            .replace("{url}", `https://kick.com/${channel_name}`);
         try {
           await bot.api.sendMessage(
             follower.user_id!,
             text,
             {
-              parse_mode: "Markdown",
+              parse_mode: "HTML",
               link_preview_options: { is_disabled: linkPreviewDisabled }
             },
           );

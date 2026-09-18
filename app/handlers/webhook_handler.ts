@@ -1,7 +1,9 @@
 import { sendKickStreamfflineNotificationToUsers, sendKickStreamOnlineNotificationToUsers } from "../bot/bot_sender";
+import { finishKickStream, startKickStream } from "../database/db";
 import { getKickPublicKey } from "../kickAPI/publicKey";
 import { verifyKickWebhook } from "../kickAPI/verifyWebhook";
 import logger from "../logger";
+import { beginEventMessage, completeEventMessage, releaseEventMessage } from "../twitchAPI/message_dedup";
 
 const log = logger.getSubLogger({name: "handlers:webhook_handler"})
 
@@ -53,8 +55,21 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
     return { status: 401, body: { error: "Invalid signature" } };
   }
 
-  const payload: KickWebhookPayload = JSON.parse(rawBody);
-  await processKickEvent(eventType, payload);
+  if (!beginEventMessage(messageId)) {
+    log.warn("duplicate Kick webhook skipped", { messageId, eventType });
+    return { status: 200, body: { ok: true } };
+  }
+
+  try {
+    const payload: KickWebhookPayload = JSON.parse(rawBody);
+    await processKickEvent(eventType, payload);
+  } catch (err) {
+    // Обработка не удалась — освобождаем id, чтобы повторная доставка
+    // обработалась, а не была проглочена как дубликат (ответим 500 → ретрай)
+    releaseEventMessage(messageId);
+    throw err;
+  }
+  completeEventMessage(messageId);
 
   return { status: 200, body: { ok: true } };
 }
@@ -66,12 +81,32 @@ async function processKickEvent(eventType: string, payload: KickWebhookPayload) 
         payload
       })
       switch (payload.is_live) {
-        case true:
-          await sendKickStreamOnlineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, payload.title)
+        case true: {
+          // Уведомление только когда сессия реально новая: status.updated
+          // приходит и при обновлении метаданных уже идущего стрима.
+          const isNewStream = await startKickStream(payload.broadcaster.user_id, payload.title, payload.started_at)
+          if (isNewStream) {
+            await sendKickStreamOnlineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug, payload.title)
+          }
           break
-        case false:
-          await sendKickStreamfflineNotificationToUsers(payload.broadcaster.user_id, payload.broadcaster.channel_slug)
+        }
+        case false: {
+          const finishResult = await finishKickStream(payload.broadcaster.user_id, payload.started_at, payload.ended_at)
+          if (finishResult.outcome === "stream_mismatch") break
+          if (finishResult.outcome === "no_session") {
+            // Стрим не был учтён (например, бот перезапущен во время стрима) —
+            // уведомляем без метаданных
+            log.info("no active kick stream session for offline, sending plain notification", {
+              channel_id: payload.broadcaster.user_id,
+            })
+          }
+          await sendKickStreamfflineNotificationToUsers(
+            payload.broadcaster.user_id,
+            payload.broadcaster.channel_slug,
+            finishResult.outcome === "closed" ? finishResult.durationMs : undefined,
+          )
           break
+        }
         default:
           break
       }

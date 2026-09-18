@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, TWITCH_HELIX } from "../config";
 import { onNotification, onSessionWelcome } from "../handlers/ws_handler";
 import logger from "../logger";
+import { beginEventMessage, completeEventMessage, releaseEventMessage } from "./message_dedup";
 
 const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
@@ -114,9 +115,25 @@ function connect(
             });
             break;
           }
-          case "notification":
-            await onNotification(msg.payload);
+          case "notification": {
+            const messageId = msg.metadata?.message_id;
+            if (!beginEventMessage(messageId)) {
+              log.warn("duplicate notification skipped", {
+                message_id: messageId,
+                subscription_type: msg.payload?.subscription?.type,
+              });
+              break;
+            }
+            try {
+              await onNotification(msg.payload);
+            } catch (err) {
+              // Обработка не удалась — освобождаем id для повторной доставки
+              releaseEventMessage(messageId);
+              throw err;
+            }
+            completeEventMessage(messageId);
             break;
+          }
           case "revocation":
             console.warn("Subscription revoked: ", msg.payload?.subscription?.type);
         }

@@ -4,12 +4,14 @@ import {
   integer,
   pgTable,
   text,
+  uniqueIndex,
   varchar,
   bigint,
   primaryKey,
   serial,
   pgEnum
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 
 export const channels = pgTable("channels", {
@@ -46,6 +48,9 @@ export const users_settings = pgTable("users_settings", {
   user_id: bigint({mode: "number"}).primaryKey().references(() => users.user_id),
   online_notification: integer().default(1),
   offline_notification: integer().default(1),
+  title_change_notification: integer().default(1),
+  category_change_notification: integer().default(1),
+  stream_metadata: integer().default(1),
   link_preview: integer().default(1),
   language: varchar({ length: 5 }).default("ru"),
   is_bot_blocked: integer().default(0).notNull()
@@ -85,3 +90,29 @@ export const stream_logs = pgTable("stream_logs", {
 
 export type StreamLog = typeof stream_logs.$inferSelect
 export type NewStreamLog = typeof stream_logs.$inferInsert
+
+export const stream_sessions = pgTable("stream_sessions", {
+  id: serial("id").primaryKey(),
+  channel_id: bigint({ mode: "number" }).references(() => channels.channel_id).notNull(),
+  platform: varchar({ length: 16 }).notNull(),
+  stream_id: text(),
+  title: text(),
+  started_at: text().notNull(),
+  ended_at: text(),
+}, (table) => [
+  uniqueIndex("stream_sessions_one_active_per_channel")
+    .on(table.channel_id, table.platform)
+    .where(sql`${table.ended_at} IS NULL`),
+])
+
+export type StreamSession = typeof stream_sessions.$inferSelect
+
+export const stream_categories = pgTable("stream_categories", {
+  id: serial("id").primaryKey(),
+  stream_session_id: integer().references(() => stream_sessions.id).notNull(),
+  category_name: text().notNull(),
+  started_at: text().notNull(),
+  ended_at: text(),
+})
+
+export type StreamCategory = typeof stream_categories.$inferSelect

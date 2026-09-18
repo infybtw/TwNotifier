@@ -62,14 +62,16 @@ import {
   getEventSubList,
   subscribeAllStreamsOffline,
   subscribeAllStreamsOnline,
+  subscribeAllChannelUpdates,
   subscribeToChannelOffline,
   subscribeToChannelOnline,
+  subscribeToChannelUpdate,
 } from "../twitchAPI/subscriptions";
 import { getStreamsByUserIds } from "../twitchAPI/users";
 import { getKickChannelsOnline } from "../kickAPI/users";
 import logger from "../logger";
 import { MyContext } from "./bot";
-import { toggleLinkPreviewStateByUserId, toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId } from "../utils/settings";
+import { toggleCategoryNotificationStateByUserId, toggleLinkPreviewStateByUserId, toggleOfflineNotificationStateByUserId, toggleOnlineNotificationStateByUserId, toggleStreamMetadataStateByUserId, toggleTitleNotificationStateByUserId } from "../utils/settings";
 import { randomBytes } from "node:crypto";
 import { sleep } from "bun";
 import { deleteKickSubscription, deleteKickSubscriptions, getKickSubscriptions, subscribeToKickChannelOnline, subscribeToKickChannelsOnline } from "../kickAPI/subscription";
@@ -402,6 +404,45 @@ router.callbackQuery("toggleLinkPreviewCMD", async (ctx) => {
   });
 });
 
+router.callbackQuery("toggleTitleNotificationCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleTitleNotificationStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "titleChangeNotification",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleCategoryNotificationCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleCategoryNotificationStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "categoryChangeNotification",
+    new_state: newState,
+  });
+});
+
+router.callbackQuery("toggleStreamMetadataCMD", async (ctx) => {
+  const locale = await getUserLocale(ctx.from.id);
+  const newState = await toggleStreamMetadataStateByUserId(ctx.from.id);
+  await ctx.editMessageReplyMarkup({
+    reply_markup: await buildSettingsKeyboard(ctx.from.id, locale),
+  });
+  log.info("settings changed", {
+    user_id: ctx.from.id,
+    setting: "streamMetadata",
+    new_state: newState,
+  });
+});
+
 router.callbackQuery("confirm_add", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
   if (!ctx.session.pendingAdd) {
@@ -421,6 +462,7 @@ router.callbackQuery("confirm_add", async (ctx) => {
 
   let subOnlineResCode = 100000
   let subOfflineResCode = 100000
+  let subUpdateResCode = 100000
 
   if (platform === "twitch") {
     subOnlineResCode = await subscribeToChannelOnline(
@@ -431,6 +473,10 @@ router.callbackQuery("confirm_add", async (ctx) => {
       channelId,
       displayName || channelName,
     );
+    subUpdateResCode = await subscribeToChannelUpdate(
+      channelId,
+      displayName || channelName,
+    );
   } else if (platform === "kick") {
     await subscribeToKickChannelOnline(channelId)
     subOnlineResCode = 200
@@ -438,8 +484,8 @@ router.callbackQuery("confirm_add", async (ctx) => {
   }
 
 
-  if (subOnlineResCode < 0) {
-    log.error("subscribe error", { subResponseCode: subOnlineResCode });
+  if (subOnlineResCode < 0 || subOfflineResCode < 0 || subUpdateResCode < 0) {
+    log.error("subscribe error", { subOnlineResCode, subOfflineResCode, subUpdateResCode });
     await ctx.editMessageText(
       t("add.error", locale),
       { parse_mode: "HTML" },
@@ -896,6 +942,7 @@ router.callbackQuery("admin_eventsubreload_confirm", async (ctx) => {
     await sleep(2500);
     await subscribeAllStreamsOnline(onProgress);
     await subscribeAllStreamsOffline(onProgress);
+    await subscribeAllChannelUpdates(onProgress);
     const newSubs = await getEventSubList();
     log.warn(`${ctx.from.id} reloaded EventSub`, { before: subs.length, after: newSubs.length });
     const summary = completedPhases.map(p => `${p} ✓`).join("\n");
