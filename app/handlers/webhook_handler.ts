@@ -3,7 +3,7 @@ import { finishKickStream, startKickStream } from "../database/db";
 import { getKickPublicKey } from "../kickAPI/publicKey";
 import { verifyKickWebhook } from "../kickAPI/verifyWebhook";
 import logger from "../logger";
-import { isDuplicateEventMessage } from "../twitchAPI/message_dedup";
+import { beginEventMessage, completeEventMessage, releaseEventMessage } from "../twitchAPI/message_dedup";
 
 const log = logger.getSubLogger({name: "handlers:webhook_handler"})
 
@@ -55,13 +55,21 @@ export async function handleKickWebhook({rawBody,headers}: HandleKickWebhookPara
     return { status: 401, body: { error: "Invalid signature" } };
   }
 
-  if (isDuplicateEventMessage(messageId)) {
+  if (!beginEventMessage(messageId)) {
     log.warn("duplicate Kick webhook skipped", { messageId, eventType });
     return { status: 200, body: { ok: true } };
   }
 
-  const payload: KickWebhookPayload = JSON.parse(rawBody);
-  await processKickEvent(eventType, payload);
+  try {
+    const payload: KickWebhookPayload = JSON.parse(rawBody);
+    await processKickEvent(eventType, payload);
+  } catch (err) {
+    // Обработка не удалась — освобождаем id, чтобы повторная доставка
+    // обработалась, а не была проглочена как дубликат (ответим 500 → ретрай)
+    releaseEventMessage(messageId);
+    throw err;
+  }
+  completeEventMessage(messageId);
 
   return { status: 200, body: { ok: true } };
 }
