@@ -1,6 +1,7 @@
 import { TWITCH_WEBHOOK_SECRET } from "../config";
 import { onNotification } from "../handlers/ws_handler";
 import logger from "../logger";
+import { isDuplicateEventMessage } from "./message_dedup";
 import { verifyTwitchWebhook } from "./verifyWebhook";
 
 const log = logger.getSubLogger({ name: "twitchAPI:webhook_handler" });
@@ -54,6 +55,13 @@ export async function handleTwitchWebhook({
 
     case "notification": {
       const payload = JSON.parse(rawBody);
+      if (isDuplicateEventMessage(messageId)) {
+        log.warn("Duplicate Twitch webhook notification skipped", {
+          messageId,
+          subscriptionType: payload.subscription?.type,
+        });
+        return { status: 200, body: "" };
+      }
       log.info("Twitch webhook notification", {
         subscriptionType: payload.subscription?.type,
       });

@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, TWITCH_HELIX } from "../config";
 import { onNotification, onSessionWelcome } from "../handlers/ws_handler";
 import logger from "../logger";
+import { isDuplicateEventMessage } from "./message_dedup";
 
 const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
@@ -115,6 +116,13 @@ function connect(
             break;
           }
           case "notification":
+            if (isDuplicateEventMessage(msg.metadata?.message_id)) {
+              log.warn("duplicate notification skipped", {
+                message_id: msg.metadata?.message_id,
+                subscription_type: msg.payload?.subscription?.type,
+              });
+              break;
+            }
             await onNotification(msg.payload);
             break;
           case "revocation":
