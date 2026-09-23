@@ -39,6 +39,7 @@ export async function onNotification(payload: any) {
           Number(payload.event.broadcaster_user_id),
           payload.event.broadcaster_user_name,
           streamData,
+          String(payload.event.id),
         );
       }
       break;

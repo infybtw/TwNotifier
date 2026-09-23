@@ -36,7 +36,7 @@
   "settings.title_change": "Смена названия ",
   "settings.category_change": "Смена категории ",
   "settings.stream_metadata": "Метаданные стрима ",
-  "settings.link_preview": "Превью ссылок ",
+  "settings.link_preview": "Превью трансляции ",
   "info.title": "ℹ️ <b>О боте</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
   "info.about": "<b>TwNotifier</b> — бот для отслеживания стримов\n\n",
   "info.platforms": "📺 <b>Платформы:</b>\n🟣 Twitch\n🟢 Kick\n\n",

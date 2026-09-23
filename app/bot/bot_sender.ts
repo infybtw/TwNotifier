@@ -2,7 +2,9 @@ import { InlineKeyboard } from "grammy";
 import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId, StreamSummary } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
+import type { UserSettings } from "../database/schema";
 import { formatDuration } from "../utils/time";
+import { getStreamPreviewUrl, waitForStreamPreview } from "../twitchAPI/users";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
@@ -51,42 +53,77 @@ export async function notifyAdminsAndExit(stepName: string, error: unknown): Pro
   process.exit(1);
 }
 
-export async function sendTwitchStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, data: JSON) {
-    const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "twitch");
-    for (const follower of followers) {
-      const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.online_notification === 1 && userSettings.is_bot_blocked === 0) {
-        const locale = (userSettings?.language as Locale) || "ru";
-        const linkPreviewDisabled = userSettings?.link_preview === 0;
-        //@ts-ignore
-        const text = t("notifications.stream_online", locale)
-          .replace("{name}", escapeHtml(channel_name))
-          .replace("{url}", `https://twitch.tv/${channel_name}`)
-          //@ts-ignore
-          .replace("{title}", escapeHtml(data.title))
-          //@ts-ignore
-          .replace("{game}", escapeHtml(data.game_name));
-        const keyboard = new InlineKeyboard().url(
-          t("platform.twitch", locale),
-          `https://twitch.tv/${channel_name}`
-        );
-        try {
-          await bot.api.sendMessage(
-            follower.user_id!,
-            text,
-            {
-              parse_mode: "HTML",
-              link_preview_options: { is_disabled: linkPreviewDisabled },
-              reply_markup: keyboard
-            },
-          );
-          log.info("message sent", { user_id: follower.user_id, text });
-        } catch (err) {
-          await handleSendError(follower.user_id!, "twitch online notification", err);
-        }
-      }
+export async function sendTwitchStreamOnlineNotificationToUsers(
+  channelId: number,
+  channelName: string,
+  data: { title?: string; game_name?: string } | null,
+  streamId: string,
+) {
+  const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
+  const recipients: { userId: number; settings: UserSettings }[] = [];
+
+  for (const follower of followers) {
+    const settings = await getSettingsStateByUserId(follower.user_id!);
+    if (settings?.online_notification === 1 && settings.is_bot_blocked === 0) {
+      recipients.push({ userId: follower.user_id!, settings });
     }
-    await insertStreamLog(channel_id, "twitch", "online")
+  }
+
+  const sendNotification = async (
+    userId: number,
+    settings: UserSettings,
+    previewUrl?: string,
+  ): Promise<void> => {
+    const locale = (settings.language as Locale) || "ru";
+    const streamUrl = `https://twitch.tv/${channelName}`;
+    const text = t("notifications.stream_online", locale)
+      .replace("{name}", escapeHtml(channelName))
+      .replace("{url}", streamUrl)
+      .replace("{title}", escapeHtml(data?.title ?? ""))
+      .replace("{game}", escapeHtml(data?.game_name ?? ""));
+    const keyboard = new InlineKeyboard().url(t("platform.twitch", locale), streamUrl);
+
+    try {
+      if (previewUrl) {
+        // Generate the URL immediately before sending so every Telegram request
+        // has a fresh cache-busting timestamp.
+        await bot.api.sendPhoto(userId, getStreamPreviewUrl(previewUrl), {
+          caption: text,
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        });
+      } else {
+        await bot.api.sendMessage(userId, text, {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+          reply_markup: keyboard,
+        });
+      }
+      log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+    } catch (err) {
+      await handleSendError(userId, "twitch online notification", err);
+    }
+  };
+
+  const previewRecipients = recipients.filter(({ settings }) => settings.link_preview === 1);
+  const plainRecipients = recipients.filter(({ settings }) => settings.link_preview !== 1);
+
+  await Promise.all([
+    (async () => {
+      for (const recipient of plainRecipients) {
+        await sendNotification(recipient.userId, recipient.settings);
+      }
+    })(),
+    (async () => {
+      if (previewRecipients.length === 0) return;
+      const previewUrl = await waitForStreamPreview(channelId, streamId);
+      for (const recipient of previewRecipients) {
+        await sendNotification(recipient.userId, recipient.settings, previewUrl ?? undefined);
+      }
+    })(),
+  ]);
+
+  await insertStreamLog(channelId, "twitch", "online");
 }
 
 export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: number, channel_name: string, summary?: StreamSummary) {
@@ -95,7 +132,6 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
-        const linkPreviewDisabled = userSettings?.link_preview === 0;
         // Без summary (стрим не был учтён) — всегда короткое сообщение,
         // чтобы не отправлять заглушки "Длительность: —"
         const text = summary && userSettings?.stream_metadata === 1
@@ -113,7 +149,7 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
             text,
             {
               parse_mode: "HTML",
-              link_preview_options: { is_disabled: linkPreviewDisabled }
+              link_preview_options: { is_disabled: true }
             },
           );
           log.info("message sent", { user_id: follower.user_id, text });
@@ -176,7 +212,6 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.online_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
-        const linkPreviewDisabled = userSettings?.link_preview === 0;
         const text = t("notifications.stream_online_kick", locale)
           .replace("{name}", escapeHtml(channel_name))
           .replace("{url}", `https://kick.com/${channel_name}`)
@@ -191,7 +226,7 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
             text,
             {
               parse_mode: "HTML",
-              link_preview_options: { is_disabled: linkPreviewDisabled },
+              link_preview_options: { is_disabled: true },
               reply_markup: keyboard
             },
           );
@@ -210,7 +245,6 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
-        const linkPreviewDisabled = userSettings?.link_preview === 0;
         // Категории для Kick не собираются, поэтому при включённых метаданных
         // показываем только длительность стрима.
         const text = userSettings?.stream_metadata === 1 && durationMs !== undefined
@@ -227,7 +261,7 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
             text,
             {
               parse_mode: "HTML",
-              link_preview_options: { is_disabled: linkPreviewDisabled }
+              link_preview_options: { is_disabled: true }
             },
           );
           log.info("message sent", { user_id: follower.user_id, text });
