@@ -36,7 +36,7 @@
   "settings.title_change": "Title change ",
   "settings.category_change": "Category change ",
   "settings.stream_metadata": "Stream metadata ",
-  "settings.link_preview": "Link preview ",
+  "settings.link_preview": "Stream preview ",
   "info.title": "ℹ️ <b>About</b>\n━━━━━━━━━━━━━━━━━━━━\n\n",
   "info.about": "<b>TwNotifier</b> — bot for tracking streams\n\n",
   "info.platforms": "📺 <b>Platforms:</b>\n🟣 Twitch\n🟢 Kick\n\n",

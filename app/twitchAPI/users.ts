@@ -1,4 +1,5 @@
 import { APP_TOKEN, CLIENT_ID, TWITCH_HELIX } from "../config";
+import { sleep } from "bun";
 import logger from "../logger";
 import { TwitchUser } from "../models/twitch_user";
 
@@ -56,6 +57,63 @@ export interface TwitchStream {
   started_at: string;
   language: string;
   is_mature: boolean;
+  thumbnail_url?: string;
+}
+
+const STREAM_PREVIEW_WIDTH = 1280;
+const STREAM_PREVIEW_HEIGHT = 720;
+const STREAM_PREVIEW_RETRY_MS = 5_000;
+
+export function getStreamPreviewUrl(thumbnailUrl: string, timestamp = Date.now()): string {
+  const url = new URL(
+    thumbnailUrl
+      .replace("{width}", String(STREAM_PREVIEW_WIDTH))
+      .replace("{height}", String(STREAM_PREVIEW_HEIGHT)),
+  );
+  // Twitch updates the image at the same URL. A unique query parameter keeps
+  // Telegram from reusing a previously cached stream frame.
+  url.searchParams.set("t", String(timestamp));
+  return url.toString();
+}
+
+async function isStreamPreviewAvailable(thumbnailUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(getStreamPreviewUrl(thumbnailUrl), {
+      method: "HEAD",
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch (error) {
+    log.warn("stream preview availability check failed", { error });
+    return false;
+  }
+}
+
+/**
+ * Waits for Twitch to generate the stream thumbnail. If the stream ends (or a
+ * newer stream starts) before that happens, no preview is returned.
+ */
+export async function waitForStreamPreview(userId: number, streamId: string): Promise<string | null> {
+  while (true) {
+    let stream: TwitchStream | undefined;
+    try {
+      [stream] = await getStreamsByUserIds([userId]);
+    } catch (error) {
+      log.warn("failed to fetch stream while waiting for preview", { user_id: userId, stream_id: streamId, error });
+      await sleep(STREAM_PREVIEW_RETRY_MS);
+      continue;
+    }
+    if (!stream || stream.id !== streamId) {
+      log.info("stream ended before preview became available", { user_id: userId, stream_id: streamId });
+      return null;
+    }
+
+    if (stream.thumbnail_url && await isStreamPreviewAvailable(stream.thumbnail_url)) {
+      return stream.thumbnail_url;
+    }
+
+    await sleep(STREAM_PREVIEW_RETRY_MS);
+  }
 }
 
 export async function getStreamsByUserIds(userIds: number[]): Promise<TwitchStream[]> {

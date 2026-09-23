@@ -48,6 +48,18 @@ export type MyContext = Context & SessionFlavor<SessionData>;
 
 export const botInstance = new Bot<MyContext>(BOT_TOKEN);
 
+// Link cards are never used by the bot. Twitch's live notification uses an
+// explicit stream screenshot instead; all other URLs remain plain links.
+botInstance.api.config.use((prev, method, payload, signal) => {
+  if (method === "sendMessage" || method === "editMessageText") {
+    return prev(method, {
+      ...payload,
+      link_preview_options: { is_disabled: true },
+    } as typeof payload, signal);
+  }
+  return prev(method, payload, signal);
+});
+
 botInstance.use(session({
   initial: (): SessionData => ({}),
 }));
