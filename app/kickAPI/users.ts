@@ -39,7 +39,10 @@ export async function getKickChannelsOnline(usernames: string[]): Promise<KickOn
   return results.filter((r): r is KickOnlineChannel => r !== null);
 }
 
-export async function getKickChannelByUsername(username: string): Promise<KickChannelResponse> {
+export async function getKickChannelByUsername(username: string, attempt = 0): Promise<KickChannelResponse> {
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 2_000;
+
   const url = new URL(`${KICK_API}/public/v1/channels`)
   url.searchParams.set("slug", username)
 
@@ -54,22 +57,29 @@ export async function getKickChannelByUsername(username: string): Promise<KickCh
 
   if (res.status === 200) {
     return data;
-  } else if (res.status === 401) {
-    log.warn("request failed: unauthorized", {
-      status: res.status,
-      username: username,
-    })
-    await getKickAppToken()
-    await sleep(10000)
-    return getKickChannelByUsername(username)
-  } else {
-    log.warn("request failed: forbidden" ,{
-      status: res.status,
-      username: username,
-    })
-    await sleep(10000)
-    return getKickChannelByUsername(username)
   }
+
+  // Bad request / not found: the slug is invalid or no such channel exists.
+  // Do not retry, otherwise a malformed name causes an endless request loop.
+  if (res.status === 400 || res.status === 404) {
+    log.info("channel not found", { status: res.status, username });
+    return { data: [], message: data?.message ?? "not found" };
+  }
+
+  if (attempt >= MAX_ATTEMPTS) {
+    log.error("request failed, giving up", { status: res.status, username, attempt });
+    return { data: [], message: data?.message ?? "request failed" };
+  }
+
+  if (res.status === 401) {
+    log.warn("request failed: unauthorized", { status: res.status, username, attempt });
+    await getKickAppToken();
+  } else {
+    log.warn("request failed, retrying", { status: res.status, username, attempt });
+  }
+
+  await sleep(RETRY_DELAY_MS);
+  return getKickChannelByUsername(username, attempt + 1);
 }
 
 export function getKickStreamPreviewUrl(thumbnailUrl: string, timestamp = Date.now()): string {

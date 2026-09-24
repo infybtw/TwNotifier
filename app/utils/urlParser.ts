@@ -12,6 +12,11 @@ export function extractPlatformFromUrl(urlOrUsername: string): UrlPlatform | nul
     return null;
   }
 
+  // URLs never contain whitespace (guards against full command lines)
+  if (/\s/.test(trimmed)) {
+    return null;
+  }
+
   try {
     const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
 
@@ -39,7 +44,13 @@ export function extractUsernameFromTwitchUrl(urlOrUsername: string): string | nu
 
   // If it's already a username (no URL), return as is
   if (!trimmed.includes('/') && !trimmed.includes('.')) {
-    return trimmed;
+    // A channel name only contains letters, digits and underscores
+    return /^[a-zA-Z0-9_]+$/.test(trimmed) ? trimmed : null;
+  }
+
+  // URLs never contain whitespace, so a full command line is not a valid input
+  if (/\s/.test(trimmed)) {
+    return null;
   }
 
   try {
@@ -68,7 +79,6 @@ export function extractUsernameFromTwitchUrl(urlOrUsername: string): string | nu
 
     return null;
   } catch {
-    // If URL parsing fails, treat it as a username
-    return trimmed;
+    return null;
   }
 }
