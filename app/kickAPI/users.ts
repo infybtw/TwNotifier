@@ -5,6 +5,8 @@ import { getKickAppToken } from "./auth"
 
 const log = logger.getSubLogger({ name: "kickAPI:users"})
 
+const STREAM_PREVIEW_RETRY_MS = 5_000;
+
 
 export interface KickOnlineChannel {
   slug: string;
@@ -67,5 +69,49 @@ export async function getKickChannelByUsername(username: string): Promise<KickCh
     })
     await sleep(10000)
     return getKickChannelByUsername(username)
+  }
+}
+
+export function getKickStreamPreviewUrl(thumbnailUrl: string, timestamp = Date.now()): string {
+  const url = new URL(thumbnailUrl);
+  // Kick updates the preview at the same URL. Prevent Telegram from reusing a
+  // cached frame from an earlier notification.
+  url.searchParams.set("t", String(timestamp));
+  return url.toString();
+}
+
+async function isKickStreamPreviewAvailable(thumbnailUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(getKickStreamPreviewUrl(thumbnailUrl), {
+      method: "HEAD",
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch (error) {
+    log.warn("stream preview availability check failed", { error });
+    return false;
+  }
+}
+
+/** Waits for Kick to generate a preview, unless the stream has ended first. */
+export async function waitForKickStreamPreview(channelName: string): Promise<string | null> {
+  while (true) {
+    try {
+      const channel = (await getKickChannelByUsername(channelName)).data?.[0];
+      const stream = channel?.stream;
+
+      if (!stream?.is_live) {
+        log.info("stream ended before preview became available", { channel_name: channelName });
+        return null;
+      }
+
+      if (stream.thumbnail && await isKickStreamPreviewAvailable(stream.thumbnail)) {
+        return stream.thumbnail;
+      }
+    } catch (error) {
+      log.warn("failed to fetch stream while waiting for preview", { channel_name: channelName, error });
+    }
+
+    await sleep(STREAM_PREVIEW_RETRY_MS);
   }
 }

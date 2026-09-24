@@ -5,6 +5,7 @@ import logger from "../logger";
 import type { UserSettings } from "../database/schema";
 import { formatDuration } from "../utils/time";
 import { getStreamPreviewUrl, waitForStreamPreview } from "../twitchAPI/users";
+import { getKickStreamPreviewUrl, waitForKickStreamPreview } from "../kickAPI/users";
 import { botInstance as bot } from "./bot";
 
 const log = logger.getSubLogger({ name: "bot:sender" });
@@ -208,34 +209,66 @@ export function sendTwitchStreamCategoryChangedNotificationToUsers(channelId: nu
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
     const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, "kick");
+    const recipients: { userId: number; settings: UserSettings }[] = [];
+
     for (const follower of followers) {
-      const userSettings = await getSettingsStateByUserId(follower.user_id!);
-      if (userSettings?.online_notification === 1 && userSettings.is_bot_blocked === 0) {
-        const locale = (userSettings?.language as Locale) || "ru";
-        const text = t("notifications.stream_online_kick", locale)
-          .replace("{name}", escapeHtml(channel_name))
-          .replace("{url}", `https://kick.com/${channel_name}`)
-          .replace("{title}", escapeHtml(title));
-        const keyboard = new InlineKeyboard().url(
-          t("platform.kick", locale),
-          `https://kick.com/${channel_name}`
-        );
-        try {
-          await bot.api.sendMessage(
-            follower.user_id!,
-            text,
-            {
-              parse_mode: "HTML",
-              link_preview_options: { is_disabled: true },
-              reply_markup: keyboard
-            },
-          );
-          log.info("message sent", { user_id: follower.user_id, text });
-        } catch (err) {
-          await handleSendError(follower.user_id!, "kick online notification", err);
-        }
+      const settings = await getSettingsStateByUserId(follower.user_id!);
+      if (settings?.online_notification === 1 && settings.is_bot_blocked === 0) {
+        recipients.push({ userId: follower.user_id!, settings });
       }
     }
+
+    const sendNotification = async (
+      userId: number,
+      settings: UserSettings,
+      previewUrl?: string,
+    ): Promise<void> => {
+      const locale = (settings.language as Locale) || "ru";
+      const streamUrl = `https://kick.com/${channel_name}`;
+      const text = t("notifications.stream_online_kick", locale)
+        .replace("{name}", escapeHtml(channel_name))
+        .replace("{url}", streamUrl)
+        .replace("{title}", escapeHtml(title));
+      const keyboard = new InlineKeyboard().url(t("platform.kick", locale), streamUrl);
+
+      try {
+        if (previewUrl) {
+          await bot.api.sendPhoto(userId, getKickStreamPreviewUrl(previewUrl), {
+            caption: text,
+            parse_mode: "HTML",
+            reply_markup: keyboard,
+          });
+        } else {
+          await bot.api.sendMessage(userId, text, {
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+            reply_markup: keyboard,
+          });
+        }
+        log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+      } catch (err) {
+        await handleSendError(userId, "kick online notification", err);
+      }
+    };
+
+    const previewRecipients = recipients.filter(({ settings }) => settings.link_preview === 1);
+    const plainRecipients = recipients.filter(({ settings }) => settings.link_preview !== 1);
+
+    await Promise.all([
+      (async () => {
+        for (const recipient of plainRecipients) {
+          await sendNotification(recipient.userId, recipient.settings);
+        }
+      })(),
+      (async () => {
+        if (previewRecipients.length === 0) return;
+        const previewUrl = await waitForKickStreamPreview(channel_name);
+        for (const recipient of previewRecipients) {
+          await sendNotification(recipient.userId, recipient.settings, previewUrl ?? undefined);
+        }
+      })(),
+    ]);
+
     await insertStreamLog(channel_id, "kick", "online")
 }
 
