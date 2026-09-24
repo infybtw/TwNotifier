@@ -1,3 +1,34 @@
+export type UrlPlatform = "twitch" | "kick";
+
+/**
+ * Detects which platform a URL belongs to.
+ * Returns null when the input is a bare username or an unsupported URL.
+ */
+export function extractPlatformFromUrl(urlOrUsername: string): UrlPlatform | null {
+  const trimmed = urlOrUsername.trim();
+
+  // A bare username carries no platform information
+  if (trimmed.length === 0 || (!trimmed.includes('/') && !trimmed.includes('.'))) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+
+    if (url.hostname.includes('twitch.tv')) {
+      return "twitch";
+    }
+
+    if (url.hostname.includes('kick.com')) {
+      return "kick";
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function extractUsernameFromTwitchUrl(urlOrUsername: string): string | null {
   const trimmed = urlOrUsername.trim();
 

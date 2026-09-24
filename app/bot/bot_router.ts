@@ -26,7 +26,7 @@ import {
   buildMySubscriptionsAddBackKeyboard,
 } from "./keyboards";
 import { buildMySubscriptionsView } from "./my_subscriptions";
-import { extractUsernameFromTwitchUrl } from "../utils/urlParser";
+import { extractPlatformFromUrl, extractUsernameFromTwitchUrl } from "../utils/urlParser";
 import { MyContext } from "./bot";
 import { getKickChannelByUsername } from "../kickAPI/users";
 import { Channel, UserFollow } from "../database/schema";
@@ -131,13 +131,18 @@ router.command("add", async (ctx) => {
   }
 
   const channel_name_lower = extractedUsername.toLowerCase();
+  const urlPlatform = extractPlatformFromUrl(input);
   const twitchChannel = await getUserByLogin(channel_name_lower);
   const kickChannel = await getKickChannelByUsername(channel_name_lower);
-  if (!(twitchChannel || kickChannel)) {
+  if (!(twitchChannel || kickChannel.data[0])) {
     return ctx.reply(t("commands.channel_not_found", locale));
   }
 
-  if (kickChannel.data[0] && twitchChannel) {
+  // If the user provided a platform-specific URL, honor it and skip the selection prompt.
+  const kickAvailable = !!kickChannel.data[0] && urlPlatform !== "twitch";
+  const twitchAvailable = !!twitchChannel && urlPlatform !== "kick";
+
+  if (kickAvailable && twitchAvailable) {
     ctx.session.pendingPlatformSelect = {
       kickData: kickChannel,
       twitchData: twitchChannel,
@@ -149,8 +154,7 @@ router.command("add", async (ctx) => {
 
     return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
   }
-  let platform = ""
-  if (kickChannel.data[0]) {
+  if (kickAvailable) {
     const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
     const display_name = kickChannel.data[0].slug;
 
@@ -183,7 +187,7 @@ router.command("add", async (ctx) => {
     return await ctx.reply(previewMessage, {
       reply_markup: buildAddConfirmationKeyboard(locale),
     });
-  } else if (twitchChannel) {
+  } else if (twitchAvailable) {
       const channel_id = Number(twitchChannel!.id);
       const display_name = twitchChannel!.display_name;
 
@@ -239,6 +243,7 @@ router.command("remove", async (ctx) => {
   }
 
   const channel_name_lower = extractedUsername.toLowerCase();
+  const urlPlatform = extractPlatformFromUrl(input);
   const usernameChannels = await getChannelsByUsername(channel_name_lower)
 
   const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
@@ -255,7 +260,16 @@ router.command("remove", async (ctx) => {
   let follow: UserFollow
   let channel: Channel
 
-  if (kickFollow && twitchFollow) {
+  if (urlPlatform === "kick" && kickFollow) {
+    follow = kickFollow
+    channel = kickChannel!
+  } else if (urlPlatform === "twitch" && twitchFollow) {
+    follow = twitchFollow
+    channel = twitchChannel!
+  } else if (urlPlatform) {
+    // The URL pointed at a platform the user does not follow
+    return ctx.reply(t("commands.not_following", locale))
+  } else if (kickFollow && twitchFollow) {
     bothFollow = true
   } else if (kickFollow || twitchFollow){
     if (kickFollow) {
@@ -381,13 +395,18 @@ router.on("message", async (ctx, next) => {
     }
 
     const channel_name_lower = extractedUsername.toLowerCase();
+    const urlPlatform = extractPlatformFromUrl(input);
     const twitchChannel = await getUserByLogin(channel_name_lower);
     const kickChannel = await getKickChannelByUsername(channel_name_lower);
-    if (!(twitchChannel || kickChannel)) {
+    if (!(twitchChannel || kickChannel.data[0])) {
       return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
     }
 
-    if (kickChannel.data[0] && twitchChannel) {
+    // If the user provided a platform-specific URL, honor it and skip the selection prompt.
+    const kickAvailable = !!kickChannel.data[0] && urlPlatform !== "twitch";
+    const twitchAvailable = !!twitchChannel && urlPlatform !== "kick";
+
+    if (kickAvailable && twitchAvailable) {
       ctx.session.pendingPlatformSelect = {
         kickData: kickChannel,
         twitchData: twitchChannel,
@@ -400,7 +419,7 @@ router.on("message", async (ctx, next) => {
       return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
     }
 
-    if (kickChannel.data[0]) {
+    if (kickAvailable) {
       const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
       const display_name = kickChannel.data[0].slug;
 
@@ -433,7 +452,7 @@ router.on("message", async (ctx, next) => {
       return await ctx.reply(previewMessage, {
         reply_markup: buildAddConfirmationKeyboard(locale),
       });
-    } else if (twitchChannel) {
+    } else if (twitchAvailable) {
       const channel_id = Number(twitchChannel!.id);
       const display_name = twitchChannel!.display_name;
 
@@ -489,6 +508,7 @@ router.on("message", async (ctx, next) => {
     }
 
     const channel_name_lower = extractedUsername.toLowerCase();
+    const urlPlatform = extractPlatformFromUrl(input);
     const usernameChannels = await getChannelsByUsername(channel_name_lower)
 
     const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
@@ -505,7 +525,16 @@ router.on("message", async (ctx, next) => {
     let follow: UserFollow
     let channel: Channel
 
-    if (kickFollow && twitchFollow) {
+    if (urlPlatform === "kick" && kickFollow) {
+      follow = kickFollow
+      channel = kickChannel!
+    } else if (urlPlatform === "twitch" && twitchFollow) {
+      follow = twitchFollow
+      channel = twitchChannel!
+    } else if (urlPlatform) {
+      // The URL pointed at a platform the user does not follow
+      return ctx.reply(t("commands.not_following", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
+    } else if (kickFollow && twitchFollow) {
       bothFollow = true
     } else if (kickFollow || twitchFollow){
       if (kickFollow) {
