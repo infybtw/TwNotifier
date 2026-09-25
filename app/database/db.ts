@@ -481,6 +481,14 @@ async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
 }
 
 export async function insertStreamLog(channel_id: number, platform: Platform, event: string): Promise<void> {
+  // Provider subscriptions can temporarily outlive their channel record.
+  // Stream logs deliberately keep a foreign key to channels, so skip the
+  // audit row instead of failing an otherwise harmless notification path.
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform);
+  if (!channel) {
+    log.warn("stream log skipped for unknown channel", { channel_id, platform, event });
+    return;
+  }
   await db.insert(stream_logs).values({
     channel_id,
     platform,
