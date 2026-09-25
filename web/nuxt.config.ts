@@ -1,5 +1,15 @@
 import tailwindcss from "@tailwindcss/vite";
 
+/**
+ * Comma-separated list of extra hosts the Vite dev server may respond to.
+ * Needed when the Mini App is tuned through a public tunnel during development,
+ * for example: DEV_ALLOWED_HOSTS=rp2.infybtw.dev,abc.ngrok-free.app
+ */
+const devAllowedHosts = (process.env.DEV_ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((host) => host.trim())
+  .filter(Boolean);
+
 // Telegram Mini App: client-side only SPA, shipped as static files.
 export default defineNuxtConfig({
   ssr: false,
@@ -8,6 +18,9 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      allowedHosts: devAllowedHosts,
+    },
   },
   runtimeConfig: {
     public: {

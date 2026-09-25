@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.4.0",
   "scripts": {
-    "dev": "nuxt dev --port 3001",
+    "dev": "nuxt dev --dotenv ../.env --host",
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
