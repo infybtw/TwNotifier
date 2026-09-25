@@ -111,6 +111,19 @@ docker pull ghcr.io/infybtw/twnotifier:latest
 bun test
 ```
 
+Backend type checking (from `app/`):
+```bash
+cd app && bun run typecheck
+```
+
+Frontend commands (from `web/`):
+```bash
+bun install
+bun run dev        # Nuxt dev server on :3001
+bun run typecheck
+bun run generate   # static SPA into web/.output/public
+```
+
 ### Deep Links
 
 To open the bot and automatically follow a Twitch or Kick channel, use its platform and channel name in the `start` payload:
@@ -127,6 +140,96 @@ https://t.me/<bot_username>?start=prefollow_kick_justovich221337
 ```
 
 Telegram deep links use the `start` parameter, so `?prefollow=twitch/justovich221337` is not delivered to the bot.
+
+## Telegram Mini App
+
+The bot ships with a Telegram Mini App (a static Nuxt SPA in `web/`) that covers
+every user-facing feature: follows, adding and removing channels, live status,
+all notification settings, language and help. Chat commands and buttons keep
+working in parallel; notifications are always delivered in the private chat,
+whether or not the Mini App is open.
+
+```
+web/ (Nuxt 4 SPA, static build)
+      │ HTTPS /api/v1 + bearer token
+      ▼
+Bun / Elysia: auth → validation → services ─── PostgreSQL
+      ▲                                      └── Twitch / Kick API
+Telegram commands / callbacks ─ services ────┘
+```
+
+### Backend API
+
+All routes except the `initData` exchange require an
+`Authorization: Bearer <token>` header. The token is opaque, stored hashed in
+`web_sessions`, and short-lived (default 1 hour).
+
+| Method and path | Purpose |
+| --- | --- |
+| `POST /api/v1/auth/telegram` | Verify `initData`, register the user, issue a session |
+| `DELETE /api/v1/auth/session` | Revoke the current session |
+| `GET /api/v1/me` | Profile, language, chat-delivery state |
+| `GET /api/v1/settings` | All user settings (booleans) |
+| `PATCH /api/v1/settings` | Set explicitly supplied values |
+| `POST /api/v1/channels/resolve` | Resolve a username/URL to platform matches |
+| `GET /api/v1/follows` | Paginated follows with `platform`/`search` filters |
+| `POST /api/v1/follows` | Add `{ platform, channelId }` after server-side verification |
+| `GET /api/v1/follows/:platform/:channelId` | Follow details and share links |
+| `DELETE /api/v1/follows/:platform/:channelId` | Remove a follow (idempotent) |
+| `GET /api/v1/follows/:platform/:channelId/live` | Live status and stream details |
+| `GET /api/v1/online` | Live channels from the user's follows |
+
+Errors use `{ "error": { "code", "message", "requestId" } }`; the frontend
+localizes by `code`. A provider outage yields `unknown`, never `offline`.
+
+Authentication follows Telegram's HMAC-SHA-256 scheme: `secret = HMAC("WebAppData", bot_token)`,
+`hash = HMAC(secret, data_check_string)`. `initData` is accepted only from the
+JSON body (size limited), `auth_date` must be fresh (5 minutes by default), and
+the bot token never reaches the frontend.
+
+### Frontend
+
+See [`web/README.md`](web/README.md) for frontend commands and configuration.
+Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
+`NUXT_PUBLIC_BOT_USERNAME`; no backend secret is exposed.
+
+### Launching the Mini App
+
+1. Create the Mini App in [@BotFather](https://t.me/botfather) and set its
+   production HTTPS URL (`WEB_APP_URL`).
+2. Set the menu button to that URL (BotFather or `setChatMenuButton`).
+3. The private chat main menu already contains an "Open app" inline button when
+   `WEB_APP_URL` is set; commands remain available below it.
+4. Share links use the Main Mini App form:
+   `https://t.me/<bot_username>?startapp=prefollow_<platform>_<login>`.
+   Existing `?start=prefollow_...` links keep working through the bot.
+
+### Proxy and container
+
+`Dockerfile-web` builds the SPA and serves it with Caddy (`Caddyfile.prod`)
+together with a reverse proxy:
+
+- `/api/v1/*` and the provider webhook paths are proxied to the bot and never
+  fall through to the SPA.
+- Unknown paths fall back to `index.html`, so nested routes survive a reload.
+- Versioned assets are cached immutably; `index.html` and API responses are
+  revalidated/`no-store`.
+
+The compose service exposes ports 80/443 for Caddy; set `WEB_DOMAIN` to the
+public hostname so certificates are issued automatically. Because the Mini App
+must be embedded in Telegram Web, do not send `X-Frame-Options: DENY/SAMEORIGIN`
+and keep the official `telegram-web-app.js` script allowed.
+
+Before deploying, confirm:
+
+1. The production Mini App domain and where the external HTTPS proxy is managed.
+2. A separate test bot and HTTPS URL for Mini App testing.
+3. Visual style preferences; the default is a compact interface using Telegram
+   theme colors.
+
+If the Mini App fails to load, users can keep managing everything through chat
+commands; reopening the Mini App from the bot button is the recovery path for
+expired sessions.
 
 ## Architecture
 
@@ -158,8 +261,20 @@ app/
 │   └── verifyWebhook.ts  # Webhook verification
 ├── handlers/             # Event handlers
 │   ├── ws_handler.ts     # Twitch WebSocket message processing
-│   ├── http_handler.ts   # Elysia HTTP server (Kick + Twitch webhooks)
+│   ├── http_handler.ts   # Elysia HTTP server (API + Kick/Twitch webhooks)
 │   └── webhook_handler.ts # Kick webhook processing
+├── services/             # Shared business logic (bot + API)
+│   ├── users.ts          # Registration, profile, chat delivery
+│   ├── follows.ts        # Add/remove follows, provider subscriptions
+│   ├── channels.ts       # Username/URL resolution and verification
+│   ├── settings.ts       # Notification settings validation
+│   ├── online.ts         # Batched live status with caching
+│   └── errors.ts         # Transport-agnostic service errors
+├── http/                 # User-facing REST API (v1)
+│   ├── api.ts            # Route mounting and error mapping
+│   ├── auth/             # initData verification, sessions, guard
+│   ├── routes/           # auth, me, settings, channels, follows
+│   └── dto.ts            # Public data structures
 ├── database/             # Database layer
 │   ├── db.ts             # Database queries
 │   └── schema.ts         # Drizzle ORM schema
@@ -170,6 +285,7 @@ app/
 └── utils/                # Utilities
     ├── settings.ts       # User settings helpers
     └── urlParser.ts      # URL parsing
+web/                      # Telegram Mini App (Nuxt 4 + Tailwind 4 SPA)
 ```
 
 ## Libraries Used

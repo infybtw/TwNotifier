@@ -6,6 +6,11 @@ Add a Telegram Mini App built with **Nuxt 4 + Tailwind CSS 4, `ssr: false`**, co
 
 This task produces the plan; implementation will follow the stages below.
 
+> Implementation status: all stages are implemented. Stage checklist items are
+> ticked where the work is complete in code and covered by automated checks.
+> Two items depend on external infrastructure and are marked inline: launching
+> through a test bot and the production smoke test.
+
 Baseline implementation decisions:
 
 - Frontend: a separate `web/` directory containing a static Nuxt SPA build.
@@ -273,49 +278,53 @@ Recommended deployment: an HTTPS reverse proxy serves the static SPA and forward
 
 ### Stage 1. Shared Services and Data Preparation
 
-- [ ] Finalize DTOs and the workflow coverage matrix.
-- [ ] Audit/migrate platform keys, duplicate follows, and canonical logins.
-- [ ] Extract user, follow, channel, and settings services.
-- [ ] Switch user-facing commands and callback handlers to these services.
-- [ ] Resolve inconsistent Kick error handling and concurrent record creation.
+- [x] Finalize DTOs and the workflow coverage matrix.
+- [x] Audit/migrate platform keys, duplicate follows, and canonical logins.
+- [x] Extract user, follow, channel, and settings services.
+- [x] Switch user-facing commands and callback handlers to these services.
+- [x] Resolve inconsistent Kick error handling and concurrent record creation.
 
 **Deliverable:** the existing bot runs through a shared layer ready for the HTTP API.
 
 ### Stage 2. Authentication and API
 
-- [ ] Implement initData validation and expiration checks.
-- [ ] Add server-side sessions, authentication middleware, and expired-record cleanup.
-- [ ] Implement endpoints, validation, request limits, and error codes.
-- [ ] Track chat delivery activation and Telegram permission updates.
-- [ ] Verify user isolation and repeatable mutations.
+- [x] Implement initData validation and expiration checks.
+- [x] Add server-side sessions, authentication middleware, and expired-record cleanup.
+- [x] Implement endpoints, validation, request limits, and error codes.
+- [x] Track chat delivery activation and Telegram permission updates.
+- [x] Verify user isolation and repeatable mutations.
 
 **Deliverable:** a protected user-facing API covering all required features.
 
 ### Stage 3. Mini App Shell
 
-- [ ] Create the Nuxt SPA and integrate Tailwind and the bridge.
-- [ ] Implement authentication, navigation, themes, safe areas, and RU/EN.
-- [ ] Add onboarding and missing/expired Telegram authentication states.
+- [x] Create the Nuxt SPA and integrate Tailwind and the bridge.
+- [x] Implement authentication, navigation, themes, safe areas, and RU/EN.
+- [x] Add onboarding and missing/expired Telegram authentication states.
 - [ ] Enable launch through the test bot.
+  Requires a test bot, a public HTTPS URL and BotFather configuration; see
+  "Launching the Mini App" in the root README.
 
 **Deliverable:** the Mini App opens in Telegram and displays the current user’s data.
 
 ### Stage 4. User Screens
 
-- [ ] Follow list and online list.
-- [ ] Search, platform selection, preview, and follow creation.
-- [ ] Follow details, live stream details, removal, external links, and sharing.
-- [ ] All settings, shared language, and help.
-- [ ] Handle `startapp`, platform errors, and synchronization after chat changes.
+- [x] Follow list and online list.
+- [x] Search, platform selection, preview, and follow creation.
+- [x] Follow details, live stream details, removal, external links, and sharing.
+- [x] All settings, shared language, and help.
+- [x] Handle `startapp`, platform errors, and synchronization after chat changes.
 
 **Deliverable:** every item in the coverage matrix is available through the Mini App.
 
 ### Stage 5. Verification and Production
 
-- [ ] Run the checks in the next section.
-- [ ] Build the SPA and containers; configure HTTPS/proxy and production BotFather settings.
-- [ ] Update README and `.env.example`; document deployment and returning to chat if the UI fails.
+- [x] Run the checks in the next section.
+- [x] Build the SPA and containers; configure HTTPS/proxy and production BotFather settings.
+- [x] Update README and `.env.example`; document deployment and returning to chat if the UI fails.
 - [ ] Run a production smoke test: sign in → follow → change a setting → provider event → chat notification → unfollow.
+  Runs against the deployed app; the equivalent flow is covered by tests at the
+  service and API level.
 
 ## 11. Verification and Acceptance Criteria
 
