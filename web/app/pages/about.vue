@@ -8,10 +8,10 @@ const botUrl = computed(() =>
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
-    <h1 class="text-lg font-semibold tg-text">{{ t("about.title") }}</h1>
+  <section class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("about.title") }}</h1>
 
-    <div class="flex flex-col gap-2 rounded-xl p-4 tg-card">
+    <div class="flex flex-col gap-2.5 rounded-2xl p-4 tg-card">
       <p class="text-sm tg-text">{{ t("about.description") }}</p>
       <p class="text-sm tg-hint">{{ t("about.platforms") }}</p>
       <p class="text-sm tg-hint">{{ t("about.notifications") }}</p>

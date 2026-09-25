@@ -14,6 +14,8 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const matches = ref<ChannelMatch[]>([]);
 const selected = ref<ChannelMatch | null>(null);
+/** Last successfully added channel, kept so the success card can show its avatar. */
+const added = ref<ChannelMatch | null>(null);
 
 function reset(): void {
   matches.value = [];
@@ -28,6 +30,7 @@ async function search(): Promise<void> {
   error.value = null;
   notice.value = null;
   selected.value = null;
+  added.value = null;
   try {
     const response = await resolve(input);
     matches.value = response.matches;
@@ -59,10 +62,12 @@ async function confirmAdd(): Promise<void> {
   error.value = null;
   try {
     const result = await addFollow(match.platform, match.channelId, match.login);
-    notice.value = result.isNew
+    const message = result.isNew
       ? t("add.success", { name: match.displayName })
       : t("add.already", { name: match.displayName });
     reset();
+    added.value = result.isNew ? match : null;
+    notice.value = message;
     query.value = "";
   } catch (err) {
     error.value = localizeError(err);
@@ -73,14 +78,14 @@ async function confirmAdd(): Promise<void> {
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
-    <h1 class="text-lg font-semibold tg-text">{{ t("add.title") }}</h1>
+  <section class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("add.title") }}</h1>
 
     <form class="flex gap-2" @submit.prevent="search">
       <input
         v-model="query"
         type="text"
-        class="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm tg-card tg-text"
+        class="min-w-0 flex-1 rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
         :placeholder="t('add.placeholder')"
         autocomplete="off"
         autocapitalize="none"
@@ -89,15 +94,18 @@ async function confirmAdd(): Promise<void> {
       >
       <button
         type="submit"
-        class="rounded-xl px-4 py-2 text-sm font-semibold tg-button"
+        class="rounded-xl px-4 py-2.5 text-sm font-semibold tg-button"
         :disabled="busy || !query.trim()"
       >
         {{ t("add.submit") }}
       </button>
     </form>
 
-    <p v-if="notice" class="rounded-xl px-3 py-2 text-sm tg-card tg-text">{{ notice }}</p>
-    <p v-if="error" class="rounded-xl px-3 py-2 text-sm tg-card tg-destructive">{{ error }}</p>
+    <div v-if="notice" class="flex items-center gap-3 rounded-2xl p-4 tg-card">
+      <ChannelAvatar v-if="added" :url="added.avatarUrl" :name="added.displayName" :size="36" />
+      <p class="min-w-0 text-sm tg-text">{{ notice }}</p>
+    </div>
+    <p v-if="error" class="rounded-2xl px-4 py-3 text-sm tg-card tg-destructive">{{ error }}</p>
     <LoadingState v-if="busy" :message="t('add.resolving')" />
 
     <div v-if="matches.length > 1 && !selected" class="flex flex-col gap-2">
@@ -106,26 +114,34 @@ async function confirmAdd(): Promise<void> {
         v-for="match in matches"
         :key="`${match.platform}:${match.channelId}`"
         type="button"
-        class="flex items-center justify-between gap-2 rounded-xl px-3 py-3 tg-card text-left"
+        class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card text-left"
         :disabled="match.alreadyFollowing"
         @click="selected = match"
       >
-        <span class="flex min-w-0 flex-col">
-          <span class="truncate text-sm font-semibold tg-text">{{ match.displayName }}</span>
-          <PlatformBadge :platform="match.platform" />
+        <span class="flex min-w-0 items-center gap-3">
+          <ChannelAvatar :url="match.avatarUrl" :name="match.displayName" />
+          <span class="flex min-w-0 flex-col gap-1">
+            <span class="truncate text-sm font-semibold tg-text">{{ match.displayName }}</span>
+            <PlatformBadge :platform="match.platform" />
+          </span>
         </span>
-        <span v-if="match.alreadyFollowing" class="text-xs tg-hint">{{ t("add.already_short") }}</span>
-        <span v-else class="text-xs font-medium tg-link">{{ t("add.confirm") }}</span>
+        <span v-if="match.alreadyFollowing" class="shrink-0 text-xs tg-hint">{{ t("add.already_short") }}</span>
+        <span v-else class="shrink-0 text-xs font-medium tg-link">{{ t("add.confirm") }}</span>
       </button>
     </div>
 
-    <div v-if="selected" class="rounded-xl p-3 tg-card">
-      <p class="text-sm font-medium tg-text">{{ t("add.preview", { name: selected.displayName }) }}</p>
-      <div class="mt-1"><PlatformBadge :platform="selected.platform" /></div>
-      <div class="mt-3 flex gap-2">
+    <div v-if="selected" class="rounded-2xl p-4 tg-card">
+      <div class="flex items-center gap-3">
+        <ChannelAvatar :url="selected.avatarUrl" :name="selected.displayName" :size="48" />
+        <div class="flex min-w-0 flex-col gap-1.5">
+          <p class="truncate text-sm font-medium tg-text">{{ t("add.preview", { name: selected.displayName }) }}</p>
+          <PlatformBadge :platform="selected.platform" />
+        </div>
+      </div>
+      <div class="mt-4 flex gap-2">
         <button
           type="button"
-          class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold tg-button"
+          class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-button"
           :disabled="adding"
           @click="confirmAdd"
         >
@@ -133,14 +149,15 @@ async function confirmAdd(): Promise<void> {
         </button>
         <button
           type="button"
-          class="rounded-lg px-3 py-2 text-sm font-medium tg-secondary tg-text"
+          class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
           @click="reset"
         >
           {{ t("common.cancel") }}
         </button>
         <button
           type="button"
-          class="rounded-lg px-3 py-2 text-sm font-medium tg-secondary tg-text"
+          class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
+          :aria-label="t('common.open')"
           @click="openExternal(selected.url)"
         >
           {{ t("common.open") }}

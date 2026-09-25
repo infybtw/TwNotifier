@@ -7,7 +7,7 @@ defineProps<{ follow: Follow }>();
 <template>
   <NuxtLink
     :to="`/follow/${follow.platform}/${follow.channelId}`"
-    class="flex items-center justify-between gap-3 rounded-xl px-3 py-3 tg-card"
+    class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
   >
     <span class="flex min-w-0 flex-col gap-1">
       <span class="truncate text-sm font-semibold tg-text">{{ follow.displayName }}</span>

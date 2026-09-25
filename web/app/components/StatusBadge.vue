@@ -10,7 +10,7 @@ defineProps<{
   <span
     class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
     :class="{
-      'bg-red-100 text-red-700': status === 'online',
+      'bg-red-500/15 text-red-400': status === 'online',
       'tg-secondary tg-hint': status === 'offline' || status === 'unknown',
     }"
   >

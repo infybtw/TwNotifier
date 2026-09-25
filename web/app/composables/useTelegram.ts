@@ -1,4 +1,4 @@
-import type { TelegramThemeParams, TelegramWebApp } from "../types/telegram";
+import type { TelegramWebApp } from "../types/telegram";
 
 let cachedWebApp: TelegramWebApp | null | undefined;
 
@@ -14,20 +14,14 @@ function setVar(name: string, value: string | undefined): void {
   if (value) document.documentElement.style.setProperty(name, value);
 }
 
-/** Maps Telegram theme parameters and safe areas onto CSS variables. */
+/**
+ * The app ships its own dark violet theme, so Telegram theme params are not
+ * mapped onto colors. Only safe areas are applied, and the Telegram chrome is
+ * tinted to match the palette.
+ */
 export function applyTelegramTheme(wa: TelegramWebApp): void {
-  const p: TelegramThemeParams = wa.themeParams ?? {};
-  setVar("--tg-bg", p.bg_color);
-  setVar("--tg-text", p.text_color);
-  setVar("--tg-hint", p.hint_color);
-  setVar("--tg-link", p.link_color);
-  setVar("--tg-button", p.button_color);
-  setVar("--tg-button-text", p.button_text_color);
-  setVar("--tg-secondary-bg", p.secondary_bg_color);
-  setVar("--tg-header-bg", p.header_bg_color);
-  setVar("--tg-section-bg", p.section_bg_color ?? p.secondary_bg_color);
-  setVar("--tg-subtitle", p.subtitle_text_color);
-  setVar("--tg-destructive", p.destructive_text_color);
+  wa.setHeaderColor?.("#0c0913");
+  wa.setBackgroundColor?.("#0c0913");
 
   const inset = wa.contentSafeAreaInset ?? wa.safeAreaInset;
   if (inset) {
@@ -35,7 +29,7 @@ export function applyTelegramTheme(wa: TelegramWebApp): void {
     setVar("--safe-bottom", `${inset.bottom}px`);
   }
 
-  document.documentElement.dataset.theme = wa.colorScheme ?? "light";
+  document.documentElement.dataset.theme = "dark";
 }
 
 export interface TelegramState {

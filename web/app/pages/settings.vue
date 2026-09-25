@@ -41,8 +41,8 @@ function setLanguage(next: "ru" | "en"): void {
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
-    <h1 class="text-lg font-semibold tg-text">{{ t("settings.title") }}</h1>
+  <section class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("settings.title") }}</h1>
 
     <div v-if="settings" class="flex flex-col gap-2">
       <SettingsToggle
@@ -57,12 +57,12 @@ function setLanguage(next: "ru" | "en"): void {
 
     <p class="text-xs tg-hint">{{ t("settings.kick_note") }}</p>
 
-    <div class="rounded-xl p-3 tg-card">
+    <div class="rounded-2xl p-4 tg-card">
       <p class="text-sm font-medium tg-text">{{ t("settings.language") }}</p>
-      <div class="mt-2 flex gap-2">
+      <div class="mt-3 flex gap-2">
         <button
           type="button"
-          class="rounded-lg px-3 py-2 text-sm font-medium"
+          class="rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
           :class="locale === 'ru' ? 'tg-button' : 'tg-secondary tg-text'"
           :aria-pressed="locale === 'ru'"
           @click="setLanguage('ru')"
@@ -71,7 +71,7 @@ function setLanguage(next: "ru" | "en"): void {
         </button>
         <button
           type="button"
-          class="rounded-lg px-3 py-2 text-sm font-medium"
+          class="rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
           :class="locale === 'en' ? 'tg-button' : 'tg-secondary tg-text'"
           :aria-pressed="locale === 'en'"
           @click="setLanguage('en')"
@@ -81,9 +81,9 @@ function setLanguage(next: "ru" | "en"): void {
       </div>
     </div>
 
-    <div class="rounded-xl p-3 tg-card">
+    <div class="rounded-2xl p-4 tg-card">
       <p class="text-sm font-medium tg-text">{{ t("settings.chat_delivery") }}: {{ deliveryLabel }}</p>
-      <p v-if="profile?.chatDelivery === 'blocked'" class="mt-1 text-xs tg-hint">
+      <p v-if="profile?.chatDelivery === 'blocked'" class="mt-2 text-xs tg-hint">
         {{ t("settings.delivery_blocked_hint") }}
       </p>
       <a
@@ -91,7 +91,7 @@ function setLanguage(next: "ru" | "en"): void {
         :href="botUrl"
         target="_blank"
         rel="noopener"
-        class="mt-2 inline-block rounded-lg px-3 py-2 text-xs font-semibold tg-secondary tg-text"
+        class="mt-3 inline-block rounded-xl px-4 py-2.5 text-xs font-semibold tg-secondary tg-text"
       >
         {{ t("onboarding.open_chat") }}
       </a>

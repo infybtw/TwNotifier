@@ -70,28 +70,31 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
+  <section class="flex flex-col gap-4">
     <LoadingState v-if="loading" />
     <ErrorState v-else-if="error && !details" :message="error" @retry="load" />
 
     <template v-else-if="details">
-      <header class="rounded-xl p-4 tg-card">
-        <h1 class="text-lg font-semibold tg-text">{{ details.displayName }}</h1>
-        <div class="mt-2 flex flex-wrap items-center gap-2">
+      <header class="rounded-2xl p-4 tg-card">
+        <div class="flex items-center gap-3">
+          <ChannelAvatar :url="details.avatarUrl" :name="details.displayName" :size="48" />
+          <h1 class="min-w-0 truncate text-lg font-semibold tracking-tight tg-text">{{ details.displayName }}</h1>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
           <PlatformBadge :platform="details.platform" />
           <StatusBadge :status="details.online" />
         </div>
-        <p class="mt-2 text-xs tg-hint">
+        <p class="mt-3 text-xs tg-hint">
           {{ t("details.follow_date", { date: formatDate(details.followDate) }) }}
         </p>
-        <p class="mt-1 text-xs tg-hint">
+        <p class="mt-1.5 text-xs tg-hint">
           {{ details.platform === "twitch" ? t("details.twitch_full") : t("details.kick_limited") }}
         </p>
       </header>
 
-      <section v-if="live && live.status === 'online'" class="rounded-xl p-4 tg-card">
+      <section v-if="live && live.status === 'online'" class="rounded-2xl p-4 tg-card">
         <h2 class="text-sm font-semibold tg-text">{{ t("details.status") }}</h2>
-        <dl class="mt-2 space-y-1 text-sm tg-text">
+        <dl class="mt-2 space-y-1.5 text-sm tg-text">
           <div v-if="live.title">
             <dt class="sr-only">{{ t("details.stream_title") }}</dt>
             <dd>{{ t("details.stream_title", { title: live.title }) }}</dd>
@@ -124,19 +127,19 @@ onMounted(() => void load());
         </button>
         <button
           type="button"
-          class="rounded-xl px-4 py-3 text-sm font-semibold tg-destructive"
+          class="rounded-xl px-4 py-3 text-sm font-semibold tg-secondary tg-destructive"
           @click="confirming = true"
         >
           {{ t("details.remove") }}
         </button>
       </div>
 
-      <p v-if="confirming" class="rounded-xl p-3 text-sm tg-card tg-text">
+      <div v-if="confirming" class="rounded-2xl p-4 text-sm tg-card tg-text">
         {{ t("details.remove_confirm", { name: details.displayName }) }}
-        <span class="mt-2 flex gap-2">
+        <span class="mt-3 flex gap-2">
           <button
             type="button"
-            class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold tg-destructive"
+            class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-secondary tg-destructive"
             :disabled="busy"
             @click="confirmRemove"
           >
@@ -144,13 +147,13 @@ onMounted(() => void load());
           </button>
           <button
             type="button"
-            class="rounded-lg px-3 py-2 text-sm font-medium tg-secondary tg-text"
+            class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
             @click="confirming = false"
           >
             {{ t("common.cancel") }}
           </button>
         </span>
-      </p>
+      </div>
 
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>
     </template>

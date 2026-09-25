@@ -23,6 +23,7 @@ export interface Follow {
 }
 
 export interface FollowDetails extends Follow {
+  avatarUrl: string | null;
   shareUrl: string | null;
   startParam: string | null;
 }
@@ -33,6 +34,7 @@ export interface ChannelMatch {
   login: string;
   displayName: string;
   url: string;
+  avatarUrl: string | null;
   alreadyFollowing: boolean;
   capabilities: { titleChange: boolean; categoryChange: boolean };
 }

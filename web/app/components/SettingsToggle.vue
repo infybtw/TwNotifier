@@ -14,7 +14,7 @@ function toggle(event: Event): void {
 </script>
 
 <template>
-  <label class="flex items-center justify-between gap-3 px-3 py-3 tg-card rounded-xl">
+  <label class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 tg-card">
     <span class="flex flex-col">
       <span class="text-sm font-medium tg-text">{{ label }}</span>
       <span v-if="description" class="text-xs tg-hint">{{ description }}</span>

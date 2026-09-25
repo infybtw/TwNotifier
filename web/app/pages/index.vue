@@ -27,9 +27,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-3">
+  <section class="flex flex-col gap-4">
     <header class="flex items-baseline justify-between gap-2">
-      <h1 class="text-lg font-semibold tg-text">{{ t("follows.title") }}</h1>
+      <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("follows.title") }}</h1>
       <p class="text-xs tg-hint">
         {{ t("follows.total", { total: items.length }) }} · {{ t("follows.online_count", { online: onlineCount }) }}
       </p>
@@ -38,7 +38,7 @@ onBeforeUnmount(() => {
     <input
       v-model="search"
       type="search"
-      class="w-full rounded-xl px-3 py-2 text-sm tg-card tg-text"
+      class="w-full rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
       :placeholder="t('follows.search')"
       @input="onSearchInput"
     >
@@ -52,7 +52,7 @@ onBeforeUnmount(() => {
         ]"
         :key="option.value"
         type="button"
-        class="rounded-full px-3 py-1 text-xs font-medium"
+        class="rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors"
         :class="platform === option.value ? 'tg-button' : 'tg-secondary tg-text'"
         :aria-pressed="platform === option.value"
         @click="platform = option.value as '' | 'twitch' | 'kick'"
@@ -78,7 +78,7 @@ onBeforeUnmount(() => {
     <button
       v-if="nextCursor"
       type="button"
-      class="rounded-xl px-4 py-2 text-sm font-medium tg-secondary tg-text"
+      class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
       :disabled="loadingMore"
       @click="loadMore({ platform: platform || undefined, search: search || undefined })"
     >

@@ -18,19 +18,19 @@ function isActive(path: string): boolean {
 
 <template>
   <nav
-    class="fixed inset-x-0 bottom-0 z-20 border-t tg-card safe-bottom"
-    style="border-color: color-mix(in srgb, var(--tg-hint) 20%, transparent)"
+    class="fixed inset-x-0 bottom-0 z-20 border-t tg-bar safe-bottom"
+    style="border-color: var(--tg-border)"
     :aria-label="t('nav.follows')"
   >
-    <ul class="mx-auto flex max-w-2xl items-stretch justify-between px-1">
+    <ul class="mx-auto flex max-w-2xl items-stretch justify-between px-2">
       <li v-for="item in items" :key="item.to" class="flex-1">
         <NuxtLink
           :to="item.to"
-          class="flex flex-col items-center gap-0.5 rounded-lg px-1 py-2 text-[11px] font-medium"
+          class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors"
           :class="isActive(item.to) ? 'tg-link' : 'tg-hint'"
           :aria-current="isActive(item.to) ? 'page' : undefined"
         >
-          <span class="text-lg" aria-hidden="true">{{ item.icon }}</span>
+          <span class="text-lg leading-none" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
         </NuxtLink>
       </li>

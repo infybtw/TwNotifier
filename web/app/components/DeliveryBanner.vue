@@ -31,12 +31,12 @@ async function enable(): Promise<void> {
 <template>
   <div
     v-if="visible"
-    class="mx-3 mt-3 rounded-xl p-3 tg-card"
+    class="mb-4 rounded-2xl p-4 tg-card"
   >
     <p class="text-sm font-medium tg-text">
       {{ blocked ? t("onboarding.notifications_blocked") : t("onboarding.notifications_unknown") }}
     </p>
-    <div class="mt-2 flex flex-wrap gap-2">
+    <div class="mt-3 flex flex-wrap gap-2">
       <button
         v-if="!blocked && state.available"
         type="button"
