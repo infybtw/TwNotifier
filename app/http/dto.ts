@@ -86,11 +86,15 @@ export interface ChannelMatchDto {
   login: string;
   displayName: string;
   url: string;
+  /** Channel profile picture, when the provider exposes one. */
+  avatarUrl: string | null;
   alreadyFollowing: boolean;
   capabilities: Capabilities;
 }
 
 export interface FollowDetailsDto extends FollowDto {
+  /** Channel profile picture, fetched best-effort from the provider. */
+  avatarUrl: string | null;
   /** Telegram share URL for the prefollow deep link, when available. */
   shareUrl: string | null;
   /** Value for t.me/<bot>?startapp=... prefollow links. */

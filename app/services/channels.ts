@@ -14,6 +14,8 @@ export interface ResolvedChannel {
   login: string;
   /** Human readable display name. */
   displayName: string;
+  /** Channel profile picture, when the provider exposes one. */
+  avatarUrl: string | null;
 }
 
 export interface ResolveResult {
@@ -33,6 +35,7 @@ async function resolveTwitch(login: string): Promise<ResolvedChannel | null> {
     channelId: Number(user.id),
     login: user.login.toLowerCase(),
     displayName: user.display_name,
+    avatarUrl: user.profile_image_url || null,
   };
 }
 
@@ -45,6 +48,8 @@ async function resolveKick(login: string): Promise<ResolvedChannel | null> {
     channelId: Number(channel.broadcaster_user_id),
     login: channel.slug.toLowerCase(),
     displayName: channel.slug,
+    // Kick exposes the channel owner's profile picture as `banner_picture`.
+    avatarUrl: channel.banner_picture || null,
   };
 }
 
@@ -87,6 +92,28 @@ export async function resolveChannelCandidates(input: string): Promise<ResolveRe
 }
 
 /**
+ * Best-effort avatar lookup for an already-known channel. Never throws: a
+ * provider hiccup simply yields no avatar.
+ */
+export async function getChannelAvatarUrl(
+  platform: Platform,
+  channelId: number,
+  login: string,
+): Promise<string | null> {
+  try {
+    if (platform === "twitch") {
+      const user = await getUserById(channelId);
+      return user?.profile_image_url || null;
+    }
+    const response = await getKickChannelByUsername(login);
+    return response.data?.[0]?.banner_picture || null;
+  } catch (error) {
+    log.warn("avatar lookup failed", { platform, channelId, error });
+    return null;
+  }
+}
+
+/**
  * Server-side verification for add-follow requests. The client supplies a
  * channel id (and a login for Kick, which has no by-id lookup); the provider is
  * always consulted so a forged id cannot create a follow.
@@ -120,6 +147,7 @@ export async function verifyChannelById(
       channelId,
       login: user.login.toLowerCase(),
       displayName: user.display_name,
+      avatarUrl: user.profile_image_url || null,
     };
   }
 
@@ -143,5 +171,6 @@ export async function verifyChannelById(
     channelId,
     login: channel.slug.toLowerCase(),
     displayName: channel.slug,
+    avatarUrl: channel.banner_picture || null,
   };
 }

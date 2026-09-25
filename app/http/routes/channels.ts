@@ -36,6 +36,7 @@ export const channelRoutes = new Elysia()
         url: channel.platform === "twitch"
           ? `https://twitch.tv/${channel.login}`
           : `https://kick.com/${channel.login}`,
+        avatarUrl: channel.avatarUrl,
         alreadyFollowing: Boolean(existing),
         capabilities: PLATFORM_CAPABILITIES[channel.platform],
       });

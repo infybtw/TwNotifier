@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { getFollowsWithChannelByUserId, getFollowsWithChannelPage } from "../../database/db";
 import type { Platform } from "../../database/schema";
-import { verifyChannelById } from "../../services/channels";
+import { getChannelAvatarUrl, verifyChannelById } from "../../services/channels";
 import { ServiceError } from "../../services/errors";
 import { addFollowForUser, getChannelForFollow, getFollowForUser, removeFollowForUser } from "../../services/follows";
 import { getLiveStatus, getLiveStatuses, liveKey } from "../../services/online";
@@ -116,7 +116,10 @@ export const followRoutes = new Elysia()
       throw new ServiceError("NOT_FOUND", "Channel not found");
     }
 
-    const live = await getLiveStatus({ platform, channelId, login: channel.channel_login });
+    const [live, avatarUrl] = await Promise.all([
+      getLiveStatus({ platform, channelId, login: channel.channel_login }),
+      getChannelAvatarUrl(platform, channelId, channel.channel_login),
+    ]);
     const startParam = startParamFor(platform, channel.channel_login);
 
     set.headers["cache-control"] = "no-store";
@@ -129,6 +132,7 @@ export const followRoutes = new Elysia()
         followDate: follow.created,
         live,
       }),
+      avatarUrl,
       shareUrl: shareUrlFor(startParam),
       startParam,
     };
