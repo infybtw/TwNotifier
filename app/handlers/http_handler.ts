@@ -2,9 +2,11 @@ import { Elysia } from 'elysia'
 import { handleKickWebhook } from './webhook_handler';
 import { handleTwitchWebhook } from '../twitchAPI/webhook_handler';
 import { HTTP_SERVER_PORT, KICK_WEBHOOK_PATH, TWITCH_EVENT_TRANSPORT, TWITCH_WEBHOOK_PATH } from '../config';
+import { apiRoutes } from '../http/api';
 
 export async function startHTTPServer() {
   const app = new Elysia()
+    .use(apiRoutes)
     .post(KICK_WEBHOOK_PATH, async ({ request, set }) => {
       const rawBody = await request.text()
 

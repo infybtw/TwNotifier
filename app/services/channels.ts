@@ -1,7 +1,8 @@
 import { getKickChannelByUsername } from "../kickAPI/users";
-import { getUserByLogin } from "../twitchAPI/users";
+import { getUserByLogin, getUserById } from "../twitchAPI/users";
 import type { Platform } from "../database/schema";
 import { parseChannelInput } from "../utils/urlParser";
+import { ServiceError } from "./errors";
 import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "services:channels" });
@@ -82,5 +83,65 @@ export async function resolveChannelCandidates(input: string): Promise<ResolveRe
     username: parsed.username,
     channels,
     unavailablePlatforms,
+  };
+}
+
+/**
+ * Server-side verification for add-follow requests. The client supplies a
+ * channel id (and a login for Kick, which has no by-id lookup); the provider is
+ * always consulted so a forged id cannot create a follow.
+ */
+export async function verifyChannelById(
+  platform: Platform,
+  channelIdRaw: string | number,
+  loginRaw?: string | null,
+): Promise<ResolvedChannel> {
+  const channelId = Number(channelIdRaw);
+  if (!Number.isSafeInteger(channelId) || channelId <= 0) {
+    throw new ServiceError("INVALID_INPUT", "Invalid channel id");
+  }
+
+  if (platform === "twitch") {
+    let user;
+    try {
+      user = await getUserById(channelId);
+    } catch (error) {
+      logger.getSubLogger({ name: "services:channels" }).warn("twitch verification failed", { error });
+      throw new ServiceError("PROVIDER_UNAVAILABLE", "Twitch is unavailable");
+    }
+    if (!user) {
+      throw new ServiceError("CHANNEL_NOT_FOUND", "Channel not found");
+    }
+    if (loginRaw && loginRaw.toLowerCase() !== user.login.toLowerCase()) {
+      throw new ServiceError("INVALID_INPUT", "Channel id does not match the login");
+    }
+    return {
+      platform: "twitch",
+      channelId,
+      login: user.login.toLowerCase(),
+      displayName: user.display_name,
+    };
+  }
+
+  if (!loginRaw) {
+    throw new ServiceError("INVALID_INPUT", "login is required for kick channels");
+  }
+
+  let response;
+  try {
+    response = await getKickChannelByUsername(loginRaw);
+  } catch (error) {
+    logger.getSubLogger({ name: "services:channels" }).warn("kick verification failed", { error });
+    throw new ServiceError("PROVIDER_UNAVAILABLE", "Kick is unavailable");
+  }
+  const channel = response.data?.[0];
+  if (!channel || Number(channel.broadcaster_user_id) !== channelId) {
+    throw new ServiceError("CHANNEL_NOT_FOUND", "Channel not found");
+  }
+  return {
+    platform: "kick",
+    channelId,
+    login: channel.slug.toLowerCase(),
+    displayName: channel.slug,
   };
 }

@@ -15,3 +15,7 @@ export async function migrateDB() {
   }
 
 }
+
+if (import.meta.main) {
+  await migrateDB();
+}

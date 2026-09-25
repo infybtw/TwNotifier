@@ -8,6 +8,7 @@ import {
 } from "./twitchAPI/conduits";
 import { botStart } from "./bot/bot";
 import { migrateDB } from "./migrate";
+import { deleteExpiredWebSessions } from "./database/db";
 import { getKickAppToken } from "./kickAPI/auth";
 import { startHTTPServer } from "./handlers/http_handler";
 import { getKickSubscriptions } from "./kickAPI/subscription";
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   }
 
   await migrateDB();
+  await deleteExpiredWebSessions(new Date().toISOString());
   await withRetry("botStart", () => botStart());
   await withRetry("getAppToken", () => getAppToken());
   await withRetry("getKickAppToken", () => getKickAppToken());
