@@ -40,12 +40,10 @@ import {
 import { getAdminSettings, getUserByUserId, setAdminTimezoneOffset, setLanguageByUserId } from "../database/db";
 import {
   addAdminKey,
-  checkOrCreateChannel,
-  checkOrCreateFollow,
   getAllAdminKeys,
   getAllFollowsWithDetails,
   getAdmins,
-  getChannelByChannelId,
+  getChannelByChannelIdAndPlatform,
   getChannelFollowersByChannelIdAndPlatform,
   getChannels,
   getChannelsByPlatform,
@@ -55,9 +53,12 @@ import {
   getFollowsByUserIdAndPlatform,
   getRecentStreamLogs,
   getUsersWithNotificationStatus,
-  removeFollowByUserIdChannelIdAndPlatfrom,
   revokeAdminKey,
 } from "../database/db";
+import { addFollowForUser, removeFollowForUser } from "../services/follows";
+import { ServiceError } from "../services/errors";
+import { channelUrl } from "../services/types";
+import { buildAddPreview, findPendingChannel, type PendingChannel } from "./follow_flow";
 import {
   deleteSubs,
   getEventSubList,
@@ -192,8 +193,8 @@ async function renderOnlineChannelsPage(ctx: MyContext, page: number, locale: Lo
   if (kickFollows.length >= 1) {
     const kickChannelNames: string[] = [];
     for (const f of kickFollows) {
-      const ch = await getChannelByChannelId(f.channel_id!);
-      if (ch?.channel_name) kickChannelNames.push(ch.channel_name);
+      const ch = await getChannelByChannelIdAndPlatform(f.channel_id!, "kick");
+      if (ch?.channel_login) kickChannelNames.push(ch.channel_login);
     }
     const kickChannels = await getKickChannelsOnline(kickChannelNames);
     for (const ch of kickChannels) {
@@ -225,7 +226,7 @@ async function renderOnlineChannelsPage(ctx: MyContext, page: number, locale: Lo
     await ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: buildOnlineChannelsKeyboard(onlineChannels, page, locale),
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
     });
   } catch {}
 }
@@ -257,10 +258,10 @@ router.callbackQuery(/^manage_(twitch|kick)_(\d+)$/, async (ctx) => {
   if (!follow) {
     return ctx.answerCallbackQuery({ text: t("follow.management.not_found", locale), show_alert: true });
   }
-  const channel = await getChannelByChannelId(channel_id);
-  const url = platform === "twitch" ? `https://twitch.tv/${channel?.channel_name}` : `https://kick.com/${channel?.channel_name}`;
-  const deepLink = channel?.channel_name && ctx.me.username
-    ? `https://t.me/${ctx.me.username}?start=prefollow_${platform}_${channel.channel_name}`
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform);
+  const url = channel ? channelUrl(platform, channel.channel_login) : "";
+  const deepLink = channel?.channel_login && ctx.me.username
+    ? `https://t.me/${ctx.me.username}?start=prefollow_${platform}_${channel.channel_login}`
     : undefined;
   const shareUrl = deepLink ? `https://t.me/share/url?url=${encodeURIComponent(deepLink)}` : undefined;
   const message = t("follow.management.info", locale)
@@ -271,7 +272,7 @@ router.callbackQuery(/^manage_(twitch|kick)_(\d+)$/, async (ctx) => {
   await ctx.editMessageText(message, {
     parse_mode: "HTML",
     reply_markup: buildFollowManagementKeyboard(platform, channel_id, locale, shareUrl),
-    disable_web_page_preview: true,
+    link_preview_options: { is_disabled: true },
   });
 });
 
@@ -279,9 +280,9 @@ router.callbackQuery(/^manage_unfollow_(twitch|kick)_(\d+)$/, async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
   const platform = ctx.match[1] as "kick" | "twitch";
   const channel_id = Number(ctx.match[2]);
-  const channel = await getChannelByChannelId(channel_id);
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform);
   const channelName = channel?.channel_name || `ID:${channel_id}`;
-  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, channel_id, platform);
+  await removeFollowForUser(ctx.from.id, platform, channel_id);
   log.info("unfollowed via management", { userId: ctx.from.id, channel: channelName, channelId: channel_id, platform });
   await ctx.answerCallbackQuery({ text: t("follow.management.unfollow_success", locale).replace("{name}", channelName) });
   await renderMySubscriptionsPage(ctx, 0, locale);
@@ -293,7 +294,7 @@ router.callbackQuery(/^manage_online_(twitch|kick)_(\d+)$/, async (ctx) => {
   const platform = ctx.match[1] as "kick" | "twitch";
   const channel_id = Number(ctx.match[2]);
   log.info("checked online via management", { userId: ctx.from.id, channelId: channel_id, platform });
-  const channel = await getChannelByChannelId(channel_id);
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform);
   const channelName = channel?.channel_name || `ID:${channel_id}`;
   const backKb = new InlineKeyboard().text(t("follow.management.back", locale), "manage_back");
 
@@ -315,13 +316,13 @@ router.callbackQuery(/^manage_online_(twitch|kick)_(\d+)$/, async (ctx) => {
     return ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: backKb,
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
     });
   } else {
-    if (!channel?.channel_name) {
+    if (!channel?.channel_login) {
       return ctx.editMessageText(t("error.generic", locale), { parse_mode: "HTML", reply_markup: backKb });
     }
-    const kickChannels = await getKickChannelsOnline([channel.channel_name]);
+    const kickChannels = await getKickChannelsOnline([channel.channel_login]);
     const liveChannel = kickChannels.find((ch) => ch.is_live);
     if (!liveChannel) {
       return ctx.editMessageText(t("follow.management.online_no", locale).replace("{name}", channelName), {
@@ -337,7 +338,7 @@ router.callbackQuery(/^manage_online_(twitch|kick)_(\d+)$/, async (ctx) => {
     return ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: backKb,
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
     });
   }
 });
@@ -356,7 +357,7 @@ router.callbackQuery("infoCMD", async (ctx) => {
   message += t("info.notification_hint", locale);
   message += t("info.settings_hint", locale);
   message += `<a href="https://github.com/infybtw/twnotifier">GitHub</a>`;
-  await ctx.editMessageText(message, { reply_markup: buildInfoBackKeyboard(locale), parse_mode: "HTML", disable_web_page_preview: true });
+  await ctx.editMessageText(message, { reply_markup: buildInfoBackKeyboard(locale), parse_mode: "HTML", link_preview_options: { is_disabled: true } });
 });
 
 router.callbackQuery("toogleOnlineNotificationCMD", async (ctx) => {
@@ -439,87 +440,39 @@ router.callbackQuery("toggleStreamMetadataCMD", async (ctx) => {
 
 router.callbackQuery("confirm_add", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  if (!ctx.session.pendingAdd) {
+  const pending = ctx.session.pendingAdd;
+  if (!pending) {
     return await ctx.editMessageText(
       t("commands.session_expired", locale),
       { parse_mode: "HTML" },
     );
   }
 
-  const { displayName } = ctx.session.pendingAdd;
-
   await ctx.answerCallbackQuery();
+  ctx.session.pendingAdd = undefined;
 
-  const { channelId, channelName, platform } = ctx.session.pendingAdd;
-
-  await checkOrCreateChannel(channelId, displayName, platform)
-
-  let subOnlineResCode = 100000
-  let subOfflineResCode = 100000
-  let subUpdateResCode = 100000
-
-  if (platform === "twitch") {
-    subOnlineResCode = await subscribeToChannelOnline(
-      channelId,
-      displayName || channelName,
-    );
-    subOfflineResCode = await subscribeToChannelOffline(
-      channelId,
-      displayName || channelName,
-    );
-    subUpdateResCode = await subscribeToChannelUpdate(
-      channelId,
-      displayName || channelName,
-    );
-  } else if (platform === "kick") {
-    await subscribeToKickChannelOnline(channelId)
-    subOnlineResCode = 200
-    subOfflineResCode = 200
-  }
-
-
-  if (subOnlineResCode < 0 || subOfflineResCode < 0 || subUpdateResCode < 0) {
-    log.error("subscribe error", { subOnlineResCode, subOfflineResCode, subUpdateResCode });
-    await ctx.editMessageText(
-      t("add.error", locale),
-      { parse_mode: "HTML" },
-    );
-    ctx.session.pendingAdd = undefined;
-    return;
-  }
-
-
-  if (subOfflineResCode < 0) {
-    log.error("subscribe error", { subOfflineResCode });
-    await ctx.editMessageText(
-      t("add.error", locale),
-      { parse_mode: "HTML" },
-    );
-    ctx.session.pendingAdd = undefined;
-    return;
-  }
-
-  // Add follow
   try {
-    const follow = (await checkOrCreateFollow(ctx.from.id, channelId, platform))
-    ctx.session.pendingAdd = undefined;
-    if (!follow.isNew) {
-      return await ctx.editMessageText(t("add.already_exists", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+    const { isNew } = await addFollowForUser(ctx.from.id, pending);
+    if (!isNew) {
+      return await ctx.editMessageText(t("add.already_exists", locale).replace("{name}", pending.displayName), { parse_mode: "HTML" });
     }
-    await ctx.editMessageText(t("add.success", locale).replace("{name}", displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+    await ctx.editMessageText(t("add.success", locale).replace("{name}", pending.displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
     log.info("new follow", {
       userId: ctx.from.id,
-      channel: displayName,
-      platform: platform,
+      channel: pending.displayName,
+      platform: pending.platform,
     });
   } catch (err) {
     log.error("follow error", {
       userId: ctx.from.id,
-      channelId: channelId,
-      platform: platform,
+      channelId: pending.channelId,
+      platform: pending.platform,
       error: err,
     })
-    await ctx.editMessageText(t("error.generic", locale), { parse_mode: "HTML" })
+    const message = err instanceof ServiceError && err.code === "PROVIDER_UNAVAILABLE"
+      ? t("add.error", locale)
+      : t("error.generic", locale);
+    await ctx.editMessageText(message, { parse_mode: "HTML" })
   }
 });
 
@@ -553,21 +506,21 @@ router.callbackQuery("confirm_remove", async (ctx) => {
     return;
   }
 
-  const { displayName, channelId, platform } = ctx.session.pendingRemove;
+  const pending = ctx.session.pendingRemove!;
 
   await ctx.answerCallbackQuery();
 
-  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, channelId, platform);
+  await removeFollowForUser(ctx.from.id, pending.platform, pending.channelId);
 
   // Clear pending removal
   ctx.session.pendingRemove = undefined;
 
-  await ctx.editMessageText(t("remove.success", locale).replace("{name}", displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+  await ctx.editMessageText(t("remove.success", locale).replace("{name}", pending.displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
   log.info("follow removed", {
     userId: ctx.from.id,
-    channel: displayName,
-    channelId: channelId,
-    platform: platform
+    channel: pending.displayName,
+    channelId: pending.channelId,
+    platform: pending.platform
   });
 });
 
@@ -670,19 +623,19 @@ router.callbackQuery(/^admin_channels_page_(\d+)$/, async (ctx) => {
   }
 })
 
-router.callbackQuery(/^admin_channel_(\d+)$/, async (ctx) => {
+router.callbackQuery(/^admin_channel_(twitch|kick)_(\d+)$/, async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
   if (!ctx.session.adminLogin) {
     return ctx.editMessageText(t("admin.expired", locale), { parse_mode: "HTML" });
   }
-  const channel_id = Number(ctx.match[1])
-  const channel = await getChannelByChannelId(channel_id)
+  const platform = ctx.match[1] as "twitch" | "kick"
+  const channel_id = Number(ctx.match[2])
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform)
   if (!channel) {
     return ctx.answerCallbackQuery({ text: t("admin.channel_not_found", locale), show_alert: true })
   }
-  const platform = channel.platform === "twitch" ? "twitch" : "kick"
   const followers = await getChannelFollowersByChannelIdAndPlatform(channel_id, platform)
-  const icon = channel.platform === "twitch" ? "🟣" : "🟢"
+  const icon = platform === "twitch" ? "🟣" : "🟢"
   const message = t("admin.channel_info", locale)
     .replace("{icon}", icon)
     .replace("{name}", channel.channel_name)
@@ -1206,7 +1159,7 @@ router.callbackQuery(/^admin_follow_(twitch|kick)_(\d+)_(\d+)$/, async (ctx) => 
     return ctx.answerCallbackQuery({ text: t("admin.follow_not_found", locale), show_alert: true })
   }
   const user = await getUserByUserId(user_id)
-  const channel = await getChannelByChannelId(channel_id)
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform)
   const adminSettings = await getAdminSettings(ctx.from.id)
   const tzOffset = adminSettings?.utc_offset ?? 0
   const icon = platform === "twitch" ? "🟣" : "🟢"
@@ -1273,152 +1226,99 @@ router.callbackQuery("platform_back", async (ctx) => {
 
 router.callbackQuery("platform_twitch", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  const channel_id = Number(ctx.session.pendingPlatformSelect?.twitchData.id!)
-  const display_name = ctx.session.pendingPlatformSelect?.twitchData.display_name.toLowerCase()!
-
-  if (!ctx.from) {
-    return ctx.editMessageText(t("error.generic", locale), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+  const channel = findPendingChannel(ctx.session.pendingPlatformSelect, "twitch");
+  if (!channel) {
+    return ctx.editMessageText(t("commands.session_expired", locale), { parse_mode: "HTML" });
   }
 
-  if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "twitch")) {
-    return ctx.editMessageText(t("add.already_exists", locale).replace("{name}", display_name), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
-  }
-
-  ctx.session.pendingAdd = {
-    channelId: channel_id,
-    channelName: display_name,
-    displayName: display_name,
-    platform: "twitch"
-  };
-
-  let previewMessage = t("add.preview_platform", locale)
-    .replace("{name}", display_name)
-    .replace("{platform}", t("platform.twitch", locale))
-    .replace("{url}", `https://twitch.tv/${display_name}`)
-
+  ctx.session.pendingAdd = channel;
+  const preview = buildAddPreview(channel, locale, { withPlatform: true });
   log.info("showing channel preview", {
     userId: ctx.from.id,
-    channel: display_name,
-    channelId: channel_id,
-    platform: "twitch"
+    channel: channel.displayName,
+    channelId: channel.channelId,
+    platform: "twitch",
   });
 
-  return await ctx.editMessageText(previewMessage, {
-    reply_markup: buildAddConfirmationKeyboard(locale),
+  return await ctx.editMessageText(preview.text, {
+    reply_markup: preview.keyboard,
     parse_mode: "HTML",
   });
 })
 
 router.callbackQuery("platform_kick", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  const channel_id = Number(ctx.session.pendingPlatformSelect?.kickData.data[0].broadcaster_user_id!)
-  const display_name = ctx.session.pendingPlatformSelect?.kickData.data[0].slug.toLowerCase()!
-
-  if (!ctx.from) {
-    return ctx.editMessageText(t("error.generic", locale), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+  const channel = findPendingChannel(ctx.session.pendingPlatformSelect, "kick");
+  if (!channel) {
+    return ctx.editMessageText(t("commands.session_expired", locale), { parse_mode: "HTML" });
   }
 
-  if (await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, "kick")) {
-    return ctx.editMessageText(t("add.already_exists", locale).replace("{name}", display_name), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
-  }
-
-  ctx.session.pendingAdd = {
-    channelId: channel_id,
-    channelName: display_name,
-    displayName: display_name,
-    platform: "kick"
-  };
-
-  let previewMessage = t("add.preview_platform", locale)
-    .replace("{name}", display_name)
-    .replace("{platform}", t("platform.kick", locale))
-    .replace("{url}", `https://kick.com/${display_name}`)
-
+  ctx.session.pendingAdd = channel;
+  const preview = buildAddPreview(channel, locale, { withPlatform: true });
   log.info("showing channel preview", {
     userId: ctx.from.id,
-    channel: display_name,
-    channelId: channel_id,
-    platform: "kick"
+    channel: channel.displayName,
+    channelId: channel.channelId,
+    platform: "kick",
   });
 
-  return await ctx.editMessageText(previewMessage, {
-    reply_markup: buildAddConfirmationKeyboard(locale),
+  return await ctx.editMessageText(preview.text, {
+    reply_markup: preview.keyboard,
     parse_mode: "HTML",
   });
 })
 
 router.callbackQuery("remove_platform_kick", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  if (!ctx.session.removePendingPlatformSelect) {
-    await ctx.answerCallbackQuery(
-      t("commands.session_expired_remove", locale),
-    );
-    await ctx.editMessageText(
-      t("commands.session_expired_remove", locale),
-      { parse_mode: "HTML" },
-    );
+  const channel = findPendingChannel(ctx.session.removePendingPlatformSelect, "kick");
+  if (!channel) {
+    await ctx.answerCallbackQuery(t("commands.session_expired_remove", locale));
+    await ctx.editMessageText(t("commands.session_expired_remove", locale), { parse_mode: "HTML" });
     return;
   }
 
-  const { kickChannel } = ctx.session.removePendingPlatformSelect;
-
   await ctx.answerCallbackQuery();
-
-  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, kickChannel.channel_id, "kick");
-
+  await removeFollowForUser(ctx.from.id, channel.platform, channel.channelId);
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(t("remove.success", locale).replace("{name}", kickChannel.channel_name), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+  await ctx.editMessageText(t("remove.success", locale).replace("{name}", channel.displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
   log.info("follow removed", {
     userId: ctx.from.id,
-    channel: kickChannel.channel_name,
-    channelId: kickChannel.channel_id,
+    channel: channel.displayName,
+    channelId: channel.channelId,
     platform: "kick"
   });
 })
 
 router.callbackQuery("remove_platform_twitch", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  if (!ctx.session.removePendingPlatformSelect) {
-    await ctx.answerCallbackQuery(
-      t("commands.session_expired_remove", locale),
-    );
-    await ctx.editMessageText(
-      t("commands.session_expired_remove", locale),
-      { parse_mode: "HTML" },
-    );
+  const channel = findPendingChannel(ctx.session.removePendingPlatformSelect, "twitch");
+  if (!channel) {
+    await ctx.answerCallbackQuery(t("commands.session_expired_remove", locale));
+    await ctx.editMessageText(t("commands.session_expired_remove", locale), { parse_mode: "HTML" });
     return;
   }
 
-  const { twitchChannel } = ctx.session.removePendingPlatformSelect;
-
   await ctx.answerCallbackQuery();
-
-  await removeFollowByUserIdChannelIdAndPlatfrom(ctx.from.id, twitchChannel.channel_id, "twitch");
-
+  await removeFollowForUser(ctx.from.id, channel.platform, channel.channelId);
   ctx.session.removePendingPlatformSelect = undefined;
 
-  await ctx.editMessageText(t("remove.success", locale).replace("{name}", twitchChannel.channel_name), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
+  await ctx.editMessageText(t("remove.success", locale).replace("{name}", channel.displayName), { parse_mode: "HTML", reply_markup: buildBackHomeKeyboard(locale) });
   log.info("follow removed", {
     userId: ctx.from.id,
-    channel: twitchChannel.channel_name,
-    channelId: twitchChannel.channel_id,
+    channel: channel.displayName,
+    channelId: channel.channelId,
     platform: "twitch"
   });
 })
 
 router.callbackQuery("remove_platform_back", async (ctx) => {
   const locale = await getUserLocale(ctx.from.id);
-  if (ctx.session.removePendingPlatformSelect) {
-    const { twitchChannel, kickChannel } = ctx.session.removePendingPlatformSelect;
+  const channels = ctx.session.removePendingPlatformSelect;
+  if (channels && channels.length > 0) {
     ctx.session.removePendingPlatformSelect = undefined;
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText(t("remove.cancelled", locale).replace("{name}", twitchChannel.channel_name), { parse_mode: "HTML" });
-    log.info("channel removal cancelled", {
-      userId: ctx.from.id,
-      twithchChannel: twitchChannel.channel_name,
-      kickChannel: kickChannel.channel_name
-    });
+    await ctx.editMessageText(t("remove.cancelled", locale).replace("{name}", channels[0].displayName), { parse_mode: "HTML" });
   } else {
     await ctx.answerCallbackQuery();
     await ctx.editMessageText(t("commands.no_active_remove", locale), { parse_mode: "HTML" });

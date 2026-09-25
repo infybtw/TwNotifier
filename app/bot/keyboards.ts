@@ -330,7 +330,7 @@ export function buildAdminChannelsKeyboard(channels: Channel[], page: number = 0
   const pageChannels = channels.slice(safePage * ADMIN_PAGE_SIZE, (safePage + 1) * ADMIN_PAGE_SIZE);
   for (const channel of pageChannels) {
     const icon = channel.platform === "twitch" ? "🟣" : "🟢";
-    kb.text(`${icon} ${channel.channel_name}`, `admin_channel_${channel.channel_id}`).row();
+    kb.text(`${icon} ${channel.channel_name}`, `admin_channel_${channel.platform}_${channel.channel_id}`).row();
   }
   if (pageCount > 1) {
     addPaginationRow(kb, safePage, pageCount, "admin_channels_page");

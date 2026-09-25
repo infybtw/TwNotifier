@@ -45,10 +45,11 @@ export async function subscribeToKickChannelOnline(broadcasterId: number): Promi
   const data = await res.json();
 
 
-  if (res.status === 200) {
+  if (res.status === 200 || res.status === 201 || res.status === 409) {
     log.info("subscribed to event", {
       event: "livestream.status.updated",
       broadcaster_id: broadcasterId,
+      status: res.status,
     });
     return 202;
   } else if (res.status === 429) {

@@ -25,7 +25,7 @@ async function withRetry<T>(stepName: string, fn: () => Promise<T>): Promise<T> 
     try {
       return await fn();
     } catch (secondError) {
-      await notifyAdminsAndExit(stepName, secondError);
+      return await notifyAdminsAndExit(stepName, secondError);
     }
   }
 }
