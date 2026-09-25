@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/*
+ * Telegram theme variables. Defaults match the light theme and are overwritten
+ * at runtime from `Telegram.WebApp.themeParams` and viewport safe areas.
+ */
+:root {
+  --tg-bg: #ffffff;
+  --tg-text: #1f2937;
+  --tg-hint: #707579;
+  --tg-subtitle: #6b7280;
+  --tg-link: #2481cc;
+  --tg-button: #2481cc;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #f4f4f5;
+  --tg-header-bg: #ffffff;
+  --tg-section-bg: #ffffff;
+  --tg-destructive: #e53935;
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+  color-scheme: light dark;
+}
+
+html,
+body,
+#__nuxt {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Utility classes bound to the Telegram palette. */
+.tg-bg { background-color: var(--tg-bg); }
+.tg-card { background-color: var(--tg-section-bg); border: 1px solid color-mix(in srgb, var(--tg-hint) 20%, transparent); }
+.tg-secondary { background-color: var(--tg-secondary-bg); }
+.tg-text { color: var(--tg-text); }
+.tg-hint { color: var(--tg-hint); }
+.tg-link { color: var(--tg-link); }
+.tg-button { background-color: var(--tg-button); color: var(--tg-button-text); }
+.tg-destructive { color: var(--tg-destructive); }
+
+.tg-button:disabled {
+  opacity: 0.5;
+}
+
+.safe-top { padding-top: calc(0.75rem + var(--safe-top)); }
+.safe-bottom { padding-bottom: calc(0.75rem + var(--safe-bottom)); }
+
+/* Visible keyboard focus for accessibility. */
+:focus-visible {
+  outline: 2px solid var(--tg-link);
+  outline-offset: 2px;
+}

@@ -2,16 +2,46 @@ name: Build and Push Image
 
 on:
   push:
+    branches: [main]
     tags:
       - '*'
+  pull_request:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: infybtw/twnotifier
+  WEB_IMAGE_NAME: infybtw/twnotifier-web
   TEMP_TAG: ghcr.io/infybtw/twnotifier:build
+  WEB_TEMP_TAG: ghcr.io/infybtw/twnotifier-web:build
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Backend install and typecheck
+        working-directory: app
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun test
+
+      - name: Frontend install, typecheck and build
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run generate
+
   build-image:
+    needs: checks
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +51,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image
+      - name: Build bot image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -32,14 +62,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Save image
+      - name: Save bot image
         run: docker save ${{ env.TEMP_TAG }} > /tmp/twn.tar
 
-      - name: Upload image artifact
+      - name: Upload bot image artifact
         uses: actions/upload-artifact@v5
         with:
           name: docker-twn
           path: /tmp/twn.tar
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile-web
+          push: false
+          load: true
+          tags: ${{ env.WEB_TEMP_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save web image
+        run: docker save ${{ env.WEB_TEMP_TAG }} > /tmp/twn-web.tar
+
+      - name: Upload web image artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: docker-twn-web
+          path: /tmp/twn-web.tar
 
   push-image:
     needs: build-image
@@ -59,16 +109,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download image artifact
+      - name: Download bot image artifact
         uses: actions/download-artifact@v5
         with:
           name: docker-twn
           path: /tmp
 
-      - name: Load image
-        run: docker load < /tmp/twn.tar
+      - name: Download web image artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: docker-twn-web
+          path: /tmp
 
-      - name: Extract Docker metadata
+      - name: Load images
+        run: |
+          docker load < /tmp/twn.tar
+          docker load < /tmp/twn-web.tar
+
+      - name: Extract bot metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -77,11 +135,29 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest
 
-      - name: Tag and push image
+      - name: Extract web metadata
+        id: web-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+
+      - name: Tag and push bot image
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           for tag in $TAGS; do
             docker tag ${{ env.TEMP_TAG }} "$tag"
+            docker push "$tag"
+          done
+
+      - name: Tag and push web image
+        env:
+          TAGS: ${{ steps.web-meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            docker tag ${{ env.WEB_TEMP_TAG }} "$tag"
             docker push "$tag"
           done

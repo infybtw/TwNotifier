@@ -35,6 +35,27 @@ services:
       postgres:
         condition: service_healthy
 
+  web:
+    image: ghcr.io/infybtw/twnotifier-web
+    build:
+      context: .
+      dockerfile: Dockerfile-web
+    restart: unless-stopped
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:-localhost}
+      KICK_WEBHOOK_PATH: ${KICK_WEBHOOK_PATH}
+      TWITCH_WEBHOOK_PATH: ${TWITCH_WEBHOOK_PATH}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - twn
+    networks:
+      - pg
+
   adminer:
     image: adminer
     restart: unless-stopped
@@ -60,6 +81,8 @@ services:
 
 volumes:
   pgdata-prod:
+  caddy-data:
+  caddy-config:
 
 networks:
   pg:

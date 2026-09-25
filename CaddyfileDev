@@ -6,3 +6,10 @@
         reverse_proxy localhost:3001
     }
 }
+
+# Static build of the Mini App, previewed from web/.output/public.
+:9092 {
+    root * ./web/.output/public
+    try_files {path} /index.html
+    file_server
+}

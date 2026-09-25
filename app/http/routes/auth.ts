@@ -25,7 +25,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
     try {
       const verified = verifyInitData(initData);
-      const { profile } = await registerUser(
+      const { profile, isNew } = await registerUser(
         verified.user.id,
         verified.user.username ?? null,
         verified.user.first_name ?? null,
@@ -39,6 +39,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       return {
         token: session.token,
         expiresAt: session.expiresAt,
+        isNew,
         profile: { ...profile, capabilities: PLATFORM_CAPABILITIES },
         settings,
         capabilities: PLATFORM_CAPABILITIES,
