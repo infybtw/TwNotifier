@@ -1,15 +1,15 @@
-:9091 {
-    handle /api* {
-        reverse_proxy localhost:3000
-    }
-    handle /* {
-        reverse_proxy localhost:3001
-    }
-}
+:3000 {
+	@api path {$API_PATH:/api/v1} {$API_PATH:/api/v1}/*
+	handle @api {
+		reverse_proxy twn:3000
+	}
 
-# Static build of the Mini App, previewed from web/.output/public.
-:9092 {
-    root * ./web/.output/public
-    try_files {path} /index.html
-    file_server
+	@webhooks path {$KICK_WEBHOOK_PATH} {$TWITCH_WEBHOOK_PATH}
+	handle @webhooks {
+		reverse_proxy twn:3000
+	}
+
+	handle {
+		reverse_proxy web:3001
+	}
 }

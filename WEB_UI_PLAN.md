@@ -265,12 +265,12 @@ Recommended deployment: an HTTPS reverse proxy serves the static SPA and forward
 
 - Preserve routing for existing Kick/Twitch webhook paths. Mini App middleware applies only to `/api/v1`, not to provider webhooks.
 - Configure an `index.html` fallback for direct navigation to nested SPA routes. API and webhook errors must not fall through to the SPA.
-- Add the frontend build to Docker/CI and update `.github/workflows/docker-build.yml`, Compose, and proxy configuration for the selected publishing setup.
+- Add the frontend build to Docker/CI and update `.github/workflows/docker-build.yml` and Compose for the selected publishing setup.
 - Use long-lived caching for versioned assets, revalidation for `index.html`, and `Cache-Control: no-store` for authentication and personal-data responses.
 - Verify rendering inside the Telegram Web iframe: avoid blocking `X-Frame-Options: DENY/SAMEORIGIN`; align CSP `frame-ancestors` with supported Telegram Web origins and allow the official bridge script.
 - Add `WEB_APP_URL`, initData freshness limits, and session TTL configuration to `app/config.ts` and `.env.example`; reuse the existing bot token.
-- Development: backend on port 3000, Nuxt on 3001, and a shared proxy based on `CaddyfileDev`; use a public HTTPS tunnel and a separate test bot for running inside Telegram.
-- Use the existing twitch-mock and Kick mocks for repeatable scenarios. Development authentication data is allowed only in an isolated test environment; production must not accept a substituted user ID.
+- Development: backend on port 3000 and the Mini App on 3001; use a public HTTPS tunnel and a separate test bot for running inside Telegram.
+- Development uses the real provider APIs. Development authentication data is allowed only in an isolated test environment; production must not accept a substituted user ID.
 - Add documented frontend dev/generate/typecheck commands and backend checks, accounting for the current two package.json files.
 - Apply migrations before code that requires the new schema; coordinate the composite-key rollout with the backend and validate the migration on a database copy. Account for the current `app/index.ts` startup order: the API becomes available after integrations initialize.
 

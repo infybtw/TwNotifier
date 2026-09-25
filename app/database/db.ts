@@ -1,10 +1,11 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
+import { DATABASE_URL } from "../config";
 import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, Platform, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings, WebSession, web_sessions } from "./schema";
 import { and, asc, count, desc, eq, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
 import logger from "../logger";
 
-const sqlConnect = new SQL(process.env.DATABASE_URL!)
+const sqlConnect = new SQL(DATABASE_URL)
 const db = drizzle(sqlConnect)
 
 const log = logger.getSubLogger({ name: "db" });

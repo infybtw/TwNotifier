@@ -8,8 +8,7 @@
 ## Environment Setup
 - Environment file: `.env` (loaded via `--env-file` flag in package.json script)
 - `.env.example` documents all required variables including Kick integration vars
-- Development uses localhost endpoints for Twitch API mocking (twitch-mock service)
-- Production uses real Twitch endpoints (`wss://eventsub.wss.twitch.tv/ws`, `https://api.twitch.tv`)
+- Development and production use real Twitch endpoints (`wss://eventsub.wss.twitch.tv/ws`, `https://api.twitch.tv`)
 - `DATABASE_URL` is required - PostgreSQL connection string
 
 ## Architecture Notes
@@ -31,7 +30,7 @@
 - Schema tables: `users`, `channels`, `users_follows`, `users_settings`, `admin_keys`
 
 ## Docker Compose Files
-- `docker-compose.dev.yml` - PostgreSQL + twitch-mock (for local development)
+- `docker-compose.dev.yml` - PostgreSQL + app + Mini App (for local development)
 - `docker-compose.prod.yml` - PostgreSQL + app + adminer + pgbackweb (production)
 - `docker-compose.local.yml` - PostgreSQL + app + adminer (local prod-like testing)
 

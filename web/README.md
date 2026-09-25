@@ -18,8 +18,8 @@ bun run generate   # static build into web/.output/public
 ```
 
 `nuxt generate` produces `index.html`, `200.html` and `404.html` plus hashed
-assets. Deploy `.output/public` behind the HTTPS proxy; the proxy must rewrite
-unknown paths to `index.html` so nested routes work on reload.
+assets. The production Docker image serves them directly with Bun and falls
+back to `index.html` so nested routes work on reload.
 
 ## Configuration
 
@@ -27,7 +27,8 @@ Public, non-secret values only (never the bot token):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NUXT_PUBLIC_API_BASE` | `/api/v1` | API base path or absolute URL |
+| `API_PATH` | `/api/v1` | REST API path prefix |
+| `NUXT_PUBLIC_API_BASE` | `API_PATH` | API base path or absolute URL |
 | `NUXT_PUBLIC_BOT_USERNAME` | empty | Bot username used for chat/share links |
 
 ## How it works
@@ -47,15 +48,16 @@ Public, non-secret values only (never the bot token):
 
 ## Local development inside Telegram
 
-The dev servers can be run behind `CaddyfileDev` (backend on `:3000`, Nuxt on
-`:3001`, proxy on `:9091`) with a public HTTPS tunnel and a separate test bot.
+The backend (`:3000`) and Nuxt (`:3001`) can be exposed through a public HTTPS
+tunnel with a separate test bot.
 Backend base URL and bot token live in the repository root `.env`; this package
 only needs the public values above.
 
 ## Deployment
 
-- `Dockerfile-web` builds the SPA and serves it with Caddy (`Caddyfile.prod`).
-- The same Caddy instance proxies `/api/v1/*` and the provider webhook paths to
-  the bot, and falls back to `index.html` for SPA routes.
-- Responses for `/api/v1` are marked `Cache-Control: no-store`; versioned
-  assets are cached immutably.
+- `Dockerfile-web` builds the SPA and serves it directly with Bun on
+  `WEB_SERVER_PORT` (default `3001`).
+- The API is a separate public endpoint on `HTTP_SERVER_PORT` (default `3000`).
+  Set `NUXT_PUBLIC_API_BASE` to its full public URL at image build time.
+- Both public endpoints need HTTPS for Telegram Mini Apps; TLS is deliberately
+  outside this Compose stack.

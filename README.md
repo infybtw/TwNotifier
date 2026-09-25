@@ -82,19 +82,22 @@ TWITCH_HELIX=TWITCH_HELIX_URL
 TWITCH_OAUTH=TWITCH_OAUTH_URL
 ```
 
-For development with twitch-mock, use localhost endpoints:
-```bash
-TWITCH_WS=ws://localhost:8081/ws
-TWITCH_HELIX=localhost:7777
-TWITCH_OAUTH=localhost:7777
-```
-
 ### Running the Bot
 
 **Development mode** (with `.env` file):
 ```bash
 bun run dev
 ```
+
+**Development stack** (PostgreSQL, backend, Mini App and Caddy; Twitch uses the
+real API configured in `.env`):
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+The stack is available on `http://localhost:3000`; Caddy forwards Mini App,
+`API_PATH`, and provider webhooks to the internal containers. Only PostgreSQL
+(`localhost:54322`) and Caddy (`localhost:3000`) are published to the host.
 
 **Production mode** (via Docker):
 ```bash
@@ -204,21 +207,21 @@ Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
    `https://t.me/<bot_username>?startapp=prefollow_<platform>_<login>`.
    Existing `?start=prefollow_...` links keep working through the bot.
 
-### Proxy and container
+### Docker deployment
 
-`Dockerfile-web` builds the SPA and serves it with Caddy (`Caddyfile.prod`)
-together with a reverse proxy:
+`docker-compose.prod.yml` starts the API and static Mini App as independent
+containers; no reverse proxy is included:
 
-- `/api/v1/*` and the provider webhook paths are proxied to the bot and never
-  fall through to the SPA.
-- Unknown paths fall back to `index.html`, so nested routes survive a reload.
-- Versioned assets are cached immutably; `index.html` and API responses are
-  revalidated/`no-store`.
+- API: `HTTP_SERVER_PORT` (default `3000`) with routes under `API_PATH`
+  (default `/api/v1`).
+- Mini App: `WEB_SERVER_PORT` (default `3001`), with client-side routes falling
+  back to `index.html`.
+- Set `NUXT_PUBLIC_API_BASE` to the absolute public API URL including
+  `API_PATH`, and add the Mini App origin to `CORS_ORIGINS` when they use
+  different origins.
 
-The compose service exposes ports 80/443 for Caddy; set `WEB_DOMAIN` to the
-public hostname so certificates are issued automatically. Because the Mini App
-must be embedded in Telegram Web, do not send `X-Frame-Options: DENY/SAMEORIGIN`
-and keep the official `telegram-web-app.js` script allowed.
+Both public endpoints must be HTTPS for Telegram. TLS termination, if needed,
+is provided outside this Compose stack.
 
 Before deploying, confirm:
 
@@ -303,7 +306,6 @@ web/                      # Telegram Mini App (Nuxt 4 + Tailwind 4 SPA)
 - **[@types/bun](https://bun.sh/docs/typescript)** - TypeScript definitions for Bun
 - **[typescript](https://www.typescriptlang.org/)** (^5) - TypeScript compiler
 - **[drizzle-kit](https://orm.drizzle.team/kit-docs/overview)** (^0.31.10) - Database migration tooling
-- **[TwitchMock](https://github.com/twirapp/twir/tree/main/apps/twitch-mock)** - Twitch mock by Satont
 
 ### Runtime
 - **[Bun](https://bun.sh/)** - JavaScript runtime and package manager

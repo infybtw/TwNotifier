@@ -5,6 +5,7 @@ import { settingsRoutes } from "./routes/settings";
 import { channelRoutes } from "./routes/channels";
 import { followRoutes } from "./routes/follows";
 import { apiErrorBody, mapInitDataError, mapServiceError } from "./errors";
+import { API_PATH } from "../config";
 import logger from "../logger";
 
 const log = logger.getSubLogger({ name: "http:api" });
@@ -15,7 +16,7 @@ const protectedRoutes = new Elysia({ name: "api-protected" })
   .use(channelRoutes)
   .use(followRoutes);
 
-export const apiRoutes = new Elysia({ prefix: "/api/v1" })
+export const apiRoutes = new Elysia({ prefix: API_PATH })
   .onError({ as: "global" }, ({ code, error, set, status }) => {
     const requestId = crypto.randomUUID();
     set.headers["cache-control"] = "no-store";

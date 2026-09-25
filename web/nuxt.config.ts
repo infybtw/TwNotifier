@@ -25,7 +25,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Relative by default so the SPA and API share one HTTPS origin.
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || "/api/v1",
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || process.env.API_PATH || "/api/v1",
       botUsername: process.env.NUXT_PUBLIC_BOT_USERNAME || "",
     },
   },
