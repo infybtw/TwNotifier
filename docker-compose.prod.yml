@@ -4,9 +4,9 @@ services:
     container_name: postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: twn
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: twn
+      POSTGRES_USER: ${POSTGRES_USER:-twn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-twn}
     volumes:
       - pgdata-prod:/var/lib/postgresql/data
     healthcheck:
@@ -30,10 +30,24 @@ services:
     volumes:
       - ./logs/prod:/app/logs
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${HTTP_SERVER_PORT:-3000}:${HTTP_SERVER_PORT:-3000}"
     depends_on:
       postgres:
         condition: service_healthy
+
+  web:
+    image: ghcr.io/infybtw/twnotifier-web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        API_PATH: ${API_PATH:-/api/v1}
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
+        NUXT_PUBLIC_BOT_USERNAME: ${NUXT_PUBLIC_BOT_USERNAME:-}
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "${WEB_SERVER_PORT:-3001}:${WEB_SERVER_PORT:-3001}"
 
   adminer:
     image: adminer
@@ -50,7 +64,7 @@ services:
       - "127.0.0.1:8085:8085"
     environment:
       PBW_ENCRYPTION_KEY: "key"
-      PBW_POSTGRES_CONN_STRING: "postgresql://user:pass@postgres:5432/db?sslmode=disable"
+      PBW_POSTGRES_CONN_STRING: ${DATABASE_URL}
       PBW_PATH_PREFIX: "/pgback"
     depends_on:
       postgres:

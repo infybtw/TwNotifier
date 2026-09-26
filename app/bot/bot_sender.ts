@@ -1,4 +1,4 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, InputFile } from "grammy";
 import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId, StreamSummary } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
@@ -308,18 +308,18 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
 
 export async function sendBroadcastMessage(
   messageText: string | undefined,
-  photoFileId: string | undefined,
+  photo: string | InputFile | undefined,
 ): Promise<{ sent: number; failed: number }> {
   const users = await getUsersForNotifications();
-  log.info("broadcast started", { total_users: users.length, has_photo: !!photoFileId });
+  log.info("broadcast started", { total_users: users.length, has_photo: !!photo });
   let sent = 0;
   let failed = 0;
   for (const user of users) {
     try {
-      if (photoFileId) {
+      if (photo) {
         await bot.api.sendPhoto(
           user.user_id,
-          photoFileId,
+          photo,
           { caption: messageText || undefined },
         );
       } else if (messageText) {

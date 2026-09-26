@@ -1,117 +1,170 @@
-import { Composer } from "grammy";
+import { Composer, InlineKeyboard } from "grammy";
 import logger from "../logger";
-import {
-  checkOrCreateUser,
-  checkOrCreateChannel,
-  checkOrCreateFollow,
-  getChannelsByUsername,
-  getFollowByUserIdAndChannelId,
-  getFollowByUserIdChannelIdAndPlatform,
-  getUserByUserId,
-  makeUserAdmin,
-  setBotBlockedStateByUserId
-} from "../database/db";
-import { getUserByLogin } from "../twitchAPI/users";
-import { subscribeToChannelOffline, subscribeToChannelOnline, subscribeToChannelUpdate } from "../twitchAPI/subscriptions";
-import { subscribeToKickChannelOnline } from "../kickAPI/subscription";
+import { getChannelsByLogin, getUserByUserId, makeUserAdmin } from "../database/db";
 import {
   buildHomeKeyboard,
-  buildAddConfirmationKeyboard,
-  buildRemoveConfirmationKeyboard,
   buildAdminKeyboard,
   buildPlatformSelectKeyboard,
   buildRemovePlatformSelectKeyboard,
-  buildAdminBackKeyboard,
   buildBroadcastConfirmKeyboard,
   buildMySubscriptionsAddBackKeyboard,
 } from "./keyboards";
 import { buildMySubscriptionsView } from "./my_subscriptions";
-import { extractPlatformFromUrl, extractUsernameFromTwitchUrl } from "../utils/urlParser";
+import { parseChannelInput } from "../utils/urlParser";
 import { MyContext } from "./bot";
-import { getKickChannelByUsername } from "../kickAPI/users";
-import { Channel, UserFollow } from "../database/schema";
-import { t, Locale } from "../i18n";
+import { t } from "../i18n";
 import { getUserLocale } from "../utils/locale";
 import { STARTUP_TIME } from "../config";
 import { formatUptime } from "../utils/time";
+import { registerUser, markChatDeliveryEnabled } from "../services/users";
+import { resolveChannelCandidates, type ResolvedChannel } from "../services/channels";
+import { addFollowForUser, getFollowForUser } from "../services/follows";
+import {
+  buildAddPreview,
+  buildRemovePreview,
+  buildDualPlatformMessage,
+  buildDualPlatformRemoveMessage,
+  channelToPending,
+  type PendingChannel,
+} from "./follow_flow";
 
 const log = logger.getSubLogger({ name: "bot:router" });
 
 export const router = new Composer<MyContext>();
 
+async function handleAddInput(ctx: MyContext, input: string, backKeyboard?: InlineKeyboard): Promise<unknown> {
+  const locale = await getUserLocale(ctx.from!.id);
+  const resolved = await resolveChannelCandidates(input);
+  if (!resolved) {
+    return ctx.reply(t("commands.url_parse_error", locale), { reply_markup: backKeyboard });
+  }
+
+  if (resolved.channels.length === 0) {
+    if (resolved.unavailablePlatforms.length > 0) {
+      return ctx.reply(t("add.error", locale), { parse_mode: "HTML", reply_markup: backKeyboard });
+    }
+    return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: backKeyboard });
+  }
+
+  const notFollowed: ResolvedChannel[] = [];
+  for (const channel of resolved.channels) {
+    const existing = await getFollowForUser(ctx.from!.id, channel.platform, channel.channelId);
+    if (!existing) notFollowed.push(channel);
+  }
+
+  if (notFollowed.length === 0) {
+    const name = resolved.channels[0].displayName;
+    return ctx.reply(t("commands.already_following", locale).replace("{name}", name), {
+      parse_mode: "HTML",
+      reply_markup: backKeyboard,
+    });
+  }
+
+  if (notFollowed.length > 1) {
+    ctx.session.pendingPlatformSelect = notFollowed;
+    return ctx.reply(buildDualPlatformMessage(resolved.username, locale), {
+      reply_markup: buildPlatformSelectKeyboard(locale),
+    });
+  }
+
+  const channel = notFollowed[0];
+  ctx.session.pendingAdd = channel;
+  const preview = buildAddPreview(channel, locale);
+  log.info("showing channel preview", {
+    userId: ctx.from!.id,
+    channel: channel.displayName,
+    channelId: channel.channelId,
+    platform: channel.platform,
+  });
+  await ctx.reply(preview.text, { reply_markup: preview.keyboard, parse_mode: "HTML" });
+}
+
+async function handleRemoveInput(ctx: MyContext, input: string, backKeyboard?: InlineKeyboard): Promise<unknown> {
+  const locale = await getUserLocale(ctx.from!.id);
+  const parsed = parseChannelInput(input);
+  if (!parsed) {
+    return ctx.reply(t("commands.url_parse_error", locale), { reply_markup: backKeyboard });
+  }
+
+  const allChannels = await getChannelsByLogin(parsed.username);
+  if (allChannels.length === 0) {
+    return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: backKeyboard });
+  }
+
+  const candidates = parsed.platform
+    ? allChannels.filter((channel) => channel.platform === parsed.platform)
+    : allChannels;
+
+  const followed: PendingChannel[] = [];
+  for (const channel of candidates) {
+    const follow = await getFollowForUser(ctx.from!.id, channel.platform, channel.channel_id);
+    if (follow) followed.push(channelToPending(channel));
+  }
+
+  if (followed.length === 0) {
+    return ctx.reply(t("commands.not_following", locale), { reply_markup: backKeyboard });
+  }
+
+  if (followed.length > 1) {
+    ctx.session.removePendingPlatformSelect = followed;
+    return ctx.reply(buildDualPlatformRemoveMessage(parsed.username, locale), {
+      reply_markup: buildRemovePlatformSelectKeyboard(locale),
+    });
+  }
+
+  const channel = followed[0];
+  ctx.session.pendingRemove = channel;
+  const preview = buildRemovePreview(channel, locale);
+  log.info("showing remove preview", {
+    userId: ctx.from!.id,
+    channel: channel.displayName,
+    channelId: channel.channelId,
+    platform: channel.platform,
+  });
+  await ctx.reply(preview.text, { reply_markup: preview.keyboard, parse_mode: "HTML" });
+}
+
 router.command("start", async (ctx) => {
   const locale = await getUserLocale(ctx.from?.id!);
-  const newUser = await checkOrCreateUser(ctx.from?.id!, ctx.from?.username ?? "", ctx.from?.first_name ?? "")
-  if (!newUser) {
+  const registration = await registerUser(ctx.from?.id!, ctx.from?.username ?? null, ctx.from?.first_name ?? null);
+  if (!registration) {
     return ctx.reply(t("commands.registration_error", locale));
   }
-  await setBotBlockedStateByUserId(ctx.from.id, 0);
+  await markChatDeliveryEnabled(ctx.from!.id);
 
   const prefollowMatch = ctx.match.trim().match(/^prefollow_(twitch|kick)_([a-zA-Z0-9_-]{1,25})$/);
   if (prefollowMatch) {
     const platform = prefollowMatch[1] as "twitch" | "kick";
-    const channelName = prefollowMatch[2].toLowerCase();
+    const login = prefollowMatch[2].toLowerCase();
+    const url = platform === "twitch" ? `https://twitch.tv/${login}` : `https://kick.com/${login}`;
+    const resolved = await resolveChannelCandidates(url);
+    const channel = resolved?.channels[0];
 
-    if (platform === "twitch") {
-      const twitchChannel = await getUserByLogin(channelName);
-      if (!twitchChannel) {
-        await ctx.reply(t("commands.channel_not_found", locale));
+    if (!channel) {
+      if (resolved && resolved.unavailablePlatforms.length > 0) {
+        await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
       } else {
-        const channelId = Number(twitchChannel.id);
-        const displayName = twitchChannel.display_name;
-        const existingFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channelId, platform);
-
-        if (existingFollow) {
-          await ctx.reply(t("add.already_exists", locale).replace("{name}", displayName), { parse_mode: "HTML" });
-        } else {
-          await checkOrCreateChannel(channelId, displayName, platform);
-          const onlineStatus = await subscribeToChannelOnline(channelId, displayName);
-          const offlineStatus = await subscribeToChannelOffline(channelId, displayName);
-          const updateStatus = await subscribeToChannelUpdate(channelId, displayName);
-
-          if (onlineStatus < 0 || offlineStatus < 0 || updateStatus < 0) {
-            log.error("prefollow subscription error", { channelId, onlineStatus, offlineStatus, updateStatus, platform });
-            await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
-          } else {
-            await checkOrCreateFollow(ctx.from.id, channelId, platform);
-            await ctx.reply(t("add.success", locale).replace("{name}", displayName), { parse_mode: "HTML" });
-            log.info("new follow from start link", { userId: ctx.from.id, channel: displayName, platform });
-          }
-        }
+        await ctx.reply(t("commands.channel_not_found", locale));
       }
     } else {
-      const kickChannel = await getKickChannelByUsername(channelName);
-      const channel = kickChannel.data[0];
-
-      if (!channel) {
-        await ctx.reply(t("commands.channel_not_found", locale));
-      } else {
-        const channelId = Number(channel.broadcaster_user_id);
-        const displayName = channel.slug;
-        const existingFollow = await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channelId, platform);
-
-        if (existingFollow) {
-          await ctx.reply(t("add.already_exists", locale).replace("{name}", displayName), { parse_mode: "HTML" });
+      try {
+        const { isNew } = await addFollowForUser(ctx.from!.id, channel);
+        if (isNew) {
+          await ctx.reply(t("add.success", locale).replace("{name}", channel.displayName), { parse_mode: "HTML" });
+          log.info("new follow from start link", { userId: ctx.from!.id, channel: channel.displayName, platform: channel.platform });
         } else {
-          await checkOrCreateChannel(channelId, displayName, platform);
-          const subscriptionStatus = await subscribeToKickChannelOnline(channelId);
-
-          if (subscriptionStatus < 0) {
-            log.error("prefollow subscription error", { channelId, subscriptionStatus, platform });
-            await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
-          } else {
-            await checkOrCreateFollow(ctx.from.id, channelId, platform);
-            await ctx.reply(t("add.success", locale).replace("{name}", displayName), { parse_mode: "HTML" });
-            log.info("new follow from start link", { userId: ctx.from.id, channel: displayName, platform });
-          }
+          await ctx.reply(t("add.already_exists", locale).replace("{name}", channel.displayName), { parse_mode: "HTML" });
         }
+      } catch (error) {
+        log.error("prefollow failed", { userId: ctx.from!.id, platform, login, error });
+        await ctx.reply(t("add.error", locale), { parse_mode: "HTML" });
       }
     }
   }
 
-  await ctx.reply(t("start.welcome", locale), { reply_markup: await buildHomeKeyboard(ctx.from.id, locale), parse_mode: "HTML" });
-  if(!newUser.isNew) {
-    log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name});
+  await ctx.reply(t("start.welcome", locale), { reply_markup: await buildHomeKeyboard(ctx.from!.id, locale), parse_mode: "HTML" });
+  if (!registration.isNew) {
+    log.info("used /start", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name });
   } else {
     log.info("user registered", { userId: ctx.message?.from.id, username: ctx.from?.username, first_name: ctx.from?.first_name });
   }
@@ -120,221 +173,19 @@ router.command("start", async (ctx) => {
 router.command("add", async (ctx) => {
   const locale = await getUserLocale(ctx.from?.id!);
   const input = ctx.match.trim();
-
   if (!input) {
     return ctx.reply(t("commands.add_usage", locale));
   }
-
-  const extractedUsername = extractUsernameFromTwitchUrl(input);
-  if (!extractedUsername) {
-    return ctx.reply(t("commands.url_parse_error", locale));
-  }
-
-  const channel_name_lower = extractedUsername.toLowerCase();
-  const urlPlatform = extractPlatformFromUrl(input);
-  const twitchChannel = await getUserByLogin(channel_name_lower);
-  const kickChannel = await getKickChannelByUsername(channel_name_lower);
-  if (!(twitchChannel || kickChannel.data[0])) {
-    return ctx.reply(t("commands.channel_not_found", locale));
-  }
-
-  // If the user provided a platform-specific URL, honor it and skip the selection prompt.
-  const kickAvailable = !!kickChannel.data[0] && urlPlatform !== "twitch";
-  const twitchAvailable = !!twitchChannel && urlPlatform !== "kick";
-
-  if (kickAvailable && twitchAvailable) {
-    ctx.session.pendingPlatformSelect = {
-      kickData: kickChannel,
-      twitchData: twitchChannel,
-    }
-
-    const message = t("add.dual_platform", locale)
-      .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
-      .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
-
-    return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
-  }
-  if (kickAvailable) {
-    const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
-    const display_name = kickChannel.data[0].slug;
-
-    if (!ctx.from) {
-      return ctx.reply(t("commands.user_error", locale));
-    }
-
-    if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-      return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name));
-    }
-
-    ctx.session.pendingAdd = {
-      channelId: channel_id,
-      channelName: channel_name_lower,
-      displayName: display_name,
-      platform: "kick"
-    };
-
-    const previewMessage = t("add.preview", locale)
-      .replace("{name}", display_name)
-      .replace("{url}", `https://kick.com/${display_name}`);
-
-    log.info("showing channel preview", {
-      userId: ctx.from.id,
-      channel: display_name,
-      channelId: channel_id,
-      platform: "kick"
-    });
-
-    return await ctx.reply(previewMessage, {
-      reply_markup: buildAddConfirmationKeyboard(locale),
-    });
-  } else if (twitchAvailable) {
-      const channel_id = Number(twitchChannel!.id);
-      const display_name = twitchChannel!.display_name;
-
-      if (!ctx.from) {
-        return ctx.reply(t("commands.user_error", locale));
-      }
-
-      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name));
-      }
-
-      ctx.session.pendingAdd = {
-        channelId: channel_id,
-        channelName: channel_name_lower,
-        displayName: display_name,
-        platform: "twitch"
-      };
-
-      const previewMessage = t("add.preview", locale)
-        .replace("{name}", display_name)
-        .replace("{url}", `https://twitch.tv/${display_name}`);
-
-      await ctx.reply(previewMessage, {
-        reply_markup: buildAddConfirmationKeyboard(locale),
-      });
-
-      log.info("showing channel preview", {
-        userId: ctx.from.id,
-        channel: display_name,
-        channelId: channel_id,
-        platform: "twitch",
-      });
-  } else {
-    return ctx.reply(t("commands.channel_not_found", locale))
-  }
+  return handleAddInput(ctx, input);
 });
 
 router.command("remove", async (ctx) => {
   const locale = await getUserLocale(ctx.from?.id!);
   const input = ctx.match.trim();
-
   if (!input) {
     return ctx.reply(t("commands.remove_usage", locale));
   }
-
-  const extractedUsername = extractUsernameFromTwitchUrl(input);
-  if (!extractedUsername) {
-    return ctx.reply(t("commands.url_parse_error", locale));
-  }
-
-  if (!ctx.from) {
-    return ctx.reply(t("commands.user_error", locale));
-  }
-
-  const channel_name_lower = extractedUsername.toLowerCase();
-  const urlPlatform = extractPlatformFromUrl(input);
-  const usernameChannels = await getChannelsByUsername(channel_name_lower)
-
-  const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
-  const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
-
-  if (!kickChannel && !twitchChannel) {
-    return ctx.reply(t("commands.channel_not_found", locale));
-  }
-
-  const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
-  const twitchFollow = twitchChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel.channel_id!, "twitch") : undefined
-
-  let bothFollow: boolean = false
-  let follow: UserFollow
-  let channel: Channel
-
-  if (urlPlatform === "kick" && kickFollow) {
-    follow = kickFollow
-    channel = kickChannel!
-  } else if (urlPlatform === "twitch" && twitchFollow) {
-    follow = twitchFollow
-    channel = twitchChannel!
-  } else if (urlPlatform) {
-    // The URL pointed at a platform the user does not follow
-    return ctx.reply(t("commands.not_following", locale))
-  } else if (kickFollow && twitchFollow) {
-    bothFollow = true
-  } else if (kickFollow || twitchFollow){
-    if (kickFollow) {
-      follow = kickFollow
-      channel = kickChannel!
-    } else {
-      follow = twitchFollow!
-      channel = twitchChannel!
-    }
-  } else {
-    return ctx.reply(t("commands.not_following", locale))
-  }
-
-  if (usernameChannels.length < 1) {
-    return ctx.reply(t("commands.channel_not_found", locale));
-  }
-
-  if (usernameChannels.length > 1 && bothFollow) {
-    if (!kickChannel || !twitchChannel) {
-      return ctx.reply(t("commands.channel_not_found", locale))
-    } else {
-      const message = t("remove.dual_platform", locale)
-        .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
-        .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
-
-      ctx.session.removePendingPlatformSelect = {
-        kickChannel,
-        twitchChannel,
-      }
-      return ctx.reply(message, { reply_markup: buildRemovePlatformSelectKeyboard(locale) })
-    }
-  }
-
-  const channelPlatform = follow!.platform === "twitch" ? "twitch" : "kick";
-  const channelPlatformUrl = follow!.platform === "twitch" ? "twitch.tv" : "kick.com";
-
-  const channel_id = Number(channel!.channel_id);
-  const display_name = channel!.channel_name || extractedUsername;
-
-
-
-  if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
-    return ctx.reply(t("commands.not_following_name", locale).replace("{name}", display_name));
-  }
-
-  ctx.session.pendingRemove = {
-    channelId: channel_id,
-    channelName: channel_name_lower,
-    displayName: display_name,
-    platform: channelPlatform,
-  };
-
-  const previewMessage = t("remove.preview", locale)
-    .replace("{name}", display_name)
-    .replace("{url}", `https://${channelPlatformUrl}/${channel_name_lower}`);
-
-  await ctx.reply(previewMessage, {
-    reply_markup: buildRemoveConfirmationKeyboard(locale),
-  });
-
-  log.info("showing remove preview", {
-    userId: ctx.from.id,
-    channel: display_name,
-    channelId: channel_id,
-  });
+  return handleRemoveInput(ctx, input);
 });
 
 router.command("list", async (ctx) => {
@@ -383,221 +234,17 @@ router.command("becomeAdmin", async (ctx) => {
 router.on("message", async (ctx, next) => {
   if (ctx.session.awaitingAddInput && ctx.message.text) {
     ctx.session.awaitingAddInput = undefined;
-    const locale = await getUserLocale(ctx.from?.id!);
     const input = ctx.message.text.trim();
-
-    const extractedUsername = extractUsernameFromTwitchUrl(input);
-    if (!extractedUsername) {
-      return ctx.reply(
-        t("commands.url_parse_error", locale),
-        { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) },
-      );
-    }
-
-    const channel_name_lower = extractedUsername.toLowerCase();
-    const urlPlatform = extractPlatformFromUrl(input);
-    const twitchChannel = await getUserByLogin(channel_name_lower);
-    const kickChannel = await getKickChannelByUsername(channel_name_lower);
-    if (!(twitchChannel || kickChannel.data[0])) {
-      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
-
-    // If the user provided a platform-specific URL, honor it and skip the selection prompt.
-    const kickAvailable = !!kickChannel.data[0] && urlPlatform !== "twitch";
-    const twitchAvailable = !!twitchChannel && urlPlatform !== "kick";
-
-    if (kickAvailable && twitchAvailable) {
-      ctx.session.pendingPlatformSelect = {
-        kickData: kickChannel,
-        twitchData: twitchChannel,
-      }
-
-      const message = t("add.dual_platform", locale)
-        .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
-        .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
-
-      return ctx.reply(message, { reply_markup: buildPlatformSelectKeyboard(locale) })
-    }
-
-    if (kickAvailable) {
-      const channel_id = Number(kickChannel.data[0].broadcaster_user_id);
-      const display_name = kickChannel.data[0].slug;
-
-      if (!ctx.from) {
-        return ctx.reply(t("commands.user_error", locale));
-      }
-
-      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-      }
-
-      ctx.session.pendingAdd = {
-        channelId: channel_id,
-        channelName: channel_name_lower,
-        displayName: display_name,
-        platform: "kick"
-      };
-
-      const previewMessage = t("add.preview", locale)
-        .replace("{name}", display_name)
-        .replace("{url}", `https://kick.com/${display_name}`);
-
-      log.info("showing channel preview", {
-        userId: ctx.from.id,
-        channel: display_name,
-        channelId: channel_id,
-        platform: "kick"
-      });
-
-      return await ctx.reply(previewMessage, {
-        reply_markup: buildAddConfirmationKeyboard(locale),
-      });
-    } else if (twitchAvailable) {
-      const channel_id = Number(twitchChannel!.id);
-      const display_name = twitchChannel!.display_name;
-
-      if (!ctx.from) {
-        return ctx.reply(t("commands.user_error", locale));
-      }
-
-      if (await getFollowByUserIdAndChannelId(ctx.from.id, channel_id)) {
-        return ctx.reply(t("commands.already_following", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-      }
-
-      ctx.session.pendingAdd = {
-        channelId: channel_id,
-        channelName: channel_name_lower,
-        displayName: display_name,
-        platform: "twitch"
-      };
-
-      const previewMessage = t("add.preview", locale)
-        .replace("{name}", display_name)
-        .replace("{url}", `https://twitch.tv/${display_name}`);
-
-      log.info("showing channel preview", {
-        userId: ctx.from.id,
-        channel: display_name,
-        channelId: channel_id,
-        platform: "twitch",
-      });
-
-      return await ctx.reply(previewMessage, {
-        reply_markup: buildAddConfirmationKeyboard(locale),
-      });
-    } else {
-      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
+    const locale = await getUserLocale(ctx.from?.id!);
+    await handleAddInput(ctx, input, buildMySubscriptionsAddBackKeyboard(locale));
+    return;
   }
 
   if (ctx.session.awaitingRemoveInput && ctx.message.text) {
     ctx.session.awaitingRemoveInput = undefined;
-    const locale = await getUserLocale(ctx.from?.id!);
     const input = ctx.message.text.trim();
-
-    const extractedUsername = extractUsernameFromTwitchUrl(input);
-    if (!extractedUsername) {
-      return ctx.reply(
-        t("commands.url_parse_error", locale),
-        { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) },
-      );
-    }
-
-    if (!ctx.from) {
-      return ctx.reply(t("commands.user_error", locale));
-    }
-
-    const channel_name_lower = extractedUsername.toLowerCase();
-    const urlPlatform = extractPlatformFromUrl(input);
-    const usernameChannels = await getChannelsByUsername(channel_name_lower)
-
-    const kickChannel = usernameChannels.find(ch => ch.platform === "kick")
-    const twitchChannel = usernameChannels.find(ch => ch.platform === "twitch")
-
-    if (!kickChannel && !twitchChannel) {
-      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
-
-    const kickFollow = kickChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, kickChannel.channel_id!, "kick") : undefined
-    const twitchFollow = twitchChannel ? await getFollowByUserIdChannelIdAndPlatform(ctx.from?.id, twitchChannel.channel_id!, "twitch") : undefined
-
-    let bothFollow: boolean = false
-    let follow: UserFollow
-    let channel: Channel
-
-    if (urlPlatform === "kick" && kickFollow) {
-      follow = kickFollow
-      channel = kickChannel!
-    } else if (urlPlatform === "twitch" && twitchFollow) {
-      follow = twitchFollow
-      channel = twitchChannel!
-    } else if (urlPlatform) {
-      // The URL pointed at a platform the user does not follow
-      return ctx.reply(t("commands.not_following", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    } else if (kickFollow && twitchFollow) {
-      bothFollow = true
-    } else if (kickFollow || twitchFollow){
-      if (kickFollow) {
-        follow = kickFollow
-        channel = kickChannel!
-      } else {
-        follow = twitchFollow!
-        channel = twitchChannel!
-      }
-    } else {
-      return ctx.reply(t("commands.not_following", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
-
-    if (usernameChannels.length < 1) {
-      return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
-
-    if (usernameChannels.length > 1 && bothFollow) {
-      if (!kickChannel || !twitchChannel) {
-        return ctx.reply(t("commands.channel_not_found", locale), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-      } else {
-        const message = t("remove.dual_platform", locale)
-          .replace("{kickUrl}", `https://kick.com/${channel_name_lower}`)
-          .replace("{twitchUrl}", `https://twitch.tv/${channel_name_lower}`);
-
-        ctx.session.removePendingPlatformSelect = {
-          kickChannel,
-          twitchChannel,
-        }
-        return ctx.reply(message, { reply_markup: buildRemovePlatformSelectKeyboard(locale) })
-      }
-    }
-
-    const channelPlatform = follow!.platform === "twitch" ? "twitch" : "kick";
-    const channelPlatformUrl = follow!.platform === "twitch" ? "twitch.tv" : "kick.com";
-
-    const channel_id = Number(channel!.channel_id);
-    const display_name = channel!.channel_name || extractedUsername;
-
-    if (!(await getFollowByUserIdChannelIdAndPlatform(ctx.from.id, channel_id, channelPlatform))) {
-      return ctx.reply(t("commands.not_following_name", locale).replace("{name}", display_name), { reply_markup: buildMySubscriptionsAddBackKeyboard(locale) });
-    }
-
-    ctx.session.pendingRemove = {
-      channelId: channel_id,
-      channelName: channel_name_lower,
-      displayName: display_name,
-      platform: channelPlatform,
-    };
-
-    const previewMessage = t("remove.preview", locale)
-      .replace("{name}", display_name)
-      .replace("{url}", `https://${channelPlatformUrl}/${channel_name_lower}`);
-
-    await ctx.reply(previewMessage, {
-      reply_markup: buildRemoveConfirmationKeyboard(locale),
-    });
-
-    log.info("showing remove preview", {
-      userId: ctx.from.id,
-      channel: display_name,
-      channelId: channel_id,
-    });
+    const locale = await getUserLocale(ctx.from?.id!);
+    await handleRemoveInput(ctx, input, buildMySubscriptionsAddBackKeyboard(locale));
     return;
   }
 
@@ -617,7 +264,7 @@ router.on("message", async (ctx) => {
   const caption = ctx.message?.caption;
 
   if (!text && (!photo || photo.length === 0)) {
-    return ctx.reply(t("admin.broadcast_error", locale), { reply_markup: buildAdminBackKeyboard(locale), parse_mode: "Markdown" });
+    return ctx.reply(t("admin.broadcast_error", locale), { reply_markup: buildAdminKeyboard(locale), parse_mode: "Markdown" });
   }
 
   const photoFileId = photo && photo.length > 0 ? photo[photo.length - 1].file_id : undefined;

@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/*
+ * Dark violet palette. The app ships its own minimalist theme instead of
+ * mirroring the Telegram client theme; only viewport safe areas are applied
+ * at runtime from `Telegram.WebApp`.
+ */
+:root {
+  --tg-bg: #0c0913;
+  --tg-text: #ece8f8;
+  --tg-hint: #8d84ab;
+  --tg-subtitle: #b3aad1;
+  --tg-link: #a78bfa;
+  --tg-button: #7c3aed;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #1b1429;
+  --tg-header-bg: rgba(12, 9, 19, 0.82);
+  --tg-section-bg: #141021;
+  --tg-destructive: #f87171;
+  --tg-border: rgba(167, 139, 250, 0.14);
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+  color-scheme: dark;
+}
+
+html,
+body,
+#__nuxt {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.45);
+}
+
+/* Utility classes bound to the app palette. */
+.tg-bg { background-color: var(--tg-bg); }
+.tg-card {
+  background-color: var(--tg-section-bg);
+  border: 1px solid var(--tg-border);
+}
+.tg-secondary {
+  background-color: var(--tg-secondary-bg);
+  border: 1px solid var(--tg-border);
+}
+.tg-text { color: var(--tg-text); }
+.tg-hint { color: var(--tg-hint); }
+.tg-link { color: var(--tg-link); }
+.tg-button {
+  background-color: var(--tg-button);
+  color: var(--tg-button-text);
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+.tg-button:not(:disabled):active { background-color: #6d28d9; }
+.tg-destructive { color: var(--tg-destructive); }
+
+.tg-button:disabled {
+  opacity: 0.45;
+}
+
+/* Frosted bars for the sticky header and bottom navigation. */
+.tg-bar {
+  background-color: var(--tg-header-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.safe-top { padding-top: calc(0.75rem + var(--safe-top)); }
+.safe-bottom { padding-bottom: calc(0.75rem + var(--safe-bottom)); }
+
+/* Visible keyboard focus for accessibility. */
+:focus-visible {
+  outline: 2px solid var(--tg-link);
+  outline-offset: 2px;
+}

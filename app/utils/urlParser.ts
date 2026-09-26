@@ -1,84 +1,120 @@
 export type UrlPlatform = "twitch" | "kick";
 
 /**
+ * Only these registrable domains (and their subdomains) are treated as
+ * provider URLs. A substring check such as `includes("twitch.tv")` would also
+ * accept `twitch.tv.evil.com` and is intentionally avoided.
+ */
+const PROVIDER_DOMAINS: Record<UrlPlatform, string> = {
+  twitch: "twitch.tv",
+  kick: "kick.com",
+};
+
+const USERNAME_PATTERNS: Record<UrlPlatform, RegExp> = {
+  // Twitch logins: letters, digits and underscores.
+  twitch: /^[a-zA-Z0-9_]{1,25}$/,
+  // Kick slugs: letters, digits, underscores and hyphens.
+  kick: /^[a-zA-Z0-9_-]{1,25}$/,
+};
+
+export interface ParsedChannelInput {
+  /** null when the input was a bare username without platform information. */
+  platform: UrlPlatform | null;
+  /** Canonical, lower-cased login/slug. */
+  username: string;
+}
+
+function isProviderHostname(hostname: string, platform: UrlPlatform): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  const domain = PROVIDER_DOMAINS[platform];
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+function platformFromHostname(hostname: string): UrlPlatform | null {
+  if (isProviderHostname(hostname, "twitch")) return "twitch";
+  if (isProviderHostname(hostname, "kick")) return "kick";
+  return null;
+}
+
+export function isValidUsername(username: string, platform: UrlPlatform): boolean {
+  return USERNAME_PATTERNS[platform].test(username);
+}
+
+/**
  * Detects which platform a URL belongs to.
  * Returns null when the input is a bare username or an unsupported URL.
  */
 export function extractPlatformFromUrl(urlOrUsername: string): UrlPlatform | null {
   const trimmed = urlOrUsername.trim();
-
-  // A bare username carries no platform information
-  if (trimmed.length === 0 || (!trimmed.includes('/') && !trimmed.includes('.'))) {
+  if (trimmed.length === 0 || (!trimmed.includes("/") && !trimmed.includes("."))) {
     return null;
   }
-
-  // URLs never contain whitespace (guards against full command lines)
   if (/\s/.test(trimmed)) {
     return null;
   }
 
   try {
-    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
-
-    if (url.hostname.includes('twitch.tv')) {
-      return "twitch";
-    }
-
-    if (url.hostname.includes('kick.com')) {
-      return "kick";
-    }
-
-    return null;
+    const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    return platformFromHostname(url.hostname);
   } catch {
     return null;
   }
 }
 
+/**
+ * Extracts the channel login from a Twitch or Kick URL, or validates a bare
+ * username. Returns null for unsupported hosts and malformed names.
+ */
 export function extractUsernameFromTwitchUrl(urlOrUsername: string): string | null {
-  const trimmed = urlOrUsername.trim();
+  const parsed = parseChannelInput(urlOrUsername);
+  return parsed ? parsed.username : null;
+}
 
-  // Handle empty strings
+/**
+ * Parses user input into a platform hint (when a provider URL was given) and a
+ * canonical username. Returns null when the input is not a valid username or
+ * provider URL.
+ */
+export function parseChannelInput(urlOrUsername: string): ParsedChannelInput | null {
+  const trimmed = urlOrUsername.trim();
   if (trimmed.length === 0) {
     return null;
   }
 
-  // If it's already a username (no URL), return as is
-  if (!trimmed.includes('/') && !trimmed.includes('.')) {
-    // A channel name only contains letters, digits and underscores
-    return /^[a-zA-Z0-9_]+$/.test(trimmed) ? trimmed : null;
+  const looksLikeUrl = trimmed.includes("/") || trimmed.includes(".");
+  if (!looksLikeUrl) {
+    const username = trimmed.toLowerCase();
+    if (isValidUsername(username, "twitch") || isValidUsername(username, "kick")) {
+      return { platform: null, username };
+    }
+    return null;
   }
 
-  // URLs never contain whitespace, so a full command line is not a valid input
   if (/\s/.test(trimmed)) {
     return null;
   }
 
+  let url: URL;
   try {
-    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
-
-    // Check if it's a Twitch URL
-    if (!url.hostname.includes('twitch.tv') && !url.hostname.includes("kick.com")) {
-      return null;
-    }
-
-    // Extract the path and get the username
-    const path = url.pathname;
-    const pathParts = path.split('/').filter(part => part.length > 0);
-
-    // Handle different Twitch URL formats:
-    // - https://www.twitch.tv/username
-    // - https://twitch.tv/username
-    // - https://www.twitch.tv/username/clips?filter=clips&range=7d
-    // - https://www.twitch.tv/username/videos?filter=archives
-    if (pathParts.length >= 1) {
-      const username = pathParts[0];
-      // Remove any query parameters or fragments
-      const cleanUsername = username.split('?')[0].split('#')[0];
-      return cleanUsername;
-    }
-
-    return null;
+    url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
   } catch {
     return null;
   }
+
+  const platform = platformFromHostname(url.hostname);
+  if (!platform) {
+    return null;
+  }
+
+  const pathParts = url.pathname.split("/").filter((part) => part.length > 0);
+  if (pathParts.length < 1) {
+    return null;
+  }
+
+  const username = decodeURIComponent(pathParts[0]).toLowerCase();
+  if (!isValidUsername(username, platform)) {
+    return null;
+  }
+
+  return { platform, username };
 }

@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import { getAdminSettings, getAllAdminKeys, getAllFollowsWithDetails, getSettingsStateByUserId, getUserByUserId } from "../database/db";
 import { Channel, User, UserSettings } from "../database/schema";
-import { ADMINER_URL, PGBACKWEB_URL } from "../config";
+import { ADMINER_URL, PGBACKWEB_URL, WEB_APP_URL } from "../config";
 import { t, Locale } from "../i18n";
 
 const ADMIN_PAGE_SIZE = 10;
@@ -22,6 +22,9 @@ export async function buildHomeKeyboard(user_id: number, locale: Locale = "ru"):
     .text(t("buttons.info", locale), "infoCMD")
     .row()
     .text(t("buttons.language", locale), "langCMD");
+  if (WEB_APP_URL) {
+    kb.row().webApp(t("buttons.open_app", locale), WEB_APP_URL);
+  }
   if (user?.is_admin) {
     kb.row().text(t("buttons.admin", locale), "adminCMD");
   }
@@ -280,6 +283,12 @@ export function buildMySubscriptionsAddBackKeyboard(locale: Locale = "ru"): Inli
   return new InlineKeyboard().text(t("buttons.back", locale), "mySubscriptionsCMD");
 }
 
+/** Inline `web_app` launch button for the private chat menu (optional). */
+export function addWebAppButton(keyboard: InlineKeyboard, webAppUrl: string, locale: Locale = "ru"): InlineKeyboard {
+  if (!webAppUrl) return keyboard;
+  return keyboard.row().webApp(t("buttons.open_app", locale), webAppUrl);
+}
+
 export function buildRestartConfirmKeyboard(locale: Locale = "ru"): InlineKeyboard {
   return new InlineKeyboard()
     .text(t("buttons.confirm", locale), "admin_restart_confirm")
@@ -330,7 +339,7 @@ export function buildAdminChannelsKeyboard(channels: Channel[], page: number = 0
   const pageChannels = channels.slice(safePage * ADMIN_PAGE_SIZE, (safePage + 1) * ADMIN_PAGE_SIZE);
   for (const channel of pageChannels) {
     const icon = channel.platform === "twitch" ? "🟣" : "🟢";
-    kb.text(`${icon} ${channel.channel_name}`, `admin_channel_${channel.channel_id}`).row();
+    kb.text(`${icon} ${channel.channel_name}`, `admin_channel_${channel.platform}_${channel.channel_id}`).row();
   }
   if (pageCount > 1) {
     addPaginationRow(kb, safePage, pageCount, "admin_channels_page");
