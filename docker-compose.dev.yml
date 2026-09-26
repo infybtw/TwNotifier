@@ -25,8 +25,7 @@ services:
       context: .
       dockerfile: web/Dockerfile
       args:
-        API_PATH: ${API_PATH:-/api/v1}
-        NUXT_PUBLIC_API_BASE: ${API_PATH:-/api/v1}
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-/api/v1}
         NUXT_PUBLIC_BOT_USERNAME: ${NUXT_PUBLIC_BOT_USERNAME:-}
     env_file: .env
     depends_on:

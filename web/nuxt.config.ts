@@ -10,6 +10,17 @@ const devAllowedHosts = (process.env.DEV_ALLOWED_HOSTS ?? "")
   .map((host) => host.trim())
   .filter(Boolean);
 
+/**
+ * Nuxt automatically maps NUXT_PUBLIC_* environment variables onto
+ * runtimeConfig.public at build time. If NUXT_PUBLIC_API_BASE is present but
+ * empty (a plain empty build arg/env var is enough), it overrides the value
+ * below with "" and the SPA starts calling relative paths such as
+ * `/auth/telegram` instead of `/api/v1/auth/telegram`. Drop the empty value so
+ * the same-origin default below actually applies.
+ */
+const publicApiBase = (process.env.NUXT_PUBLIC_API_BASE ?? "").trim();
+if (!publicApiBase) delete process.env.NUXT_PUBLIC_API_BASE;
+
 // Telegram Mini App: client-side only SPA, shipped as static files.
 export default defineNuxtConfig({
   ssr: false,
@@ -25,7 +36,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Relative by default so the SPA and API share one HTTPS origin.
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || process.env.API_PATH || "/api/v1",
+      apiBase: publicApiBase || "/api/v1",
       botUsername: process.env.NUXT_PUBLIC_BOT_USERNAME || "",
     },
   },

@@ -27,8 +27,7 @@ Public, non-secret values only (never the bot token):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `API_PATH` | `/api/v1` | REST API path prefix |
-| `NUXT_PUBLIC_API_BASE` | `API_PATH` | API base path or absolute URL |
+| `NUXT_PUBLIC_API_BASE` | `/api/v1` | API base path (same origin) or absolute URL (separate origin) |
 | `NUXT_PUBLIC_BOT_USERNAME` | empty | Bot username used for chat/share links |
 
 ## How it works
