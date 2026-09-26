@@ -1,14 +1,21 @@
 <script setup lang="ts">
 const { t } = useLocale();
+const { profile } = useAuth();
 const route = useRoute();
 
-const items = computed(() => [
-  { to: "/", label: t("nav.follows"), icon: "📋" },
-  { to: "/online", label: t("nav.online"), icon: "🟢" },
-  { to: "/add", label: t("nav.add"), icon: "➕" },
-  { to: "/settings", label: t("nav.settings"), icon: "⚙️" },
-  { to: "/about", label: t("nav.about"), icon: "ℹ️" },
-]);
+const items = computed(() => {
+  const base = [
+    { to: "/", label: t("nav.follows"), icon: "📋" },
+    { to: "/online", label: t("nav.online"), icon: "🟢" },
+    { to: "/add", label: t("nav.add"), icon: "➕" },
+    { to: "/settings", label: t("nav.settings"), icon: "⚙️" },
+    { to: "/about", label: t("nav.about"), icon: "ℹ️" },
+  ];
+  if (profile.value?.isAdmin) {
+    base.push({ to: "/admin", label: t("nav.control"), icon: "🎛️" });
+  }
+  return base;
+});
 
 function isActive(path: string): boolean {
   if (path === "/") return route.path === "/" || route.path.startsWith("/follow/");

@@ -38,7 +38,8 @@ export function useApi() {
     }
 
     const headers: Record<string, string> = {};
-    if (options.body !== undefined) headers["content-type"] = "application/json";
+    const isForm = options.body instanceof FormData;
+    if (options.body !== undefined && !isForm) headers["content-type"] = "application/json";
     if (token.value) headers.authorization = `Bearer ${token.value}`;
 
     let response: Response;
@@ -46,7 +47,9 @@ export function useApi() {
       response = await fetch(url, {
         method: options.method ?? "GET",
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body: options.body !== undefined
+          ? (isForm ? options.body as FormData : JSON.stringify(options.body))
+          : undefined,
       });
     } catch {
       throw new ApiError("NETWORK", "Network error", 0);
@@ -75,6 +78,7 @@ export function useApi() {
     request,
     get: <T>(path: string, query?: ApiRequestOptions["query"]) => request<T>(path, { query }),
     post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body }),
+    postForm: <T>(path: string, form: FormData) => request<T>(path, { method: "POST", body: form }),
     patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
     del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   };

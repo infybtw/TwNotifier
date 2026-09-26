@@ -21,10 +21,17 @@ Bun.serve({
       return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
     }
 
-    const filePath = resolveFile(new URL(request.url).pathname);
+    const pathname = new URL(request.url).pathname;
+    const filePath = resolveFile(pathname);
     if (filePath) {
       const file = Bun.file(filePath);
       if (await file.exists()) return new Response(request.method === "HEAD" ? null : file);
+    }
+
+    // Hashed assets must never fall back to the SPA shell: serving HTML for a
+    // missing JS chunk breaks client-side navigation silently.
+    if (pathname.startsWith("/_nuxt/")) {
+      return new Response("Not found", { status: 404 });
     }
 
     // Nuxt SPA routes are resolved by the client application.
