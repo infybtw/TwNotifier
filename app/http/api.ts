@@ -4,6 +4,7 @@ import { meRoutes } from "./routes/me";
 import { settingsRoutes } from "./routes/settings";
 import { channelRoutes } from "./routes/channels";
 import { followRoutes } from "./routes/follows";
+import { adminRoutes } from "./routes/admin";
 import { apiErrorBody, mapInitDataError, mapServiceError } from "./errors";
 import { API_PATH } from "../config";
 import logger from "../logger";
@@ -14,7 +15,8 @@ const protectedRoutes = new Elysia({ name: "api-protected" })
   .use(meRoutes)
   .use(settingsRoutes)
   .use(channelRoutes)
-  .use(followRoutes);
+  .use(followRoutes)
+  .use(adminRoutes);
 
 export const apiRoutes = new Elysia({ prefix: API_PATH })
   .onError({ as: "global" }, ({ code, error, set, status }) => {

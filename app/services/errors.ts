@@ -5,6 +5,7 @@
  */
 export type ServiceErrorCode =
   | "INVALID_INPUT"
+  | "FORBIDDEN"
   | "CHANNEL_NOT_FOUND"
   | "NOT_FOUND"
   | "PROVIDER_UNAVAILABLE"

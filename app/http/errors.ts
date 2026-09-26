@@ -12,6 +12,7 @@ export interface ApiErrorBody {
 export type ApiErrorCode =
   | "INVALID_INPUT"
   | "UNAUTHORIZED"
+  | "FORBIDDEN"
   | "SESSION_EXPIRED"
   | "CHANNEL_NOT_FOUND"
   | "NOT_FOUND"
@@ -34,6 +35,8 @@ export function mapServiceError(error: unknown): MappedError | null {
   switch (error.code) {
     case "INVALID_INPUT":
       return { status: 400, code: "INVALID_INPUT", message: error.message };
+    case "FORBIDDEN":
+      return { status: 403, code: "FORBIDDEN", message: error.message };
     case "CHANNEL_NOT_FOUND":
       return { status: 404, code: "CHANNEL_NOT_FOUND", message: error.message };
     case "NOT_FOUND":

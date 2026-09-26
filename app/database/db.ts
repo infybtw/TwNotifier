@@ -805,3 +805,140 @@ export async function getRecentStreamLogs(limit: number = 10): Promise<(StreamLo
     .limit(limit)
   return result
 }
+
+// ---- Admin panel (web) ----
+
+export interface AdminStats {
+  users: number;
+  blockedUsers: number;
+  admins: number;
+  channels: number;
+  twitchChannels: number;
+  kickChannels: number;
+  follows: number;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const [[usersRow], [blockedRow], [adminsRow], [channelsRow], [twitchRow], [kickRow], [followsRow]] = await Promise.all([
+    db.select({ value: count() }).from(users),
+    db.select({ value: count() }).from(users_settings).where(eq(users_settings.is_bot_blocked, 1)),
+    db.select({ value: count() }).from(users).where(eq(users.is_admin, true)),
+    db.select({ value: count() }).from(channels),
+    db.select({ value: count() }).from(channels).where(eq(channels.platform, "twitch")),
+    db.select({ value: count() }).from(channels).where(eq(channels.platform, "kick")),
+    db.select({ value: count() }).from(users_follows),
+  ]);
+  return {
+    users: usersRow?.value ?? 0,
+    blockedUsers: blockedRow?.value ?? 0,
+    admins: adminsRow?.value ?? 0,
+    channels: channelsRow?.value ?? 0,
+    twitchChannels: twitchRow?.value ?? 0,
+    kickChannels: kickRow?.value ?? 0,
+    follows: followsRow?.value ?? 0,
+  };
+}
+
+export interface AdminUserRow {
+  user_id: number;
+  username: string;
+  first_name: string;
+  created: string;
+  is_admin: boolean;
+  is_bot_blocked: number;
+  follows: number;
+}
+
+/** Paginated users with their blocked flag and follow count, for the admin API. */
+export async function getAdminUsersPage(opts: { search?: string; limit: number; offset: number }): Promise<AdminUserRow[]> {
+  const conditions = [];
+  const term = opts.search?.trim().toLowerCase();
+  if (term) {
+    conditions.push(or(
+      like(sql`lower(${users.username})`, `%${term}%`),
+      like(sql`lower(${users.first_name})`, `%${term}%`),
+      like(sql`cast(${users.user_id} as text)`, `%${term}%`),
+    )!);
+  }
+  return db
+    .select({
+      user_id: users.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      created: users.created,
+      is_admin: users.is_admin,
+      is_bot_blocked: sql<number>`coalesce(${users_settings.is_bot_blocked}, 0)`,
+      follows: count(users_follows.channel_id),
+    })
+    .from(users)
+    .leftJoin(users_settings, eq(users_settings.user_id, users.user_id))
+    .leftJoin(users_follows, eq(users_follows.user_id, users.user_id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(users.user_id, users.username, users.first_name, users.created, users.is_admin, users_settings.is_bot_blocked)
+    .orderBy(desc(users.created), asc(users.user_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
+
+export interface AdminChannelRow {
+  platform: Platform;
+  channel_id: number;
+  channel_name: string;
+  channel_login: string;
+  followers: number;
+}
+
+/** Paginated channels with follower counts, for the admin API. */
+export async function getAdminChannelsPage(opts: { platform?: Platform; limit: number; offset: number }): Promise<AdminChannelRow[]> {
+  return db
+    .select({
+      platform: channels.platform,
+      channel_id: channels.channel_id,
+      channel_name: channels.channel_name,
+      channel_login: channels.channel_login,
+      followers: count(users_follows.user_id),
+    })
+    .from(channels)
+    .leftJoin(users_follows, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .where(opts.platform ? eq(channels.platform, opts.platform) : undefined)
+    .groupBy(channels.platform, channels.channel_id, channels.channel_name, channels.channel_login)
+    .orderBy(desc(count(users_follows.user_id)), asc(channels.platform), asc(channels.channel_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
+
+export interface AdminFollowRow {
+  user_id: number;
+  username: string;
+  first_name: string;
+  platform: Platform;
+  channel_id: number;
+  channel_name: string;
+  created: string;
+}
+
+/** Paginated global follows with user and channel names, for the admin API. */
+export async function getAdminFollowsPage(opts: { limit: number; offset: number }): Promise<AdminFollowRow[]> {
+  return db
+    .select({
+      user_id: users_follows.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      platform: users_follows.platform,
+      channel_id: users_follows.channel_id,
+      channel_name: channels.channel_name,
+      created: users_follows.created,
+    })
+    .from(users_follows)
+    .innerJoin(users, eq(users.user_id, users_follows.user_id))
+    .innerJoin(channels, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .orderBy(desc(users_follows.created), asc(users_follows.user_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
