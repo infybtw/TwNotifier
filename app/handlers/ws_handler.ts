@@ -4,7 +4,13 @@ import {
   sendTwitchStreamOnlineNotificationToUsers,
   sendTwitchStreamTitleChangedNotificationToUsers,
 } from "../bot/bot_sender";
-import { backfillTwitchStream, finishTwitchStream, startTwitchStream, updateTwitchStream } from "../database/db";
+import {
+  backfillTwitchStream,
+  finishTwitchStream,
+  getChannelByChannelIdAndPlatform,
+  startTwitchStream,
+  updateTwitchStream,
+} from "../database/db";
 import logger from "../logger";
 import { updateShard } from "../twitchAPI/shards";
 import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
@@ -19,6 +25,24 @@ const log = logger.getSubLogger({ name: "handlers:ws_handler" });
 export async function onNotification(payload: any) {
   const type: string = payload.subscription.type;
   const event = payload.event;
+  const channelId = Number(event?.broadcaster_user_id);
+
+  // EventSub subscriptions can outlive a channel's database record (for
+  // example after a manual cleanup). Ignore them before touching stream state
+  // or logs, both of which correctly reference the channel with a FK.
+  if (!Number.isSafeInteger(channelId) || channelId <= 0) {
+    log.warn("ignoring Twitch event with invalid broadcaster id", {
+      type,
+      broadcaster_id: event?.broadcaster_user_id,
+    });
+    return;
+  }
+  const channel = await getChannelByChannelIdAndPlatform(channelId, "twitch");
+  if (!channel) {
+    log.warn("ignoring Twitch event for unknown channel", { type, channel_id: channelId });
+    return;
+  }
+
   switch (type) {
     case "stream.online":
       log.info("stream online", { payload: payload });
@@ -28,7 +52,7 @@ export async function onNotification(payload: any) {
       // Уведомление отправляется только когда сессия реально новая:
       // duplicate/adopted/outdated означают, что стрим уже был учтён
       const sessionState = await startTwitchStream(
-        Number(payload.event.broadcaster_user_id),
+        channelId,
         String(payload.event.id),
         streamData?.title ?? "",
         streamData?.game_name ?? "Без категории",
@@ -36,7 +60,7 @@ export async function onNotification(payload: any) {
       );
       if (sessionState === "created" || sessionState === "replaced") {
         await sendTwitchStreamOnlineNotificationToUsers(
-          Number(payload.event.broadcaster_user_id),
+          channelId,
           payload.event.broadcaster_user_name,
           streamData,
           String(payload.event.id),
@@ -48,7 +72,7 @@ export async function onNotification(payload: any) {
        // Сверяем id стрима из события с активной сессией: запоздавший offline
        // предыдущего стрима не должен закрыть текущий
        const result = await finishTwitchStream(
-         Number(payload.event.broadcaster_user_id),
+         channelId,
          payload.event.id ? String(payload.event.id) : undefined,
        );
        if (result.outcome === "stream_mismatch") break;
@@ -56,18 +80,17 @@ export async function onNotification(payload: any) {
          // Стрим не был учтён (например, бот перезапущен во время стрима и
          // channel.update не приходил) — уведомляем без метаданных
          log.info("no active stream session for offline, sending plain notification", {
-           channel_id: payload.event.broadcaster_user_id,
+           channel_id: channelId,
          });
        }
        await sendTwitchStreamOfflineNotificationToUsers(
-         Number(payload.event.broadcaster_user_id),
+         channelId,
          payload.event.broadcaster_user_name,
          result.outcome === "closed" ? result.summary : undefined,
        );
        break;
     case "channel.update": {
        log.info("channel updated", { payload });
-       const channelId = Number(event.broadcaster_user_id);
        const newTitle = event.title ?? "";
        const newCategory = event.category_name ?? "Без категории";
        const changes = await updateTwitchStream(channelId, newTitle, newCategory);

@@ -1,8 +1,9 @@
 import { SQL } from "bun";
 import { migrate } from "drizzle-orm/bun-sql/migrator";
 import { drizzle } from "drizzle-orm/bun-sql";
+import { DATABASE_URL } from "./config";
 
-const sqlConnect = new SQL(process.env.DATABASE_URL!)
+const sqlConnect = new SQL(DATABASE_URL)
 const db = drizzle(sqlConnect);
 
 export async function migrateDB() {
@@ -14,4 +15,8 @@ export async function migrateDB() {
     process.exit(1);
   }
 
+}
+
+if (import.meta.main) {
+  await migrateDB();
 }

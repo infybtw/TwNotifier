@@ -10,7 +10,8 @@ export const HTTP_SERVER_PORT: number = Number(process.env.HTTP_SERVER_PORT)
 
 export const SHARD_COUNT: number = Number(process.env.SHARD_COUNT);
 export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);
-export const DATABASE_URL: string = String(process.env.DATABASE_URL);
+/** Bun SQL expects `postgres://`; also accept the standard `postgresql://` spelling. */
+export const DATABASE_URL: string = String(process.env.DATABASE_URL).replace(/^postgresql:\/\//i, "postgres://");
 
 export let APP_TOKEN: string;
 export let KICK_APP_TOKEN: string;
@@ -32,6 +33,35 @@ export const ADMINER_URL: string = String(process.env.ADMINER_URL)
 export const PGBACKWEB_URL: string = String(process.env.PGBACKWEB_URL)
 
 export const DEFAULT_LANGUAGE: string = process.env.DEFAULT_LANGUAGE || "ru"
+
+// --- Telegram Mini App / REST API ---
+/** Public HTTPS URL of the Mini App (used for launch links). */
+export const WEB_APP_URL: string = process.env.WEB_APP_URL || ""
+/** Bot username without the leading @, used to build share/deep links. */
+export const BOT_USERNAME: string = (process.env.BOT_USERNAME || "").replace(/^@/, "")
+/** Server-side session lifetime in seconds. */
+export const SESSION_TTL_SECONDS: number = Number(process.env.SESSION_TTL_SECONDS || 3600)
+/** Maximum age of a verified initData payload in seconds. */
+export const INIT_DATA_MAX_AGE_SECONDS: number = Number(process.env.INIT_DATA_MAX_AGE_SECONDS || 300)
+/** Allowed clock skew into the future for initData auth_date, in seconds. */
+export const INIT_DATA_FUTURE_SKEW_SECONDS: number = Number(process.env.INIT_DATA_FUTURE_SKEW_SECONDS || 30)
+/** Requests per minute per client for authentication and mutations. */
+export const API_RATE_LIMIT_PER_MINUTE: number = Number(process.env.API_RATE_LIMIT_PER_MINUTE || 60)
+/** Maximum accepted initData body size in bytes. */
+export const INIT_DATA_MAX_BYTES: number = Number(process.env.INIT_DATA_MAX_BYTES || 8192)
+/** URL prefix for all Mini App REST API routes. */
+export const API_PATH: string = (() => {
+  const path = (process.env.API_PATH || "/api/v1").trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("?") || path.includes("#")) {
+    throw new Error("API_PATH must start with a single '/' and must not contain a query or fragment");
+  }
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+})();
+/** Comma-separated browser origins permitted to call the REST API. */
+export const CORS_ORIGINS: string[] = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean)
 
 export const STARTUP_TIME = Date.now();
 

@@ -6,32 +6,17 @@ import { buildAdminBackKeyboard, buildBackHomeKeyboard } from "./keyboards";
 import { t } from "../i18n";
 import { getUserLocale } from "../utils/locale";
 import logger from "../logger";
-import { TwitchUser } from "../models/twitch_user";
-import { Channel } from "../database/schema";
+import { setChatDeliveryByUserId } from "../database/db";
+import { markChatDeliveryEnabled } from "../services/users";
+import type { ResolvedChannel } from "../services/channels";
 
 const log = logger.getSubLogger({ name: "bot" });
 
 interface SessionData {
-  pendingAdd?: {
-    channelId: number;
-    channelName: string;
-    displayName: string;
-    platform: "kick" | "twitch";
-  };
-  pendingRemove?: {
-    channelId: number;
-    channelName: string;
-    displayName: string;
-    platform: "kick" | "twitch";
-  };
-  pendingPlatformSelect?: {
-    kickData: KickChannelResponse;
-    twitchData: TwitchUser;
-  };
-  removePendingPlatformSelect?: {
-    kickChannel: Channel,
-    twitchChannel: Channel,
-  };
+  pendingAdd?: ResolvedChannel;
+  pendingRemove?: ResolvedChannel;
+  pendingPlatformSelect?: ResolvedChannel[];
+  removePendingPlatformSelect?: ResolvedChannel[];
   adminLogin?: {
     signed_in: boolean;
   }
@@ -60,12 +45,37 @@ botInstance.api.config.use((prev, method, payload, signal) => {
   return prev(method, payload, signal);
 });
 
+// A successful outgoing message proves the recipient has not blocked the bot.
+// This self-heals the chat delivery flag for users who started the bot before
+// delivery tracking existed, without requiring them to press /start again.
+botInstance.api.config.use(async (prev, method, payload, signal) => {
+  const result = await prev(method, payload, signal);
+  if (method === "sendMessage" || method === "sendPhoto") {
+    const chatId = (payload as { chat_id?: unknown }).chat_id;
+    if (typeof chatId === "number" && chatId > 0) {
+      setChatDeliveryByUserId(chatId, 1).catch((error: unknown) => {
+        log.warn("failed to mark chat delivery", { user_id: chatId, error });
+      });
+    }
+  }
+  return result;
+});
+
 botInstance.use(session({
   initial: (): SessionData => ({}),
 }));
 
 botInstance.use(mRouter);
 botInstance.use(cRouter);
+
+// Telegram tells the bot when the user grants write access from the Mini App.
+// This server-side signal (unlike a client callback) may enable delivery.
+botInstance.on("message:write_access_allowed", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  await markChatDeliveryEnabled(userId);
+  log.info("write access allowed", { user_id: userId });
+});
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

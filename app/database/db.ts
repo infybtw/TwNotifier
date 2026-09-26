@@ -1,10 +1,11 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
-import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings } from "./schema";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { DATABASE_URL } from "../config";
+import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, Platform, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings, WebSession, web_sessions } from "./schema";
+import { and, asc, count, desc, eq, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
 import logger from "../logger";
 
-const sqlConnect = new SQL(process.env.DATABASE_URL!)
+const sqlConnect = new SQL(DATABASE_URL)
 const db = drizzle(sqlConnect)
 
 const log = logger.getSubLogger({ name: "db" });
@@ -41,37 +42,35 @@ export async function setAdminTimezoneOffset(user_id: number, utc_offset: number
   return settings
 }
 
-export async function getChannelByChannelId(channel_id: number): Promise<Channel> {
-  const [channel] = await db.select().from(channels).where(eq(channels.channel_id, channel_id)).limit(1)
+export async function getChannelByChannelIdAndPlatform(channel_id: number, platform: Platform): Promise<Channel | undefined> {
+  const [channel] = await db.select().from(channels)
+    .where(and(eq(channels.channel_id, channel_id), eq(channels.platform, platform))).limit(1)
   return channel
 }
 
-export async function getFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
-  const [follow] = await db.select().from(users_follows).where(and(eq(users_follows.user_id,user_id), eq(users_follows.channel_id, channel_id))).limit(1)
-  return follow
-}
-
-export async function getFollowByUserIdChannelIdAndPlatform(user_id: number, channel_id: number, platform: "kick" | "twitch"): Promise<UserFollow>{
+export async function getFollowByUserIdChannelIdAndPlatform(user_id: number, channel_id: number, platform: Platform): Promise<UserFollow | undefined>{
   const [follow] = await db.select().from(users_follows).where(and(eq(users_follows.user_id,user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
   return follow
 }
 
 export async function getFollowsByUserId(user_id: number): Promise<UserFollow[]>{
-  const follows = await db.select().from(users_follows).where(eq(users_follows.user_id, user_id))
+  const follows = await db.select().from(users_follows)
+    .where(eq(users_follows.user_id, user_id))
+    .orderBy(asc(users_follows.created), asc(users_follows.platform), asc(users_follows.channel_id))
   return follows
 }
 
-export async function getFollowsByPlatform(platform: "kick" | "twitch"): Promise<UserFollow[]>{
+export async function getFollowsByPlatform(platform: Platform): Promise<UserFollow[]>{
   const res = await db.select().from(users_follows).where(eq(users_follows.platform, platform))
   return res
 }
 
-export async function getFollowsByUserIdAndPlatform(user_id: number, platform: "kick" | "twitch"): Promise<UserFollow[]>{
+export async function getFollowsByUserIdAndPlatform(user_id: number, platform: Platform): Promise<UserFollow[]>{
   const follows = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id), eq(users_follows.platform, platform)))
   return follows
 }
 
-export async function getChannelFollowersByChannelIdAndPlatform(channel_id: number, platform: "kick"| "twitch"): Promise<UserFollow[]>{
+export async function getChannelFollowersByChannelIdAndPlatform(channel_id: number, platform: Platform): Promise<UserFollow[]>{
   const follows = await db.select().from(users_follows).where(and(eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform)))
   return follows
 }
@@ -81,24 +80,34 @@ export async function getChannels(): Promise<Channel[]>{
   return res
 }
 
-export async function getChannelsWithFollowersByPlatform(platform: "kick" | "twitch"): Promise<Channel[]>{
+export async function getChannelsWithFollowersByPlatform(platform: Platform): Promise<Channel[]>{
   const res = await db.selectDistinct({
     channel_id: channels.channel_id,
     channel_name: channels.channel_name,
+    channel_login: channels.channel_login,
     platform: channels.platform,
   })
     .from(channels)
-    .innerJoin(users_follows, eq(channels.channel_id, users_follows.channel_id))
+    .innerJoin(users_follows, and(
+      eq(channels.channel_id, users_follows.channel_id),
+      eq(channels.platform, users_follows.platform),
+    ))
     .where(eq(channels.platform, platform))
   return res
 }
 
-export async function getChannelsByUsername(username: string): Promise<Channel[]> {
-  const res = await db.select().from(channels).where(eq(channels.channel_name, username))
+/**
+ * Finds known channels by canonical login. Falls back to the display name so
+ * that data written before the `channel_login` backfill keeps working.
+ */
+export async function getChannelsByLogin(login: string): Promise<Channel[]> {
+  const normalized = login.toLowerCase();
+  const res = await db.select().from(channels)
+    .where(or(eq(channels.channel_login, normalized), eq(channels.channel_name, normalized)))
   return res
 }
 
-export async function getChannelsByPlatform(platform: "kick" | "twitch"): Promise<Channel[]>{
+export async function getChannelsByPlatform(platform: Platform): Promise<Channel[]>{
   const res = await db.select().from(channels).where(eq(channels.platform, platform))
   return res
 }
@@ -157,7 +166,10 @@ export async function getAllFollowsWithDetails() {
     })
     .from(users_follows)
     .innerJoin(users, eq(users_follows.user_id, users.user_id))
-    .innerJoin(channels, eq(users_follows.channel_id, channels.channel_id));
+    .innerJoin(channels, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ));
   return result;
 }
 
@@ -167,30 +179,35 @@ export async function getFollowsWithChannelByUserId(user_id: number) {
       user_id: users_follows.user_id,
       channel_id: users_follows.channel_id,
       channel_name: channels.channel_name,
+      channel_login: channels.channel_login,
       platform: users_follows.platform,
       created: users_follows.created,
     })
     .from(users_follows)
-    .innerJoin(channels, eq(users_follows.channel_id, channels.channel_id))
-    .where(eq(users_follows.user_id, user_id));
+    .innerJoin(channels, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .where(eq(users_follows.user_id, user_id))
+    .orderBy(asc(users_follows.created), asc(users_follows.platform), asc(users_follows.channel_id));
   return result;
 }
 
 async function addUser(user_id: number, username: string, first_name: string): Promise<User> {
   try {
     const result = await db.transaction(async (tx) => {
+      // Concurrency-safe registration: an existing row is refreshed with the
+      // latest verified name without touching saved preferences.
       const [newUser] = await tx.insert(users)
         .values({ user_id: user_id, username: username, first_name: first_name, created: new Date().toISOString() })
-        .onConflictDoNothing({ target: users.user_id })
+        .onConflictDoUpdate({
+          target: users.user_id,
+          set: { username: username, first_name: first_name },
+        })
         .returning()
-      const [newUserSettings] = await tx.insert(users_settings)
+      await tx.insert(users_settings)
         .values({ user_id: user_id })
-        .onConflictDoNothing({target: users_settings.user_id})
-        .returning()
-
-      if (!newUser || !newUserSettings) {
-        tx.rollback()
-      }
+        .onConflictDoNothing({ target: users_settings.user_id })
       return newUser
     })
 
@@ -200,18 +217,32 @@ async function addUser(user_id: number, username: string, first_name: string): P
   }
 }
 
-async function addChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<Channel>{
-  const [newChannel] = await db.insert(channels).values({ channel_id: channel_id, channel_name: channel_name, platform: platform }).returning()
+async function addChannel(channel_id: number, channel_name: string, channel_login: string, platform: Platform): Promise<Channel>{
+  const [newChannel] = await db.insert(channels)
+    .values({ channel_id: channel_id, channel_name: channel_name, channel_login: channel_login, platform: platform })
+    .onConflictDoUpdate({
+      target: [channels.platform, channels.channel_id],
+      set: { channel_name: channel_name, channel_login: channel_login },
+    })
+    .returning()
   if (!newChannel) {
-    throw new Error(`Failed to add channel ${channel_id}`)
+    throw new Error(`Failed to add channel ${platform}:${channel_id}`)
   }
   return newChannel
 }
 
-async function addFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<UserFollow>{
-  const [userFollow] = await db.insert(users_follows).values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString(), platform: platform }).returning()
+async function addFollow(user_id: number, channel_id: number, platform: Platform): Promise<UserFollow>{
+  const [userFollow] = await db.insert(users_follows)
+    .values({ user_id: user_id, channel_id: channel_id, created: new Date().toISOString(), platform: platform })
+    .onConflictDoNothing({ target: [users_follows.user_id, users_follows.platform, users_follows.channel_id] })
+    .returning()
   if (!userFollow) {
-    throw new Error(`Failed to create follow ${user_id}-${channel_id}`)
+    // The follow already existed (or was created concurrently); return it.
+    const existing = await getFollowByUserIdChannelIdAndPlatform(user_id, channel_id, platform)
+    if (!existing) {
+      throw new Error(`Failed to create follow ${user_id}-${platform}:${channel_id}`)
+    }
+    return existing
   }
   return userFollow
 }
@@ -249,50 +280,35 @@ export async function getAdminKeyByKey(key: string): Promise<AdminKey> {
   return res
 }
 
-export async function removeFollowByUserIdAndChannelId(user_id: number, channel_id: number): Promise<UserFollow>{
+export async function removeFollowByUserIdChannelIdAndPlatfrom(user_id: number, channel_id: number, platform: Platform): Promise<UserFollow | undefined>{
   const [follow] = await db.delete(users_follows)
-    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id)))
-    .returning()
-  return follow
-}
-
-export async function removeFollowByUserIdChannelIdAndPlatfrom(user_id: number, channel_id: number, platfrom: "kick" | "twitch"): Promise<UserFollow>{
-  const [follow] = await db.delete(users_follows)
-    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platfrom)))
+    .where(and(eq(users_follows.user_id, user_id), eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform)))
     .returning()
   return follow
 }
 
 export async function checkOrCreateUser(user_id: number, username: string, first_name: string): Promise<{ user: User, isNew: boolean } | undefined> {
-  const [exist] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1)
-  if (exist) {
-    return { user: exist, isNew: false }
-  }
   try {
     const user = await addUser(user_id, username, first_name)
-    return { user, isNew: true }
+    // `created` is written on insert only; treat a very recent value as new.
+    const isNew = Date.now() - new Date(user.created).getTime() < 60_000
+    return { user, isNew }
   } catch (err) {
     log.error("Failed to add user.", err)
     return undefined
   }
 }
 
-export async function checkOrCreateChannel(channel_id: number, channel_name: string, platform: "kick"|"twitch"): Promise<{ channel: Channel, isNew: boolean }>{
+export async function checkOrCreateChannel(channel_id: number, channel_name: string, channel_login: string, platform: Platform): Promise<{ channel: Channel, isNew: boolean }>{
   const [exist] = await db.select().from(channels).where(and(eq(channels.channel_id, channel_id), eq(channels.platform, platform))).limit(1)
-  if (exist) {
-    return {channel: exist, isNew: false}
-  }
-  const channel = await addChannel(channel_id, channel_name, platform)
-  return {channel, isNew: true}
+  const channel = await addChannel(channel_id, channel_name, channel_login, platform)
+  return { channel, isNew: !exist }
 }
 
-export async function checkOrCreateFollow(user_id: number, channel_id: number, platform: "kick"|"twitch"): Promise<{follow: UserFollow, isNew: boolean}> {
+export async function checkOrCreateFollow(user_id: number, channel_id: number, platform: Platform): Promise<{follow: UserFollow, isNew: boolean}> {
   const [exist] = await db.select().from(users_follows).where(and(eq(users_follows.user_id, user_id),eq(users_follows.channel_id, channel_id), eq(users_follows.platform, platform))).limit(1)
-  if (exist) {
-    return {follow: exist, isNew: false}
-  }
   const userFollow = await addFollow(user_id, channel_id, platform)
-  return {follow: userFollow , isNew: true}
+  return { follow: userFollow, isNew: !exist }
 }
 
 export async function makeUserAdmin(user_id: number, key: string): Promise<User | undefined> {
@@ -352,6 +368,108 @@ export async function setBotBlockedStateByUserId(user_id: number, is_bot_blocked
   return newUserSettings
 }
 
+export type UserSettingsPatch = Partial<{
+  online_notification: number;
+  offline_notification: number;
+  title_change_notification: number;
+  category_change_notification: number;
+  stream_metadata: number;
+  link_preview: number;
+  language: string;
+}>;
+
+/** Atomically applies only the supplied settings fields. */
+export async function updateUserSettingsByUserId(user_id: number, patch: UserSettingsPatch): Promise<UserSettings | undefined> {
+  if (Object.keys(patch).length === 0) {
+    return getSettingsStateByUserId(user_id)
+  }
+  const [row] = await db.update(users_settings).set(patch).where(eq(users_settings.user_id, user_id)).returning()
+  return row
+}
+
+export async function setChatDeliveryByUserId(user_id: number, chat_delivery: number | null): Promise<UserSettings | undefined> {
+  const [row] = await db.update(users_settings).set({ chat_delivery }).where(eq(users_settings.user_id, user_id)).returning()
+  return row
+}
+
+/** Ensures a settings row exists even for users created concurrently. */
+export async function ensureUserSettings(user_id: number): Promise<UserSettings | undefined> {
+  const [row] = await db.insert(users_settings)
+    .values({ user_id })
+    .onConflictDoNothing({ target: users_settings.user_id })
+    .returning()
+  if (row) return row
+  return getSettingsStateByUserId(user_id)
+}
+
+export async function createWebSession(tokenHash: string, userId: number, createdAt: string, expiresAt: string): Promise<WebSession> {
+  const [row] = await db.insert(web_sessions)
+    .values({ token_hash: tokenHash, user_id: userId, created_at: createdAt, expires_at: expiresAt })
+    .returning()
+  return row
+}
+
+export async function getWebSessionByTokenHash(tokenHash: string): Promise<WebSession | undefined> {
+  const [row] = await db.select().from(web_sessions).where(eq(web_sessions.token_hash, tokenHash)).limit(1)
+  return row
+}
+
+export async function deleteWebSessionByTokenHash(tokenHash: string): Promise<void> {
+  await db.delete(web_sessions).where(eq(web_sessions.token_hash, tokenHash))
+}
+
+export async function deleteExpiredWebSessions(nowIso: string): Promise<void> {
+  await db.delete(web_sessions).where(lt(web_sessions.expires_at, nowIso))
+}
+
+export interface FollowWithChannel {
+  user_id: number;
+  channel_id: number;
+  channel_name: string;
+  channel_login: string;
+  platform: Platform;
+  created: string;
+}
+
+/** Paginated, searchable follows for the user-facing API. */
+export async function getFollowsWithChannelPage(
+  user_id: number,
+  opts: { platform?: Platform; search?: string; limit: number; offset: number },
+): Promise<FollowWithChannel[]> {
+  const conditions = [eq(users_follows.user_id, user_id)];
+  if (opts.platform) {
+    conditions.push(eq(users_follows.platform, opts.platform));
+  }
+  if (opts.search) {
+    const term = opts.search.trim().toLowerCase();
+    if (term.length > 0) {
+      conditions.push(or(
+        like(sql`lower(${channels.channel_login})`, `%${term}%`),
+        like(sql`lower(${channels.channel_name})`, `%${term}%`),
+      )!);
+    }
+  }
+  const rows = await db
+    .select({
+      user_id: users_follows.user_id,
+      channel_id: users_follows.channel_id,
+      channel_name: channels.channel_name,
+      channel_login: channels.channel_login,
+      platform: users_follows.platform,
+      created: users_follows.created,
+    })
+    .from(users_follows)
+    .innerJoin(channels, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .where(and(...conditions))
+    .orderBy(asc(users_follows.created), asc(users_follows.platform), asc(users_follows.channel_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+  return rows;
+}
+
 async function setAdminKeyUsedById(id: number, used_by: number): Promise<AdminKey>{
   const [adminKey] = await db.update(admin_keys).set({ used: true, used_date: new Date().toISOString(), used_by}).where(eq(admin_keys.id, id)).returning()
   return adminKey
@@ -362,7 +480,15 @@ async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
   return user
 }
 
-export async function insertStreamLog(channel_id: number, platform: string, event: string): Promise<void> {
+export async function insertStreamLog(channel_id: number, platform: Platform, event: string): Promise<void> {
+  // Provider subscriptions can temporarily outlive their channel record.
+  // Stream logs deliberately keep a foreign key to channels, so skip the
+  // audit row instead of failing an otherwise harmless notification path.
+  const channel = await getChannelByChannelIdAndPlatform(channel_id, platform);
+  if (!channel) {
+    log.warn("stream log skipped for unknown channel", { channel_id, platform, event });
+    return;
+  }
   await db.insert(stream_logs).values({
     channel_id,
     platform,
@@ -669,10 +795,150 @@ export async function getRecentStreamLogs(limit: number = 10): Promise<(StreamLo
     follower_count: count(users_follows.user_id),
   })
     .from(stream_logs)
-    .leftJoin(channels, eq(stream_logs.channel_id, channels.channel_id))
+    .leftJoin(channels, and(
+      eq(stream_logs.channel_id, channels.channel_id),
+      eq(stream_logs.platform, channels.platform),
+    ))
     .leftJoin(users_follows, and(eq(stream_logs.channel_id, users_follows.channel_id), eq(stream_logs.platform, users_follows.platform)))
     .groupBy(stream_logs.id, channels.channel_name)
     .orderBy(sql`${stream_logs.id} DESC`)
     .limit(limit)
   return result
+}
+
+// ---- Admin panel (web) ----
+
+export interface AdminStats {
+  users: number;
+  blockedUsers: number;
+  admins: number;
+  channels: number;
+  twitchChannels: number;
+  kickChannels: number;
+  follows: number;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const [[usersRow], [blockedRow], [adminsRow], [channelsRow], [twitchRow], [kickRow], [followsRow]] = await Promise.all([
+    db.select({ value: count() }).from(users),
+    db.select({ value: count() }).from(users_settings).where(eq(users_settings.is_bot_blocked, 1)),
+    db.select({ value: count() }).from(users).where(eq(users.is_admin, true)),
+    db.select({ value: count() }).from(channels),
+    db.select({ value: count() }).from(channels).where(eq(channels.platform, "twitch")),
+    db.select({ value: count() }).from(channels).where(eq(channels.platform, "kick")),
+    db.select({ value: count() }).from(users_follows),
+  ]);
+  return {
+    users: usersRow?.value ?? 0,
+    blockedUsers: blockedRow?.value ?? 0,
+    admins: adminsRow?.value ?? 0,
+    channels: channelsRow?.value ?? 0,
+    twitchChannels: twitchRow?.value ?? 0,
+    kickChannels: kickRow?.value ?? 0,
+    follows: followsRow?.value ?? 0,
+  };
+}
+
+export interface AdminUserRow {
+  user_id: number;
+  username: string | null;
+  first_name: string | null;
+  created: string;
+  is_admin: boolean | null;
+  is_bot_blocked: number;
+  follows: number;
+}
+
+/** Paginated users with their blocked flag and follow count, for the admin API. */
+export async function getAdminUsersPage(opts: { search?: string; limit: number; offset: number }): Promise<AdminUserRow[]> {
+  const conditions = [];
+  const term = opts.search?.trim().toLowerCase();
+  if (term) {
+    conditions.push(or(
+      like(sql`lower(${users.username})`, `%${term}%`),
+      like(sql`lower(${users.first_name})`, `%${term}%`),
+      like(sql`cast(${users.user_id} as text)`, `%${term}%`),
+    )!);
+  }
+  return db
+    .select({
+      user_id: users.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      created: users.created,
+      is_admin: users.is_admin,
+      is_bot_blocked: sql<number>`coalesce(${users_settings.is_bot_blocked}, 0)`,
+      follows: count(users_follows.channel_id),
+    })
+    .from(users)
+    .leftJoin(users_settings, eq(users_settings.user_id, users.user_id))
+    .leftJoin(users_follows, eq(users_follows.user_id, users.user_id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(users.user_id, users.username, users.first_name, users.created, users.is_admin, users_settings.is_bot_blocked)
+    .orderBy(desc(users.created), asc(users.user_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
+
+export interface AdminChannelRow {
+  platform: Platform;
+  channel_id: number;
+  channel_name: string;
+  channel_login: string;
+  followers: number;
+}
+
+/** Paginated channels with follower counts, for the admin API. */
+export async function getAdminChannelsPage(opts: { platform?: Platform; limit: number; offset: number }): Promise<AdminChannelRow[]> {
+  return db
+    .select({
+      platform: channels.platform,
+      channel_id: channels.channel_id,
+      channel_name: channels.channel_name,
+      channel_login: channels.channel_login,
+      followers: count(users_follows.user_id),
+    })
+    .from(channels)
+    .leftJoin(users_follows, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .where(opts.platform ? eq(channels.platform, opts.platform) : undefined)
+    .groupBy(channels.platform, channels.channel_id, channels.channel_name, channels.channel_login)
+    .orderBy(desc(count(users_follows.user_id)), asc(channels.platform), asc(channels.channel_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
+
+export interface AdminFollowRow {
+  user_id: number;
+  username: string | null;
+  first_name: string | null;
+  platform: Platform;
+  channel_id: number;
+  channel_name: string;
+  created: string;
+}
+
+/** Paginated global follows with user and channel names, for the admin API. */
+export async function getAdminFollowsPage(opts: { limit: number; offset: number }): Promise<AdminFollowRow[]> {
+  return db
+    .select({
+      user_id: users_follows.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      platform: users_follows.platform,
+      channel_id: users_follows.channel_id,
+      channel_name: channels.channel_name,
+      created: users_follows.created,
+    })
+    .from(users_follows)
+    .innerJoin(users, eq(users.user_id, users_follows.user_id))
+    .innerJoin(channels, and(
+      eq(users_follows.channel_id, channels.channel_id),
+      eq(users_follows.platform, channels.platform),
+    ))
+    .orderBy(desc(users_follows.created), asc(users_follows.user_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
 }
