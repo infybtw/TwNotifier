@@ -1,4 +1,4 @@
-name: Build and Push Image
+name: Build and Push Images
 
 on:
   push:
@@ -15,7 +15,7 @@ env:
   WEB_TEMP_TAG: ghcr.io/infybtw/twnotifier-web:build
 
 jobs:
-  checks:
+  check-backend:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,12 +25,22 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Backend install and typecheck
+      - name: Backend install, typecheck and test
         working-directory: app
         run: |
           bun install --frozen-lockfile
           bun run typecheck
           bun test
+
+  check-web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Frontend install, typecheck and build
         working-directory: web
@@ -39,8 +49,8 @@ jobs:
           bun run typecheck
           bun run generate
 
-  build-image:
-    needs: checks
+  build-backend:
+    needs: check-backend
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
@@ -51,7 +61,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build bot image
+      - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -62,20 +72,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Save bot image
+      - name: Save backend image
         run: docker save ${{ env.TEMP_TAG }} > /tmp/twn.tar
 
-      - name: Upload bot image artifact
+      - name: Upload backend image artifact
         uses: actions/upload-artifact@v5
         with:
           name: docker-twn
           path: /tmp/twn.tar
 
+  build-web:
+    needs: check-web
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build web image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile-web
+          file: ./web/Dockerfile
           push: false
           load: true
           tags: ${{ env.WEB_TEMP_TAG }}
@@ -91,8 +113,8 @@ jobs:
           name: docker-twn-web
           path: /tmp/twn-web.tar
 
-  push-image:
-    needs: build-image
+  push-backend:
+    needs: build-backend
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -109,24 +131,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download bot image artifact
+      - name: Download backend image artifact
         uses: actions/download-artifact@v5
         with:
           name: docker-twn
           path: /tmp
 
-      - name: Download web image artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: docker-twn-web
-          path: /tmp
+      - name: Load backend image
+        run: docker load < /tmp/twn.tar
 
-      - name: Load images
-        run: |
-          docker load < /tmp/twn.tar
-          docker load < /tmp/twn-web.tar
-
-      - name: Extract bot metadata
+      - name: Extract backend metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -135,16 +149,7 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest
 
-      - name: Extract web metadata
-        id: web-meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-
-      - name: Tag and push bot image
+      - name: Tag and push backend image
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
@@ -153,9 +158,45 @@ jobs:
             docker push "$tag"
           done
 
+  push-web:
+    needs: build-web
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download web image artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: docker-twn-web
+          path: /tmp
+
+      - name: Load web image
+        run: docker load < /tmp/twn-web.tar
+
+      - name: Extract web metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+
       - name: Tag and push web image
         env:
-          TAGS: ${{ steps.web-meta.outputs.tags }}
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           for tag in $TAGS; do
             docker tag ${{ env.WEB_TEMP_TAG }} "$tag"
