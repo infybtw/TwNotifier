@@ -841,10 +841,10 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export interface AdminUserRow {
   user_id: number;
-  username: string;
-  first_name: string;
+  username: string | null;
+  first_name: string | null;
   created: string;
-  is_admin: boolean;
+  is_admin: boolean | null;
   is_bot_blocked: number;
   follows: number;
 }
@@ -912,8 +912,8 @@ export async function getAdminChannelsPage(opts: { platform?: Platform; limit: n
 
 export interface AdminFollowRow {
   user_id: number;
-  username: string;
-  first_name: string;
+  username: string | null;
+  first_name: string | null;
   platform: Platform;
   channel_id: number;
   channel_name: string;
