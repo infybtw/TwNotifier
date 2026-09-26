@@ -69,5 +69,7 @@ export function channelToPending(channel: {
     channelId: channel.channel_id,
     login: channel.channel_login,
     displayName: channel.channel_name,
+    // Remove flow does not have avatar data; it is only used in add previews.
+    avatarUrl: null,
   };
 }
