@@ -101,6 +101,10 @@ jobs:
           push: false
           load: true
           tags: ${{ env.WEB_TEMP_TAG }}
+          build-args: |
+            API_PATH=${{ vars.API_PATH || '/api/v1' }}
+            NUXT_PUBLIC_API_BASE=${{ vars.NUXT_PUBLIC_API_BASE }}
+            NUXT_PUBLIC_BOT_USERNAME=${{ vars.NUXT_PUBLIC_BOT_USERNAME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
