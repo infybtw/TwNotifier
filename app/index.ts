@@ -15,18 +15,35 @@ import { getKickSubscriptions } from "./kickAPI/subscription";
 import { getEventSubList } from "./twitchAPI/subscriptions";
 import { notifyAdminsAndExit } from "./bot/bot_sender";
 import logger from "./logger";
+import { sleep } from "bun";
 
 const log = logger.getSubLogger({ name: "startup" });
 
-async function withRetry<T>(stepName: string, fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (firstError) {
-    log.warn(`Step "${stepName}" failed, retrying...`, { error: firstError });
+interface RetryOptions {
+  /** Extra attempts after the first failure. */
+  retries?: number;
+  /** Delay before every retry, in milliseconds. */
+  delayMs?: number;
+}
+
+async function withRetry<T>(
+  stepName: string,
+  fn: () => Promise<T>,
+  { retries = 1, delayMs = 0 }: RetryOptions = {},
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
-    } catch (secondError) {
-      return await notifyAdminsAndExit(stepName, secondError);
+    } catch (error) {
+      if (attempt >= retries) {
+        return await notifyAdminsAndExit(stepName, error);
+      }
+      log.warn(`Step "${stepName}" failed, retrying...`, {
+        error,
+        attempt: attempt + 1,
+        retries,
+      });
+      await sleep(delayMs);
     }
   }
 }
@@ -56,7 +73,9 @@ async function main(): Promise<void> {
   await deleteExpiredWebSessions(new Date().toISOString());
   await withRetry("botStart", () => botStart());
   await withRetry("getAppToken", () => getAppToken());
-  await withRetry("getKickAppToken", () => getKickAppToken());
+  // Kick's token endpoint occasionally fails to resolve with ETIMEOUT on
+  // startup, so give it more attempts with a delay between them.
+  await withRetry("getKickAppToken", () => getKickAppToken(), { retries: 5, delayMs: 10_000 });
 
   if (TWITCH_EVENT_TRANSPORT === "conduit") {
     await withRetry("createConduit", () => createConduit(SHARD_COUNT));
