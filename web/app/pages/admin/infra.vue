@@ -109,6 +109,11 @@ onMounted(() => void load());
             {{ busyAction === `eventsub:${action}` ? t("admin.infra.busy") : t(`admin.infra.${action}`) }}
           </button>
         </div>
+        <ProgressBar
+          v-if="busyAction?.startsWith('eventsub:')"
+          class="mt-3"
+          :label="t('admin.infra.busy')"
+        />
       </div>
 
       <div v-if="webhook" class="rounded-2xl p-4 tg-card">
@@ -130,6 +135,11 @@ onMounted(() => void load());
             {{ busyAction === `webhook:${action}` ? t("admin.infra.busy") : t(`admin.infra.${action}`) }}
           </button>
         </div>
+        <ProgressBar
+          v-if="busyAction?.startsWith('webhook:')"
+          class="mt-3"
+          :label="t('admin.infra.busy')"
+        />
       </div>
 
       <div v-if="confirming" class="rounded-2xl p-4 text-sm tg-card tg-text">

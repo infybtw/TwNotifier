@@ -66,6 +66,35 @@ body {
   opacity: 0.45;
 }
 
+/* Indeterminate progress bar for long-running admin actions. */
+.tg-progress {
+  position: relative;
+  background-color: var(--tg-secondary-bg);
+  border: 1px solid var(--tg-border);
+}
+
+.tg-progress::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 40%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, var(--tg-button), var(--tg-link), transparent);
+  animation: tg-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes tg-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-progress::after {
+    animation-duration: 2.4s;
+  }
+}
+
 /* Frosted bars for the sticky header and bottom navigation. */
 .tg-bar {
   background-color: var(--tg-header-bg);
