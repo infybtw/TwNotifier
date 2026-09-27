@@ -2,10 +2,8 @@ name: Build and Push Images
 
 on:
   push:
-    branches: [main]
     tags:
       - '*'
-  pull_request:
 
 env:
   REGISTRY: ghcr.io
