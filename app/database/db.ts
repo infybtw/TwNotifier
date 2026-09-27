@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { DATABASE_URL } from "../config";
-import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, Platform, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, users, users_follows, users_settings, UserSettings, WebSession, web_sessions } from "./schema";
+import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, Platform, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, user_notifications, users, users_follows, users_settings, UserSettings, WebSession, web_sessions } from "./schema";
 import { and, asc, count, desc, eq, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
 import logger from "../logger";
 
@@ -475,7 +475,7 @@ async function setAdminKeyUsedById(id: number, used_by: number): Promise<AdminKe
   return adminKey
 }
 
-async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
+export async function setUserAdmin(user_id: number, is_admin: boolean): Promise<User>{
   const [user] = await db.update(users).set({is_admin}).where(eq(users.user_id, user_id)).returning()
   return user
 }
@@ -939,6 +939,120 @@ export async function getAdminFollowsPage(opts: { limit: number; offset: number 
       eq(users_follows.platform, channels.platform),
     ))
     .orderBy(desc(users_follows.created), asc(users_follows.user_id))
+    .limit(opts.limit)
+    .offset(opts.offset);
+}
+
+// ---- Admin panel: single user detail ----
+
+export type UserNotificationStatus = "sent" | "blocked" | "failed";
+
+/**
+ * Appends one notification delivery attempt for a user. Diagnostic only:
+ * failures are logged and swallowed so they never break a notification path.
+ */
+export async function recordUserNotification(opts: {
+  userId: number;
+  event: string;
+  status?: UserNotificationStatus;
+  platform?: Platform | null;
+  channelId?: number | null;
+}): Promise<void> {
+  try {
+    await db.insert(user_notifications).values({
+      user_id: opts.userId,
+      platform: opts.platform ?? null,
+      channel_id: opts.channelId ?? null,
+      event: opts.event,
+      status: opts.status ?? "sent",
+      created: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error("failed to record user notification", { user_id: opts.userId, event: opts.event, error: err });
+  }
+}
+
+export interface AdminUserDetailRow {
+  user_id: number;
+  username: string | null;
+  first_name: string | null;
+  created: string;
+  is_admin: boolean | null;
+  is_bot_blocked: number;
+  chat_delivery: number | null;
+  language: string | null;
+  online_notification: number;
+  offline_notification: number;
+  title_change_notification: number;
+  category_change_notification: number;
+  stream_metadata: number;
+  link_preview: number;
+  follows: number;
+  notifications: number;
+}
+
+/** Profile, settings and aggregate counters for one user, for the admin API. */
+export async function getAdminUserDetail(userId: number): Promise<AdminUserDetailRow | undefined> {
+  const [row] = await db
+    .select({
+      user_id: users.user_id,
+      username: users.username,
+      first_name: users.first_name,
+      created: users.created,
+      is_admin: users.is_admin,
+      is_bot_blocked: sql<number>`coalesce(${users_settings.is_bot_blocked}, 0)`,
+      chat_delivery: users_settings.chat_delivery,
+      language: users_settings.language,
+      online_notification: sql<number>`coalesce(${users_settings.online_notification}, 1)`,
+      offline_notification: sql<number>`coalesce(${users_settings.offline_notification}, 1)`,
+      title_change_notification: sql<number>`coalesce(${users_settings.title_change_notification}, 1)`,
+      category_change_notification: sql<number>`coalesce(${users_settings.category_change_notification}, 1)`,
+      stream_metadata: sql<number>`coalesce(${users_settings.stream_metadata}, 1)`,
+      link_preview: sql<number>`coalesce(${users_settings.link_preview}, 1)`,
+      follows: sql<number>`(select count(*)::int from ${users_follows} where ${users_follows.user_id} = ${users.user_id})`,
+      notifications: sql<number>`(select count(*)::int from ${user_notifications} where ${user_notifications.user_id} = ${users.user_id})`,
+    })
+    .from(users)
+    .leftJoin(users_settings, eq(users_settings.user_id, users.user_id))
+    .where(eq(users.user_id, userId))
+    .limit(1);
+  return row;
+}
+
+export interface UserNotificationRow {
+  id: number;
+  platform: Platform | null;
+  channel_id: number | null;
+  channel_name: string | null;
+  channel_login: string | null;
+  event: string;
+  status: string;
+  created: string;
+}
+
+/** Newest-first notification history for one user, for the admin API. */
+export async function getUserNotificationsPage(
+  userId: number,
+  opts: { limit: number; offset: number },
+): Promise<UserNotificationRow[]> {
+  return db
+    .select({
+      id: user_notifications.id,
+      platform: user_notifications.platform,
+      channel_id: user_notifications.channel_id,
+      channel_name: channels.channel_name,
+      channel_login: channels.channel_login,
+      event: user_notifications.event,
+      status: user_notifications.status,
+      created: user_notifications.created,
+    })
+    .from(user_notifications)
+    .leftJoin(channels, and(
+      eq(user_notifications.channel_id, channels.channel_id),
+      eq(user_notifications.platform, channels.platform),
+    ))
+    .where(eq(user_notifications.user_id, userId))
+    .orderBy(desc(user_notifications.id))
     .limit(opts.limit)
     .offset(opts.offset);
 }

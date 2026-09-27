@@ -5,12 +5,19 @@ import {
   getAdminFollowsPage,
   getAdminSettings,
   getAdminStats,
+  getAdminUserDetail,
   getAdminUsersPage,
   getAllAdminKeys,
+  getFollowsWithChannelPage,
   getRecentStreamLogs,
+  getUserByUserId,
+  getUserNotificationsPage,
   revokeAdminKey,
   setAdminTimezoneOffset,
+  setBotBlockedStateByUserId,
+  setUserAdmin,
 } from "../../database/db";
+import { toChatDelivery } from "../../services/types";
 import type { Platform } from "../../database/schema";
 import {
   cleanupEventSub,
@@ -40,6 +47,14 @@ function rateLimit(request: Request): void {
   if (isRateLimited(request)) {
     throw new ServiceError("RATE_LIMITED", "Too many requests");
   }
+}
+
+function parseUserId(id: string): number {
+  const parsed = Number(id);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new ServiceError("INVALID_INPUT", "Invalid user id");
+  }
+  return parsed;
 }
 
 export const adminRoutes = new Elysia({ prefix: "/admin" })
@@ -72,6 +87,127 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
       search: t.Optional(t.String({ maxLength: 64 })),
       cursor: t.Optional(t.String({ maxLength: 64 })),
       limit: t.Optional(t.String({ maxLength: 8 })),
+    }),
+  })
+  .get("/users/:id", async ({ auth, params, set }) => {
+    await requireAdmin(auth);
+    const userId = parseUserId(params.id);
+    const row = await getAdminUserDetail(userId);
+    if (!row) {
+      throw new ServiceError("NOT_FOUND", "User not found");
+    }
+    set.headers["cache-control"] = "no-store";
+    return {
+      id: String(row.user_id),
+      username: row.username || null,
+      firstName: row.first_name || null,
+      created: row.created,
+      isAdmin: Boolean(row.is_admin),
+      isBotBlocked: Number(row.is_bot_blocked) === 1,
+      chatDelivery: toChatDelivery({
+        chat_delivery: row.chat_delivery,
+        is_bot_blocked: row.is_bot_blocked,
+      }),
+      settings: {
+        language: row.language === "en" ? "en" : "ru",
+        onlineNotification: Number(row.online_notification) === 1,
+        offlineNotification: Number(row.offline_notification) === 1,
+        titleChangeNotification: Number(row.title_change_notification) === 1,
+        categoryChangeNotification: Number(row.category_change_notification) === 1,
+        streamMetadata: Number(row.stream_metadata) === 1,
+        linkPreview: Number(row.link_preview) === 1,
+      },
+      follows: Number(row.follows),
+      notifications: Number(row.notifications),
+    };
+  }, {
+    params: t.Object({ id: t.String() }),
+  })
+  .get("/users/:id/follows", async ({ auth, params, query, set }) => {
+    await requireAdmin(auth);
+    const userId = parseUserId(params.id);
+    const limit = parseLimit(query.limit);
+    const offset = decodeCursor(query.cursor);
+    const rows = await getFollowsWithChannelPage(userId, { limit, offset });
+    set.headers["cache-control"] = "no-store";
+    return {
+      items: rows.map((row) => ({
+        platform: row.platform,
+        channelId: String(row.channel_id),
+        channelName: row.channel_name,
+        channelLogin: row.channel_login,
+        created: row.created,
+      })),
+      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+    };
+  }, {
+    params: t.Object({ id: t.String() }),
+    query: t.Object({
+      cursor: t.Optional(t.String({ maxLength: 64 })),
+      limit: t.Optional(t.String({ maxLength: 8 })),
+    }),
+  })
+  .get("/users/:id/notifications", async ({ auth, params, query, set }) => {
+    await requireAdmin(auth);
+    const userId = parseUserId(params.id);
+    const limit = parseLimit(query.limit);
+    const offset = decodeCursor(query.cursor);
+    const rows = await getUserNotificationsPage(userId, { limit, offset });
+    set.headers["cache-control"] = "no-store";
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        platform: row.platform,
+        channelId: row.channel_id != null ? String(row.channel_id) : null,
+        channelName: row.channel_name ?? row.channel_login ?? null,
+        event: row.event,
+        status: row.status,
+        created: row.created,
+      })),
+      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+    };
+  }, {
+    params: t.Object({ id: t.String() }),
+    query: t.Object({
+      cursor: t.Optional(t.String({ maxLength: 64 })),
+      limit: t.Optional(t.String({ maxLength: 8 })),
+    }),
+  })
+  .patch("/users/:id", async ({ auth, params, body, request, set }) => {
+    rateLimit(request);
+    const session = await requireAdmin(auth);
+    const userId = parseUserId(params.id);
+    if (body.isAdmin === undefined && body.isBotBlocked === undefined) {
+      throw new ServiceError("INVALID_INPUT", "Nothing to update");
+    }
+
+    const user = await getUserByUserId(userId);
+    if (!user) {
+      throw new ServiceError("NOT_FOUND", "User not found");
+    }
+
+    if (body.isAdmin !== undefined) {
+      if (userId === session.userId && !body.isAdmin) {
+        throw new ServiceError("INVALID_INPUT", "You cannot revoke your own admin rights");
+      }
+      await setUserAdmin(userId, body.isAdmin);
+    }
+    if (body.isBotBlocked !== undefined) {
+      await setBotBlockedStateByUserId(userId, body.isBotBlocked ? 1 : 0);
+    }
+
+    const detail = await getAdminUserDetail(userId);
+    set.headers["cache-control"] = "no-store";
+    return {
+      id: String(userId),
+      isAdmin: Boolean(detail?.is_admin),
+      isBotBlocked: Number(detail?.is_bot_blocked) === 1,
+    };
+  }, {
+    params: t.Object({ id: t.String() }),
+    body: t.Object({
+      isAdmin: t.Optional(t.Boolean()),
+      isBotBlocked: t.Optional(t.Boolean()),
     }),
   })
   .get("/channels", async ({ auth, query, set }) => {

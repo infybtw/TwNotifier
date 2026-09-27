@@ -1,6 +1,7 @@
 import {
   bigserial,
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -167,3 +168,28 @@ export const stream_categories = pgTable("stream_categories", {
 })
 
 export type StreamCategory = typeof stream_categories.$inferSelect
+
+/**
+ * Per-user delivery log for notifications, written best-effort after every
+ * send attempt so admins can inspect what a given user actually received.
+ *
+ * `platform` and `channel_id` are null for broadcasts (no source channel).
+ * `event` is one of `stream_online`, `stream_offline`, `stream_title_changed`,
+ * `stream_category_changed`, `broadcast`; `status` is `sent`, `blocked`
+ * (Telegram 403) or `failed`. Deliberately no FK to `channels`: a missing
+ * channel record must not abort an otherwise fine notification write.
+ */
+export const user_notifications = pgTable("user_notifications", {
+  id: serial("id").primaryKey(),
+  user_id: bigint({ mode: "number" }).notNull().references(() => users.user_id),
+  platform: varchar({ length: 16 }).$type<Platform>(),
+  channel_id: bigint({ mode: "number" }),
+  event: varchar({ length: 32 }).notNull(),
+  status: varchar({ length: 16 }).notNull().default("sent"),
+  created: text().notNull(),
+}, (table) => [
+  index("user_notifications_user_id_id_idx").on(table.user_id, table.id),
+])
+
+export type UserNotification = typeof user_notifications.$inferSelect
+export type NewUserNotification = typeof user_notifications.$inferInsert

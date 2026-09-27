@@ -1,5 +1,5 @@
 import { InlineKeyboard, InputFile } from "grammy";
-import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, setBotBlockedStateByUserId, StreamSummary } from "../database/db";
+import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, recordUserNotification, setBotBlockedStateByUserId, StreamSummary, UserNotificationStatus } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
 import type { UserSettings } from "../database/schema";
@@ -23,14 +23,15 @@ function isBotBlockedError(error: unknown): boolean {
     && description.toLowerCase().includes("bot was blocked by the user");
 }
 
-async function handleSendError(userId: number, notification: string, error: unknown): Promise<void> {
+async function handleSendError(userId: number, notification: string, error: unknown): Promise<UserNotificationStatus> {
   if (isBotBlockedError(error)) {
     await setBotBlockedStateByUserId(userId, 1);
     log.info("user blocked bot; notifications disabled", { user_id: userId });
-    return;
+    return "blocked";
   }
 
   log.error(`failed to send ${notification}`, { user_id: userId, error });
+  return "failed";
 }
 
 export async function notifyAdminsAndExit(stepName: string, error: unknown): Promise<never> {
@@ -101,8 +102,10 @@ export async function sendTwitchStreamOnlineNotificationToUsers(
         });
       }
       log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+      await recordUserNotification({ userId, platform: "twitch", channelId, event: "stream_online", status: "sent" });
     } catch (err) {
-      await handleSendError(userId, "twitch online notification", err);
+      const status = await handleSendError(userId, "twitch online notification", err);
+      await recordUserNotification({ userId, platform: "twitch", channelId, event: "stream_online", status });
     }
   };
 
@@ -154,8 +157,10 @@ export async function sendTwitchStreamOfflineNotificationToUsers(channel_id: num
             },
           );
           log.info("message sent", { user_id: follower.user_id, text });
+          await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId: channel_id, event: "stream_offline", status: "sent" });
         } catch (err) {
-          await handleSendError(follower.user_id!, "twitch offline notification", err);
+          const status = await handleSendError(follower.user_id!, "twitch offline notification", err);
+          await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId: channel_id, event: "stream_offline", status });
         }
       }
     }
@@ -175,6 +180,7 @@ async function sendTwitchStreamUpdateNotification(
   channelName: string,
   notificationKey: "notifications.stream_title_changed" | "notifications.stream_category_changed",
   settingsKey: "title_change_notification" | "category_change_notification",
+  event: "stream_title_changed" | "stream_category_changed",
   value: string,
 ): Promise<void> {
   const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
@@ -193,18 +199,20 @@ async function sendTwitchStreamUpdateNotification(
         link_preview_options: { is_disabled: true },
       });
       log.info("message sent", { user_id: follower.user_id, text });
+      await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId, event, status: "sent" });
     } catch (err) {
-      await handleSendError(follower.user_id!, "twitch stream update notification", err);
+      const status = await handleSendError(follower.user_id!, "twitch stream update notification", err);
+      await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId, event, status });
     }
   }
 }
 
 export function sendTwitchStreamTitleChangedNotificationToUsers(channelId: number, channelName: string, title: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", "title_change_notification", title);
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", "title_change_notification", "stream_title_changed", title);
 }
 
 export function sendTwitchStreamCategoryChangedNotificationToUsers(channelId: number, channelName: string, category: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", "category_change_notification", category);
+  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", "category_change_notification", "stream_category_changed", category);
 }
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
@@ -246,8 +254,10 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
           });
         }
         log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+        await recordUserNotification({ userId, platform: "kick", channelId: channel_id, event: "stream_online", status: "sent" });
       } catch (err) {
-        await handleSendError(userId, "kick online notification", err);
+        const status = await handleSendError(userId, "kick online notification", err);
+        await recordUserNotification({ userId, platform: "kick", channelId: channel_id, event: "stream_online", status });
       }
     };
 
@@ -298,8 +308,10 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
             },
           );
           log.info("message sent", { user_id: follower.user_id, text });
+          await recordUserNotification({ userId: follower.user_id!, platform: "kick", channelId: channel_id, event: "stream_offline", status: "sent" });
         } catch (err) {
-          await handleSendError(follower.user_id!, "kick offline notification", err);
+          const status = await handleSendError(follower.user_id!, "kick offline notification", err);
+          await recordUserNotification({ userId: follower.user_id!, platform: "kick", channelId: channel_id, event: "stream_offline", status });
         }
       }
     }
@@ -329,9 +341,11 @@ export async function sendBroadcastMessage(
         );
       }
       sent++;
+      await recordUserNotification({ userId: user.user_id, event: "broadcast", status: "sent" });
     } catch (err) {
       failed++;
-      await handleSendError(user.user_id, "broadcast", err);
+      const status = await handleSendError(user.user_id, "broadcast", err);
+      await recordUserNotification({ userId: user.user_id, event: "broadcast", status });
     }
   }
   log.info("broadcast finished", { sent, failed, total: users.length });

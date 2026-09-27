@@ -28,6 +28,47 @@ export interface AdminChannel {
   followers: number;
 }
 
+export interface AdminUserSettings {
+  language: "ru" | "en";
+  onlineNotification: boolean;
+  offlineNotification: boolean;
+  titleChangeNotification: boolean;
+  categoryChangeNotification: boolean;
+  streamMetadata: boolean;
+  linkPreview: boolean;
+}
+
+export interface AdminUserDetail {
+  id: string;
+  username: string | null;
+  firstName: string | null;
+  created: string;
+  isAdmin: boolean;
+  isBotBlocked: boolean;
+  chatDelivery: "unknown" | "enabled" | "blocked";
+  settings: AdminUserSettings;
+  follows: number;
+  notifications: number;
+}
+
+export interface AdminUserFollow {
+  platform: "twitch" | "kick";
+  channelId: string;
+  channelName: string;
+  channelLogin: string;
+  created: string;
+}
+
+export interface AdminUserNotification {
+  id: number;
+  platform: "twitch" | "kick" | null;
+  channelId: string | null;
+  channelName: string | null;
+  event: string;
+  status: "sent" | "blocked" | "failed";
+  created: string;
+}
+
 export interface AdminFollow {
   userId: string;
   username: string | null;
@@ -108,6 +149,13 @@ export function useAdmin() {
     overview: () => api.get<AdminStats>("/admin/overview"),
     users: (opts: { search?: string; cursor?: string | null } = {}) =>
       api.get<Page<AdminUser>>("/admin/users", { search: opts.search, cursor: opts.cursor ?? undefined }),
+    userDetail: (id: string) => api.get<AdminUserDetail>(`/admin/users/${id}`),
+    userFollows: (id: string, cursor?: string | null) =>
+      api.get<Page<AdminUserFollow>>(`/admin/users/${id}/follows`, { cursor: cursor ?? undefined }),
+    userNotifications: (id: string, cursor?: string | null) =>
+      api.get<Page<AdminUserNotification>>(`/admin/users/${id}/notifications`, { cursor: cursor ?? undefined }),
+    updateUser: (id: string, patch: { isAdmin?: boolean; isBotBlocked?: boolean }) =>
+      api.patch<{ id: string; isAdmin: boolean; isBotBlocked: boolean }>(`/admin/users/${id}`, patch),
     channels: (opts: { platform?: string; cursor?: string | null } = {}) =>
       api.get<Page<AdminChannel>>("/admin/channels", { platform: opts.platform, cursor: opts.cursor ?? undefined }),
     follows: (cursor?: string | null) =>

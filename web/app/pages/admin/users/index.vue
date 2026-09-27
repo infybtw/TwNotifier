@@ -75,30 +75,34 @@ onBeforeUnmount(() => {
     <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="load" />
     <EmptyState v-else-if="items.length === 0" :message="t('admin.empty')" />
     <ul v-else class="flex flex-col gap-2">
-      <li
-        v-for="user in items"
-        :key="user.id"
-        class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
-      >
-        <span class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-sm font-semibold tg-text">
-            {{ displayName(user) }}
-            <span v-if="user.username" class="font-normal tg-hint">@{{ user.username }}</span>
+      <li v-for="user in items" :key="user.id">
+        <NuxtLink
+          :to="`/admin/users/${user.id}`"
+          class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
+        >
+          <span class="flex min-w-0 flex-col gap-1">
+            <span class="truncate text-sm font-semibold tg-text">
+              {{ displayName(user) }}
+              <span v-if="user.username" class="font-normal tg-hint">@{{ user.username }}</span>
+            </span>
+            <span class="flex flex-wrap items-center gap-1.5 text-xs tg-hint">
+              <span>ID {{ user.id }}</span>
+              <span>· {{ t("admin.users.follows", { count: user.follows }) }}</span>
+              <span>· {{ formatDate(user.created) }}</span>
+            </span>
           </span>
-          <span class="flex flex-wrap items-center gap-1.5 text-xs tg-hint">
-            <span>ID {{ user.id }}</span>
-            <span>· {{ t("admin.users.follows", { count: user.follows }) }}</span>
-            <span>· {{ formatDate(user.created) }}</span>
+          <span class="flex shrink-0 items-center gap-2">
+            <span class="flex flex-col items-end gap-1">
+              <span v-if="user.isAdmin" class="rounded-full px-2 py-0.5 text-xs font-medium tg-secondary tg-link">
+                {{ t("admin.users.admin_badge") }}
+              </span>
+              <span v-if="user.isBotBlocked" class="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-400">
+                {{ t("admin.users.blocked_badge") }}
+              </span>
+            </span>
+            <span class="text-lg tg-hint" aria-hidden="true">›</span>
           </span>
-        </span>
-        <span class="flex shrink-0 flex-col items-end gap-1">
-          <span v-if="user.isAdmin" class="rounded-full px-2 py-0.5 text-xs font-medium tg-secondary tg-link">
-            {{ t("admin.users.admin_badge") }}
-          </span>
-          <span v-if="user.isBotBlocked" class="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-400">
-            {{ t("admin.users.blocked_badge") }}
-          </span>
-        </span>
+        </NuxtLink>
       </li>
     </ul>
 
