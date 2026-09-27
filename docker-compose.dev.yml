@@ -27,9 +27,6 @@ services:
       args:
         NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-/api/v1}
         NUXT_PUBLIC_BOT_USERNAME: ${NUXT_PUBLIC_BOT_USERNAME:-}
-    env_file: .env
-    depends_on:
-      - twn
 
   caddy:
     image: caddy

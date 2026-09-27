@@ -1,0 +1,19 @@
+# Static Telegram Mini App (Nuxt SPA build).
+# `root` points at the generated files copied into the image by the Dockerfile.
+:{$WEB_SERVER_PORT:3001} {
+	root * /web/public
+	encode zstd gzip
+
+	# Hashed build assets must never fall back to the SPA shell: serving HTML
+	# for a missing JS chunk breaks client-side navigation silently.
+	@nuxtAssets path /_nuxt/*
+	handle @nuxtAssets {
+		file_server
+	}
+
+	# Nuxt SPA routes are resolved by the client application.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

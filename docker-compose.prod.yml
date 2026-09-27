@@ -43,7 +43,8 @@ services:
       args:
         NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
         NUXT_PUBLIC_BOT_USERNAME: ${NUXT_PUBLIC_BOT_USERNAME:-}
-    env_file: .env
+    environment:
+      WEB_SERVER_PORT: ${WEB_SERVER_PORT:-3001}
     restart: unless-stopped
     ports:
       - "${WEB_SERVER_PORT:-3001}:${WEB_SERVER_PORT:-3001}"

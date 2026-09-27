@@ -1,4 +1,4 @@
-# Static Mini App served directly by Bun; no reverse proxy is used.
+# Static Mini App built with Nuxt and served by Caddy.
 FROM oven/bun:1 AS build
 
 WORKDIR /web
@@ -13,13 +13,10 @@ ENV NUXT_PUBLIC_BOT_USERNAME=$NUXT_PUBLIC_BOT_USERNAME
 COPY web/ ./
 RUN bun run generate
 
-FROM oven/bun:1
+FROM caddy:2-alpine
 
-WORKDIR /web
-COPY --from=build /web/.output/public ./public
-COPY web/server.ts ./server.ts
+COPY --from=build /web/.output/public /web/public
+COPY web/Caddyfile /etc/caddy/Caddyfile
 
 ENV WEB_SERVER_PORT=3001
 EXPOSE 3001
-
-CMD ["bun", "run", "server.ts"]

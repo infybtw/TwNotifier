@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/.output
+**/.nuxt
+**/.env
+**/.env.*
+!**/.env.example
+**/logs
+**/dist
+**/*.log

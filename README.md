@@ -192,8 +192,8 @@ the bot token never reaches the frontend.
 
 ### Frontend
 
-See [`web/README.md`](web/README.md) for frontend commands and configuration.
-Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
+The Mini App is a static Nuxt SPA under `web/`; frontend commands are listed
+above. Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
 `NUXT_PUBLIC_BOT_USERNAME`; no backend secret is exposed.
 
 ### Launching the Mini App
@@ -210,12 +210,12 @@ Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
 ### Docker deployment
 
 `docker-compose.prod.yml` starts the API and static Mini App as independent
-containers; no reverse proxy is included:
+containers:
 
 - API: `HTTP_SERVER_PORT` (default `3000`) with routes under `API_PATH`
   (default `/api/v1`).
-- Mini App: `WEB_SERVER_PORT` (default `3001`), with client-side routes falling
-  back to `index.html`.
+- Mini App: `WEB_SERVER_PORT` (default `3001`); Caddy serves the static build,
+  with client-side routes falling back to `index.html`.
 - Set `NUXT_PUBLIC_API_BASE` to the absolute public API URL including
   `API_PATH`, and add the Mini App origin to `CORS_ORIGINS` when they use
   different origins.
