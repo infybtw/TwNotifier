@@ -105,6 +105,43 @@ body {
 .safe-top { padding-top: calc(0.75rem + var(--safe-top)); }
 .safe-bottom { padding-bottom: calc(0.75rem + var(--safe-bottom)); }
 
+/* Modal confirmation dialogs. */
+.tg-modal-backdrop {
+  background-color: rgba(6, 4, 12, 0.68);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.tg-modal-enter-active,
+.tg-modal-leave-active {
+  transition: opacity 140ms ease;
+}
+
+.tg-modal-enter-active .tg-modal-panel,
+.tg-modal-leave-active .tg-modal-panel {
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.tg-modal-enter-from,
+.tg-modal-leave-to {
+  opacity: 0;
+}
+
+.tg-modal-enter-from .tg-modal-panel,
+.tg-modal-leave-to .tg-modal-panel {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-modal-enter-active,
+  .tg-modal-leave-active,
+  .tg-modal-enter-active .tg-modal-panel,
+  .tg-modal-leave-active .tg-modal-panel {
+    transition: none;
+  }
+}
+
 /* Visible keyboard focus for accessibility. */
 :focus-visible {
   outline: 2px solid var(--tg-link);

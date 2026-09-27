@@ -237,26 +237,13 @@ onMounted(() => void load());
           </button>
         </div>
 
-        <div v-if="confirmingRevoke" class="rounded-xl p-3 text-xs tg-secondary tg-text">
-          {{ t("admin.user.revoke_admin_confirm") }}
-          <span class="mt-2 flex gap-2">
-            <button
-              type="button"
-              class="flex-1 rounded-lg px-3 py-2 font-semibold tg-secondary tg-destructive"
-              :disabled="savingAdmin"
-              @click="setAdmin(false)"
-            >
-              {{ t("common.confirm") }}
-            </button>
-            <button
-              type="button"
-              class="rounded-lg px-3 py-2 font-medium tg-secondary tg-text"
-              @click="confirmingRevoke = false"
-            >
-              {{ t("common.cancel") }}
-            </button>
-          </span>
-        </div>
+        <ConfirmDialog
+          v-model:open="confirmingRevoke"
+          destructive
+          :busy="savingAdmin"
+          :message="t('admin.user.revoke_admin_confirm')"
+          @confirm="setAdmin(false)"
+        />
 
         <p v-if="detail.isBotBlocked" class="text-xs tg-hint">{{ t("admin.user.unblock_hint") }}</p>
         <p v-if="notice" class="text-xs tg-link">{{ notice }}</p>

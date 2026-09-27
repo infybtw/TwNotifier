@@ -37,6 +37,9 @@ async function run(target: InfraTarget, action: InfraAction): Promise<void> {
   const key = `${target}:${action}`;
   if (busyAction.value) return;
   busyAction.value = key;
+  // Close the confirmation dialog right away; progress is shown on the page
+  // below and the result opens in its own dialog when the action finishes.
+  confirming.value = null;
   error.value = null;
   notice.value = null;
   try {
@@ -63,11 +66,9 @@ async function run(target: InfraTarget, action: InfraAction): Promise<void> {
         notice.value = t("admin.infra.result_cleanup", result);
       }
     }
-    confirming.value = null;
     await load();
   } catch (err) {
     error.value = localizeError(err);
-    confirming.value = null;
   } finally {
     busyAction.value = null;
   }
@@ -75,6 +76,12 @@ async function run(target: InfraTarget, action: InfraAction): Promise<void> {
 
 function ask(target: InfraTarget, action: InfraAction): void {
   confirming.value = { target, action };
+}
+
+function confirmRun(): void {
+  const pending = confirming.value;
+  if (!pending) return;
+  void run(pending.target, pending.action);
 }
 
 onMounted(() => void load());
@@ -142,28 +149,23 @@ onMounted(() => void load());
         />
       </div>
 
-      <div v-if="confirming" class="rounded-2xl p-4 text-sm tg-card tg-text">
-        {{ t(`admin.infra.confirm_${confirming.action}`) }}
-        <span class="mt-3 flex gap-2">
-          <button
-            type="button"
-            class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-button"
-            :disabled="busyAction !== null"
-            @click="run(confirming.target, confirming.action)"
-          >
-            {{ t("common.confirm") }}
-          </button>
-          <button
-            type="button"
-            class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
-            @click="confirming = null"
-          >
-            {{ t("common.cancel") }}
-          </button>
-        </span>
-      </div>
+      <ConfirmDialog
+        :open="confirming !== null"
+        :busy="busyAction !== null"
+        :message="confirming ? t(`admin.infra.confirm_${confirming.action}`) : ''"
+        @cancel="confirming = null"
+        @confirm="confirmRun"
+      />
 
-      <p v-if="notice" class="rounded-2xl px-4 py-3 text-sm tg-card tg-text">{{ notice }}</p>
+      <ConfirmDialog
+        :open="notice !== null"
+        hide-cancel
+        :confirm-label="t('common.close')"
+        :message="notice ?? ''"
+        @cancel="notice = null"
+        @confirm="notice = null"
+      />
+
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>
     </template>
   </section>

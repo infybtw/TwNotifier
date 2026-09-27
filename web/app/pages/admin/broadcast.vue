@@ -87,26 +87,13 @@ onBeforeUnmount(() => {
       {{ sending ? t("admin.broadcast.sending") : t("admin.broadcast.send") }}
     </button>
 
-    <div v-if="confirming" class="rounded-2xl p-4 text-sm tg-card tg-text">
-      {{ t("admin.broadcast.confirm") }}
-      <span class="mt-3 flex gap-2">
-        <button
-          type="button"
-          class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-button"
-          :disabled="sending"
-          @click="confirmSend"
-        >
-          {{ t("common.confirm") }}
-        </button>
-        <button
-          type="button"
-          class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
-          @click="confirming = false"
-        >
-          {{ t("common.cancel") }}
-        </button>
-      </span>
-    </div>
+    <ConfirmDialog
+      v-model:open="confirming"
+      :busy="sending"
+      :confirm-label="sending ? t('admin.broadcast.sending') : undefined"
+      :message="t('admin.broadcast.confirm')"
+      @confirm="confirmSend"
+    />
 
     <p v-if="result" class="rounded-2xl px-4 py-3 text-sm tg-card tg-text">
       {{ t("admin.broadcast.result", { sent: result.sent, failed: result.failed }) }}

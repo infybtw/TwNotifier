@@ -147,25 +147,13 @@ onMounted(() => void load());
       >
         {{ t("admin.restart") }}
       </button>
-      <div v-if="confirmingRestart" class="rounded-2xl p-4 text-sm tg-card tg-text">
-        {{ restarting ? t("admin.restarting") : t("admin.restart_confirm") }}
-        <span v-if="!restarting" class="mt-3 flex gap-2">
-          <button
-            type="button"
-            class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-secondary tg-destructive"
-            @click="confirmRestart"
-          >
-            {{ t("common.confirm") }}
-          </button>
-          <button
-            type="button"
-            class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"
-            @click="confirmingRestart = false"
-          >
-            {{ t("common.cancel") }}
-          </button>
-        </span>
-      </div>
+      <ConfirmDialog
+        v-model:open="confirmingRestart"
+        destructive
+        :busy="restarting"
+        :message="restarting ? t('admin.restarting') : t('admin.restart_confirm')"
+        @confirm="confirmRestart"
+      />
 
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>
     </template>
