@@ -21,6 +21,8 @@ export interface LiveStatusDto {
   viewers?: number;
   category?: string;
   startedAt?: string;
+  /** Current stream frame for the Mini App, when available. */
+  previewUrl?: string;
   checkedAt: string;
 }
 
@@ -31,6 +33,7 @@ export function toLiveStatusDto(status: LiveStatus): LiveStatusDto {
     viewers: status.viewers,
     category: status.category,
     startedAt: status.startedAt,
+    previewUrl: status.previewUrl,
     checkedAt: status.checkedAt,
   };
 }

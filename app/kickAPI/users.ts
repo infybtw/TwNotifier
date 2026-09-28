@@ -14,12 +14,14 @@ export interface KickOnlineChannel {
   stream_title: string;
   viewer_count: number;
   category: { name: string } | null;
+  /** Current stream frame, available only while the channel is live. */
+  thumbnail?: string;
 }
 
 export async function getKickChannelsOnline(usernames: string[]): Promise<KickOnlineChannel[]> {
   if (usernames.length === 0) return [];
   const results = await Promise.all(
-    usernames.map(async (username) => {
+    usernames.map(async (username): Promise<KickOnlineChannel | null> => {
       try {
         const res = await getKickChannelByUsername(username);
         const ch = res.data?.[0];
@@ -30,6 +32,7 @@ export async function getKickChannelsOnline(usernames: string[]): Promise<KickOn
           stream_title: ch.stream_title ?? "",
           viewer_count: ch.stream?.viewer_count ?? 0,
           category: ch.stream ? { name: ch.category?.name ?? "" } : null,
+          thumbnail: ch.stream?.thumbnail,
         };
       } catch {
         return null;

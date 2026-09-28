@@ -7,6 +7,8 @@ export interface FollowLive {
   viewers?: number;
   category?: string;
   startedAt?: string;
+  /** Stream frame image, available while the channel is live. */
+  previewUrl?: string;
   checkedAt: string;
 }
 

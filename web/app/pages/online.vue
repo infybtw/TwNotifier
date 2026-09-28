@@ -40,8 +40,13 @@ onMounted(() => void reload());
       <li
         v-for="follow in items"
         :key="`${follow.platform}:${follow.channelId}`"
-        class="rounded-2xl px-4 py-3 tg-card"
+        class="flex flex-col gap-2.5 rounded-2xl p-4 tg-card"
       >
+        <StreamPreview
+          v-if="follow.live?.previewUrl"
+          :url="follow.live.previewUrl"
+          :alt="follow.displayName"
+        />
         <div class="flex items-center justify-between gap-2">
           <div class="flex min-w-0 flex-col gap-1">
             <span class="truncate text-sm font-semibold tg-text">{{ follow.displayName }}</span>
@@ -67,7 +72,7 @@ onMounted(() => void reload());
             </NuxtLink>
           </div>
         </div>
-        <dl v-if="follow.live && follow.live.status === 'online'" class="mt-2.5 space-y-1 text-xs tg-hint">
+        <dl v-if="follow.live && follow.live.status === 'online'" class="space-y-1 text-xs tg-hint">
           <div v-if="follow.live.title">
             <dt class="sr-only">{{ t("details.stream_title") }}</dt>
             <dd class="truncate">{{ t("details.stream_title", { title: follow.live.title }) }}</dd>

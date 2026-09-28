@@ -94,6 +94,12 @@ onMounted(() => void load());
 
       <section v-if="live && live.status === 'online'" class="rounded-2xl p-4 tg-card">
         <h2 class="text-sm font-semibold tg-text">{{ t("details.status") }}</h2>
+        <StreamPreview
+          v-if="live.previewUrl"
+          :url="live.previewUrl"
+          :alt="details.displayName"
+          class="mt-3"
+        />
         <dl class="mt-2 space-y-1.5 text-sm tg-text">
           <div v-if="live.title">
             <dt class="sr-only">{{ t("details.stream_title") }}</dt>

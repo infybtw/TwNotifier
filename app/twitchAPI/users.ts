@@ -63,15 +63,30 @@ export interface TwitchStream {
 const STREAM_PREVIEW_WIDTH = 1280;
 const STREAM_PREVIEW_HEIGHT = 720;
 const STREAM_PREVIEW_RETRY_MS = 5_000;
+const WEB_PREVIEW_WIDTH = 640;
+const WEB_PREVIEW_HEIGHT = 360;
+
+/** Replaces Twitch's `{width}`/`{height}` placeholders with concrete dimensions. */
+export function getStreamThumbnailUrl(thumbnailUrl: string, width = WEB_PREVIEW_WIDTH, height = WEB_PREVIEW_HEIGHT): string {
+  return thumbnailUrl
+    .replace("{width}", String(width))
+    .replace("{height}", String(height));
+}
 
 export function getStreamPreviewUrl(thumbnailUrl: string, timestamp = Date.now()): string {
-  const url = new URL(
-    thumbnailUrl
-      .replace("{width}", String(STREAM_PREVIEW_WIDTH))
-      .replace("{height}", String(STREAM_PREVIEW_HEIGHT)),
-  );
+  const url = new URL(getStreamThumbnailUrl(thumbnailUrl, STREAM_PREVIEW_WIDTH, STREAM_PREVIEW_HEIGHT));
   // Twitch updates the image at the same URL. A unique query parameter keeps
   // Telegram from reusing a previously cached stream frame.
+  url.searchParams.set("t", String(timestamp));
+  return url.toString();
+}
+
+/**
+ * Thumbnail URL for the Mini App: a smaller frame than the Telegram photo plus
+ * a cache-busting timestamp so the WebView does not show an outdated picture.
+ */
+export function getStreamWebPreviewUrl(thumbnailUrl: string, timestamp = Date.now()): string {
+  const url = new URL(getStreamThumbnailUrl(thumbnailUrl));
   url.searchParams.set("t", String(timestamp));
   return url.toString();
 }

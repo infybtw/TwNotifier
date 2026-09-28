@@ -1,5 +1,5 @@
-import { getStreamsByUserIds } from "../twitchAPI/users";
-import { getKickChannelsOnline } from "../kickAPI/users";
+import { getStreamWebPreviewUrl, getStreamsByUserIds } from "../twitchAPI/users";
+import { getKickChannelsOnline, getKickStreamPreviewUrl } from "../kickAPI/users";
 import type { Platform } from "../database/schema";
 import logger from "../logger";
 
@@ -13,6 +13,8 @@ export interface LiveStatus {
   viewers?: number;
   category?: string;
   startedAt?: string;
+  /** Current stream frame for the Mini App, when the provider exposes one. */
+  previewUrl?: string;
   /** When this status was fetched from the provider. */
   checkedAt: string;
 }
@@ -46,6 +48,17 @@ function readCache(key: string): LiveStatus | undefined {
 
 function writeCache(key: string, status: LiveStatus): void {
   cache.set(key, { at: Date.now(), status });
+}
+
+/** Builds a preview URL without letting a malformed thumbnail break live status. */
+function safePreviewUrl(url: string | undefined, build: (url: string) => string): string | undefined {
+  if (!url) return undefined;
+  try {
+    return build(url);
+  } catch (error) {
+    log.warn("failed to build stream preview url", { error });
+    return undefined;
+  }
 }
 
 /**
@@ -87,6 +100,7 @@ export async function getLiveStatuses(targets: LiveTarget[]): Promise<Record<str
                 viewers: stream.viewer_count,
                 category: stream.game_name,
                 startedAt: stream.started_at,
+                previewUrl: safePreviewUrl(stream.thumbnail_url, getStreamWebPreviewUrl),
                 checkedAt,
               }
             : { state: "offline", checkedAt };
@@ -117,6 +131,7 @@ export async function getLiveStatuses(targets: LiveTarget[]): Promise<Record<str
                 title: channel.stream_title,
                 viewers: channel.viewer_count,
                 category: channel.category?.name,
+                previewUrl: safePreviewUrl(channel.thumbnail, getKickStreamPreviewUrl),
                 checkedAt,
               }
             : { state: "offline", checkedAt };
