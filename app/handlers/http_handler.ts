@@ -4,9 +4,11 @@ import { handleTwitchWebhook } from '../twitchAPI/webhook_handler';
 import { CORS_ORIGINS, HTTP_SERVER_PORT, KICK_WEBHOOK_PATH, TWITCH_EVENT_TRANSPORT, TWITCH_WEBHOOK_PATH } from '../config';
 import { apiRoutes } from '../http/api';
 import { corsHeaders } from '../http/cors';
+import { logRequestEnd, logRequestStart } from '../http/requestLogger';
 
 export async function startHTTPServer() {
   const app = new Elysia()
+    .onRequest(logRequestStart)
     .onRequest(({ request, set }) => {
       const headers = corsHeaders(request.headers.get("origin"), CORS_ORIGINS);
       Object.assign(set.headers, headers);
@@ -16,6 +18,7 @@ export async function startHTTPServer() {
         return "";
       }
     })
+    .onAfterResponse(logRequestEnd)
     .use(apiRoutes)
     .post(KICK_WEBHOOK_PATH, async ({ request, set }) => {
       const rawBody = await request.text()
