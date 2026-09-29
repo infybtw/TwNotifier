@@ -11,7 +11,11 @@ import {
   TWITCH_WEBHOOK_PATH,
   TWITCH_WEBHOOK_SECRET,
 } from "../config";
-import { getChannelsWithFollowersByPlatform } from "../database/db";
+import {
+  getChannelByChannelIdAndPlatform,
+  getChannelFollowersByChannelIdAndPlatform,
+  getChannelsWithFollowersByPlatform,
+} from "../database/db";
 import logger from "../logger";
 import { getAppToken } from "./auth";
 
@@ -231,6 +235,90 @@ export async function subscribeAllChannelUpdates(onProgress?: ProgressCallback) 
     onProgress?.({ current: i + 1, total: channels.length, phase: "Subscribing channel updates" });
   }
   log.info("subscribed to all channel updates", { count: channels.length });
+}
+
+/**
+ * Best-effort recovery after Twitch revoked a subscription: re-create it when
+ * the channel still exists and still has followers. Failures are logged and
+ * never retried in a loop.
+ */
+export async function resubscribeRevoked(subscription: any): Promise<void> {
+  const type: string | undefined = subscription?.type;
+  const broadcasterId = Number(subscription?.condition?.broadcaster_user_id);
+  if (!type || !Number.isSafeInteger(broadcasterId) || broadcasterId <= 0) return;
+
+  try {
+    const channel = await getChannelByChannelIdAndPlatform(broadcasterId, "twitch");
+    if (!channel) return;
+    const followers = await getChannelFollowersByChannelIdAndPlatform(broadcasterId, "twitch");
+    if (followers.length === 0) return;
+
+    const name = channel.channel_name ?? "";
+    let result = -1;
+    if (type === "stream.online") {
+      result = await subscribeToChannelOnline(broadcasterId, name);
+    } else if (type === "stream.offline") {
+      result = await subscribeToChannelOffline(broadcasterId, name);
+    } else if (type === "channel.update") {
+      result = await subscribeToChannelUpdate(broadcasterId, name);
+    } else {
+      return;
+    }
+
+    log.warn("re-created revoked subscription", {
+      type,
+      broadcaster_id: broadcasterId,
+      result,
+    });
+  } catch (error) {
+    log.error("failed to re-create revoked subscription", {
+      type,
+      broadcaster_id: broadcasterId,
+      error,
+    });
+  }
+}
+
+/**
+ * Subscribes to `conduit.shard.disabled` so a shard Twitch disabled after a
+ * dropped WebSocket session is noticed and can be rebound.
+ */
+export async function subscribeToShardDisabled(conduitId: string = CONDUIT_ID, retry = true): Promise<number> {
+  const res = await fetch(TWITCH_HELIX + "/helix/eventsub/subscriptions", {
+    method: "POST",
+    headers: {
+      "Client-ID": CLIENT_ID,
+      Authorization: `Bearer ${APP_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "conduit.shard.disabled",
+      version: "1",
+      condition: { conduit_id: conduitId },
+      transport: getTransport(),
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 202) {
+    log.info("subscribed to event", { type: "conduit.shard.disabled", transport: TWITCH_EVENT_TRANSPORT });
+    return 202;
+  }
+  if (data?.status === 409 || res.status === 409) {
+    log.info("already subscribed", { type: "conduit.shard.disabled", transport: TWITCH_EVENT_TRANSPORT });
+    return 409;
+  }
+  if (res.status === 401 && retry) {
+    await getAppToken();
+    return subscribeToShardDisabled(conduitId, false);
+  }
+
+  log.error("subscription error", {
+    type: "conduit.shard.disabled",
+    transport: TWITCH_EVENT_TRANSPORT,
+    error_message: data?.message,
+  });
+  return -1;
 }
 
 export async function getEventSubList(cursor?: string, retries = 3): Promise<TwitchEventSubSubscription[]> {

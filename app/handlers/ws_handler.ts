@@ -12,7 +12,7 @@ import {
   updateTwitchStream,
 } from "../database/db";
 import logger from "../logger";
-import { updateShard } from "../twitchAPI/shards";
+import { updateShard, handleShardDisabled } from "../twitchAPI/shards";
 import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
 
 export async function onSessionWelcome(sessionId: any) {
@@ -25,6 +25,14 @@ const log = logger.getSubLogger({ name: "handlers:ws_handler" });
 export async function onNotification(payload: any) {
   const type: string = payload.subscription.type;
   const event = payload.event;
+
+  // Conduit shard notifications carry no broadcaster and must be handled before
+  // the channel lookup below.
+  if (type === "conduit.shard.disabled") {
+    await handleShardDisabled(event?.shard_id);
+    return;
+  }
+
   const channelId = Number(event?.broadcaster_user_id);
 
   // EventSub subscriptions can outlive a channel's database record (for

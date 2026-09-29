@@ -1,6 +1,50 @@
-import { APP_TOKEN, CLIENT_ID, setConduitId, TWITCH_HELIX } from "../config";
+import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, setConduitId, TWITCH_HELIX } from "../config";
+import { getAppToken } from "./auth";
 
 const CONDUIT_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits";
+const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
+
+export interface ConduitShard {
+  id: string;
+  status: string;
+  transport: {
+    method: string;
+    session_id?: string;
+    connected_at?: string;
+    disconnected_at?: string;
+  };
+}
+
+/**
+ * Lists the shards of a conduit together with their status and the transport
+ * they are currently bound to. Used to detect shards Twitch disabled after a
+ * dropped WebSocket session.
+ */
+export async function getConduitShards(conduitId: string = CONDUIT_ID, retry = true): Promise<ConduitShard[]> {
+  const url = new URL(SHARD_URL);
+  url.searchParams.set("conduit_id", conduitId);
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Client-ID": CLIENT_ID,
+      Authorization: `Bearer ${APP_TOKEN}`,
+    },
+  });
+
+  if (res.status === 401 && retry) {
+    // The cached app token no longer works — refresh it and try once more.
+    await getAppToken();
+    return getConduitShards(conduitId, false);
+  }
+
+  const data: any = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`Failed to get conduit shards: ${data?.message ?? res.status}`);
+  }
+
+  return data.data ?? [];
+}
 
 export async function getConduits() {
   const res = await fetch(CONDUIT_URL, {

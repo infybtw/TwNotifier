@@ -24,6 +24,9 @@ declare module "ws" {
 
     send(data: string | ArrayBufferLike | ArrayBufferView): void;
     close(code?: number, reason?: string): void;
+    terminate(): void;
+    ping(data?: unknown): void;
+    pong(data?: unknown): void;
   }
 
   export default WebSocket;
