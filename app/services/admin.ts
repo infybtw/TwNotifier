@@ -8,6 +8,7 @@ import {
   subscribeAllChannelUpdates,
   subscribeAllStreamsOffline,
   subscribeAllStreamsOnline,
+  subscribeToShardDisabled,
 } from "../twitchAPI/subscriptions";
 import {
   deleteKickSubscriptions,
@@ -46,6 +47,9 @@ export async function reloadEventSub(adminId: number): Promise<{ before: number;
   await subscribeAllStreamsOnline();
   await subscribeAllStreamsOffline();
   await subscribeAllChannelUpdates();
+  if (TWITCH_EVENT_TRANSPORT === "conduit") {
+    await subscribeToShardDisabled();
+  }
   const after = (await getEventSubList()).length;
   log.warn("EventSub reloaded via web admin", { admin_id: adminId, before: subs.length, after });
   return { before: subs.length, after };

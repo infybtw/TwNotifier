@@ -12,7 +12,7 @@ import { deleteExpiredWebSessions } from "./database/db";
 import { getKickAppToken } from "./kickAPI/auth";
 import { startHTTPServer } from "./handlers/http_handler";
 import { getKickSubscriptions } from "./kickAPI/subscription";
-import { getEventSubList } from "./twitchAPI/subscriptions";
+import { getEventSubList, subscribeToShardDisabled } from "./twitchAPI/subscriptions";
 import { notifyAdminsAndExit } from "./bot/bot_sender";
 import logger from "./logger";
 import { sleep } from "bun";
@@ -80,6 +80,8 @@ async function main(): Promise<void> {
   if (TWITCH_EVENT_TRANSPORT === "conduit") {
     await withRetry("createConduit", () => createConduit(SHARD_COUNT));
     await withRetry("connectWebSocket", () => connectWebSocket(TWITCH_WS));
+    // Detect shards Twitch disables after a dropped WebSocket session.
+    await withRetry("subscribeToShardDisabled", () => subscribeToShardDisabled());
   }
 
   await withRetry("startHTTPServer", () => startHTTPServer());
