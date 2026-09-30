@@ -294,7 +294,7 @@ export async function subscribeToShardDisabled(conduitId: string = CONDUIT_ID, r
     body: JSON.stringify({
       type: "conduit.shard.disabled",
       version: "1",
-      condition: { conduit_id: conduitId },
+      condition: { client_id: CLIENT_ID, conduit_id: conduitId },
       transport: getTransport(),
     }),
   });

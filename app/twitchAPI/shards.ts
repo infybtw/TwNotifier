@@ -220,7 +220,8 @@ export async function rebindShardIfNeeded(): Promise<void> {
 }
 
 /** Reacts to a `conduit.shard.disabled` notification from Twitch. */
-export async function handleShardDisabled(shardId: unknown): Promise<void> {
+export async function handleShardDisabled(shardId: unknown, conduitId?: unknown): Promise<void> {
+  if (conduitId && String(conduitId) !== String(CONDUIT_ID)) return;
   if (Number(shardId) !== SHARD_ID) return;
 
   log.warn("conduit shard disabled by Twitch, rebinding", { shard_id: SHARD_ID });

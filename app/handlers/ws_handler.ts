@@ -29,7 +29,7 @@ export async function onNotification(payload: any) {
   // Conduit shard notifications carry no broadcaster and must be handled before
   // the channel lookup below.
   if (type === "conduit.shard.disabled") {
-    await handleShardDisabled(event?.shard_id);
+    await handleShardDisabled(event?.shard_id, event?.conduit_id);
     return;
   }
 
