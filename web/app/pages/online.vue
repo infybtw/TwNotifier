@@ -40,7 +40,8 @@ onMounted(() => void reload());
       <li
         v-for="follow in items"
         :key="`${follow.platform}:${follow.channelId}`"
-        class="flex flex-col gap-2.5 rounded-2xl p-4 tg-card"
+        class="flex cursor-pointer flex-col gap-2.5 rounded-2xl p-4 tg-card"
+        @click="navigateTo(`/follow/${follow.platform}/${follow.channelId}`)"
       >
         <StreamPreview
           v-if="follow.live?.previewUrl"
@@ -58,18 +59,13 @@ onMounted(() => void reload());
           <div class="flex shrink-0 gap-2">
             <button
               type="button"
-              class="rounded-lg px-2.5 py-1.5 text-xs font-medium tg-secondary tg-text"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+              :class="follow.platform === 'twitch' ? 'bg-violet-500/15 text-violet-400' : 'bg-green-500/15 text-green-400'"
               :aria-label="t('details.open_channel')"
-              @click="openExternal(follow.url)"
+              @click.stop="openExternal(follow.url)"
             >
-              {{ t("common.open") }}
+              {{ t(`platform.${follow.platform}`) }}
             </button>
-            <NuxtLink
-              :to="`/follow/${follow.platform}/${follow.channelId}`"
-              class="rounded-lg px-2.5 py-1.5 text-xs font-medium tg-button"
-            >
-              {{ t("details.status") }}
-            </NuxtLink>
           </div>
         </div>
         <dl v-if="follow.live && follow.live.status === 'online'" class="space-y-1 text-xs tg-hint">
