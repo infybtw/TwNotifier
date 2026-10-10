@@ -23,7 +23,7 @@ async function switchLanguage(): Promise<void> {
       <div class="flex min-w-0 items-center gap-2">
         <NuxtLink to="/" class="flex min-w-0 items-center gap-2">
           <span class="text-lg" aria-hidden="true">📡</span>
-          <span class="truncate text-base font-semibold tracking-tight tg-text">TwNotifier</span>
+          <span class="truncate text-base font-semibold tracking-tight tg-text">TWN</span>
         </NuxtLink>
       </div>
       <div class="flex items-center gap-3">
