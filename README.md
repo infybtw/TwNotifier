@@ -101,7 +101,7 @@ The stack is available on `http://localhost:3000`; Caddy forwards Mini App,
 
 **Production mode** (via Docker):
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+docker compose up -d
 ```
 
 Prebuilt images are published to GHCR on every git tag push (version tag + `latest`):
@@ -209,7 +209,7 @@ above. Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
 
 ### Docker deployment
 
-`docker-compose.prod.yml` starts the API and static Mini App as independent
+`compose.yaml` starts the API and static Mini App as independent
 containers:
 
 - API: `HTTP_SERVER_PORT` (default `3000`) with routes under `API_PATH`

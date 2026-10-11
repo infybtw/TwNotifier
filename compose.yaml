@@ -1,7 +1,14 @@
+# Production stack.
+#
+# Everything configurable is read from `.env` (see `.env.example`). Compose
+# interpolates `${...}` from the `.env` file next to this file, and the `twn`
+# container additionally receives `.env` via `env_file`.
+#
+# Images are pulled from GHCR; nothing is built here. Build them with the
+# `docker-build.yml` workflow (git tag push) or locally with the dev stack.
 services:
   postgres:
     image: postgres:16
-    container_name: postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-twn}
@@ -10,8 +17,8 @@ services:
     volumes:
       - pgdata-prod:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U twn -d twn"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
       timeout: 5s
       retries: 5
     networks:
@@ -19,10 +26,6 @@ services:
 
   twn:
     image: ghcr.io/infybtw/twnotifier
-    build:
-      context: .
-      dockerfile: app/Dockerfile
-      network: host
     env_file: .env
     restart: unless-stopped
     networks:
@@ -30,22 +33,16 @@ services:
     volumes:
       - ./logs/prod:/app/logs
     ports:
-      - "${HTTP_SERVER_PORT:-3000}:${HTTP_SERVER_PORT:-3000}"
+      - "127.0.0.1:${HTTP_SERVER_PORT:-3000}:${HTTP_SERVER_PORT:-3000}"
     depends_on:
       postgres:
         condition: service_healthy
 
   web:
     image: ghcr.io/infybtw/twnotifier-web
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-      args:
-        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
-        NUXT_PUBLIC_BOT_USERNAME: ${NUXT_PUBLIC_BOT_USERNAME:-}
+    restart: unless-stopped
     environment:
       WEB_SERVER_PORT: ${WEB_SERVER_PORT:-3001}
-    restart: unless-stopped
     ports:
       - "${WEB_SERVER_PORT:-3001}:${WEB_SERVER_PORT:-3001}"
 
@@ -53,27 +50,30 @@ services:
     image: adminer
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${ADMINER_PORT:-8080}:8080"
     networks:
       - pg
 
-  pgbackweb:
-    image: eduardolat/pgbackweb:latest
+  dumpkeeper:
+    image: ghcr.io/infybtw/dumpkeeper
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8085:8085"
     environment:
-      PBW_ENCRYPTION_KEY: "key"
-      PBW_POSTGRES_CONN_STRING: ${DATABASE_URL}
-      PBW_PATH_PREFIX: "/pgback"
+      AUTH_LOGIN: ${DUMPKEEPER_AUTH_LOGIN:-}
+      AUTH_PASSWORD: ${DUMPKEEPER_AUTH_PASSWORD:-}
+      BASE_PATH: ${DUMPKEEPER_BASE_PATH:-/}
+    ports:
+      - "${DUMPKEEPER_PORT:-8085}:8080"
+    volumes:
+      - dumpkeeper-data:/data
+    networks:
+      - pg
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - pg
 
 volumes:
   pgdata-prod:
+  dumpkeeper-data:
 
 networks:
   pg:

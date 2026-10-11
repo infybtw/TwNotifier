@@ -30,7 +30,7 @@ export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 
 export const ADMINER_URL: string = String(process.env.ADMINER_URL)
-export const PGBACKWEB_URL: string = String(process.env.PGBACKWEB_URL)
+export const DUMPKEEPER_URL: string = String(process.env.DUMPKEEPER_URL)
 
 export const DEFAULT_LANGUAGE: string = process.env.DEFAULT_LANGUAGE || "ru"
 

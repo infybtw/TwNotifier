@@ -30,9 +30,8 @@
 - Schema tables: `users`, `channels`, `users_follows`, `users_settings`, `admin_keys`
 
 ## Docker Compose Files
-- `docker-compose.dev.yml` - PostgreSQL + app + Mini App (for local development)
-- `docker-compose.prod.yml` - PostgreSQL + app + adminer + pgbackweb (production)
-- `docker-compose.local.yml` - PostgreSQL + app + adminer (local prod-like testing)
+- `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development)
+- `compose.yaml` - PostgreSQL + app + Mini App + adminer + dumpkeeper (production, images pulled from GHCR, config from `.env`)
 
 ## Build & Type Checking
 - TypeScript config: `tsconfig.json` with `rootDir: "./app"`, `outDir: "./dist"`
