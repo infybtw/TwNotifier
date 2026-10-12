@@ -43,45 +43,6 @@ TwitchNotifierBot is a notification system that monitors Twitch and Kick streame
 
 4. Edit `.env` with your configuration (see `.env.example` for all required variables)
 
-### Environment Variables
-
-Create a `.env` file with the following structure (see `.env.example`):
-
-```bash
-# Twitch API Credentials
-CLIENT_ID=TWITCH_CLIENT_ID
-CLIENT_SECRET=TWITCH_CLIENT_SECRET
-BOT_USER_ID=BOT_USER_ID
-
-# Kick API Credentials (optional)
-KICK_CLIENT_ID=
-KICK_CLIENT_SECRET=
-KICK_WEBHOOK_PATH=
-HTTP_SERVER_PORT=
-
-# Twitch EventSub Configuration
-SHARD_COUNT=1
-
-# Twitch EventSub Transport: "webhook" or "conduit" (required)
-TWITCH_EVENT_TRANSPORT=
-
-# Webhook config (required when TWITCH_EVENT_TRANSPORT=webhook)
-TWITCH_WEBHOOK_PATH=
-TWITCH_WEBHOOK_SECRET=
-BOT_URL=https://your-domain.com
-
-# Telegram Bot Token
-BOT_TOKEN=TELEGRAM_BOT_TOKEN
-
-# Database
-DATABASE_URL=DATABASE_URL
-
-# Twitch endpoints
-TWITCH_WS=TWITCH_WS_URL
-TWITCH_HELIX=TWITCH_HELIX_URL
-TWITCH_OAUTH=TWITCH_OAUTH_URL
-```
-
 ### Running the Bot
 
 **Development mode** (with `.env` file):
@@ -101,12 +62,9 @@ The stack is available on `http://localhost:3000`; Caddy forwards Mini App,
 
 **Production mode** (via Docker):
 ```bash
-docker compose up -d
-```
+docker compose pull
 
-Prebuilt images are published to GHCR on every git tag push (version tag + `latest`):
-```bash
-docker pull ghcr.io/infybtw/twnotifier:latest
+docker compose up -d
 ```
 
 ### Testing
@@ -270,7 +228,7 @@ server1 ansible_host=your_host_ip ansible_user=your_user
 
 ```bash
 cd deploy/ansible
-ansible-playbook twn-deploy.yaml
+ansible-playbook twn-deploy.yaml -K
 ```
 
 The entrypoint `twn-deploy.yaml` imports two playbooks in order:
