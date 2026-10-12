@@ -1,0 +1,2 @@
+[servers]
+server1 ansible_host=your_host_ip ansible_user=your_user

@@ -234,6 +234,62 @@ If the Mini App fails to load, users can keep managing everything through chat
 commands; reopening the Mini App from the bot button is the recovery path for
 expired sessions.
 
+## Server Provisioning (Ansible)
+
+The `deploy/ansible/` directory contains playbooks that prepare a fresh Ubuntu
+server to run TWN: they install Docker, clone the repository, pull the
+prebuilt Compose images, and create a `.env` file from `.env.example`.
+
+### Prerequisites
+
+- Ansible installed on your control machine (the machine you run the playbook
+  from).
+- SSH access to the target server with a user that can escalate via `sudo`.
+- The `community.docker` collection:
+
+  ```bash
+  ansible-galaxy collection install community.docker
+  ```
+
+### Configure the inventory
+
+Copy the example inventory and point it at your server:
+
+```bash
+cp deploy/ansible/inventory.ini.example deploy/ansible/inventory.ini
+```
+
+```ini
+[servers]
+server1 ansible_host=your_host_ip ansible_user=your_user
+```
+
+`inventory.ini` is git-ignored, so your host details stay local.
+
+### Run the playbook
+
+```bash
+cd deploy/ansible
+ansible-playbook twn-deploy.yaml
+```
+
+The entrypoint `twn-deploy.yaml` imports two playbooks in order:
+
+| Playbook | What it does |
+| --- | --- |
+| `playbooks/docker-setup.yaml` | Installs Docker Engine, the Compose and Buildx plugins, and adds the deploy user to the `docker` group |
+| `playbooks/twn-setup.yaml` | Clones `TwNotifier` into `~/twn`, pulls the Compose images, and copies `.env.example` to `.env` |
+
+When it finishes, SSH into the server, fill in `~/twn/.env`, and start the
+stack:
+
+```bash
+ssh your_user@your_host_ip
+cd ~/twn
+$EDITOR .env
+docker compose up -d
+```
+
 ## Architecture
 
 ```

@@ -1,0 +1,63 @@
+- name: docker-setup
+  hosts: all
+  become: true
+  tasks:
+    - name: apt update
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: install ca-certificates curl
+      ansible.builtin.apt:
+        pkg:
+        - ca-certificates
+        - curl
+        - python3-debian
+        state: present
+
+    - name: create apt keyring dir
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: curl keyring gpg
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Get dpkg architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: dpkg_arch
+      changed_when: false
+
+    - name: Add Docker APT repository
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: [deb]
+        uris: https://download.docker.com/linux/ubuntu
+        suites: "{{ ansible_facts['distribution_release'] }}"
+        components: [stable]
+        architectures: "{{ dpkg_arch.stdout }}"
+        signed_by: /etc/apt/keyrings/docker.asc
+        state: present
+
+    - name: apt update
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: apt docker install
+      ansible.builtin.apt:
+        pkg:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
+        - docker-compose-plugin
+
+    - name: add user to docker group
+      ansible.builtin.user:
+        user: "{{ ansible_facts['user_id'] }}"
+        groups: docker
+        shell: /bin/bash
+        append: true

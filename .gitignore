@@ -35,3 +35,6 @@ docker-compose.local.yml
 
 docs
 .nuxt
+
+# ansible
+*/ansible/inventory.ini

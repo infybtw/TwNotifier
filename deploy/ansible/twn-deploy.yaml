@@ -1,0 +1,11 @@
+---
+- import_playbook: playbooks/docker-setup.yaml
+
+- import_playbook: playbooks/twn-setup.yaml
+
+- name: twn deploy
+  hosts: localhost
+  tasks:
+    - name: deploy comletion message
+      ansible.builtin.debug:
+        msg: "Infrastructure deployment completed. Now you should ssh to your server and fill .env file"
