@@ -24,9 +24,11 @@ const LIVENESS_GRACE_MS = 5_000;
 const CONNECT_TIMEOUT_MS = 15_000;
 /** How often the conduit shard is compared against the live WebSocket session. */
 const SHARD_HEALTHCHECK_INTERVAL_MS = 60_000;
-/** Delay before a dropped connection is retried. */
-const RECONNECT_DELAY_MS = 5_000;
-/** updateShard attempts before giving up; each retry refreshes the app token. */
+/** First reconnect delay; grows exponentially with jitter. */
+const RECONNECT_BASE_DELAY_MS = 1_000;
+/** Upper bound for the reconnect delay. */
+const RECONNECT_MAX_DELAY_MS = 60_000;
+/** updateShard attempts before giving up. */
 const SHARD_UPDATE_MAX_ATTEMPTS = 5;
 
 let ws: WebSocket | undefined;
@@ -35,6 +37,10 @@ let reconnectingFrom: WebSocket | undefined;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let livenessTimer: ReturnType<typeof setInterval> | undefined;
 let healthcheckTimer: ReturnType<typeof setInterval> | undefined;
+/** Socket waiting to be closed once its replacement is welcomed. */
+let pendingPreviousWs: WebSocket | undefined;
+/** Consecutive failed reconnect attempts; reset on every welcome. */
+let reconnectAttempt = 0;
 
 /** Session id the conduit shard is currently bound to. */
 let boundSessionId: string | undefined;
@@ -57,12 +63,16 @@ function terminate(socket: WebSocket): void {
 }
 
 /**
- * Binds a WebSocket session to the conduit shard. Any failure (HTTP error or
- * network error) refreshes the app token and retries, because a stale token was
- * one of the ways a reconnect could silently leave the shard bound to a dead
- * session.
+ * Binds a WebSocket session to the conduit shard.
+ *
+ * Retry policy by failure type:
+ * - 401: stale app token, refresh and retry;
+ * - 429: rate-limited, back off without a token refresh;
+ * - 5xx / network error: retry with backoff, no token refresh;
+ * - other 4xx: request itself is invalid, fail fast without retries.
  */
 export async function updateShard(sessionId: string, shardId: number): Promise<void> {
+  let lastError: unknown;
   for (let attempt = 1; attempt <= SHARD_UPDATE_MAX_ATTEMPTS; attempt++) {
     try {
       const res = await fetch(SHARD_URL, {
@@ -86,31 +96,60 @@ export async function updateShard(sessionId: string, shardId: number): Promise<v
         }),
       });
 
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
       if (res.ok) {
         console.log(`Shard updated successfully. Session ID: `, sessionId);
         return;
       }
-      log.warn("shard update rejected, refreshing app token", {
-        shard_id: shardId,
-        status: res.status,
-        attempt,
-        error_message: data?.message,
-      });
+
+      const text = await res.text().catch(() => "");
+      let message: string | undefined;
+      try {
+        message = text ? (JSON.parse(text)?.message as string | undefined) : undefined;
+      } catch {
+        message = text || undefined;
+      }
+
+      if (res.status === 401) {
+        log.warn("shard update unauthorized, refreshing app token", {
+          shard_id: shardId,
+          status: res.status,
+          attempt,
+          error_message: message,
+        });
+        try {
+          await getAppToken();
+        } catch (error) {
+          log.error("failed to refresh Twitch app token", { error });
+        }
+      } else if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
+        log.warn("shard update transient failure, backing off", {
+          shard_id: shardId,
+          status: res.status,
+          attempt,
+          error_message: message,
+        });
+      } else {
+        // 400/403/404: retrying the same payload (or refreshing the token)
+        // cannot help — fail immediately so the caller reconnects with a
+        // fresh session instead of burning token refreshes.
+        log.error("shard update rejected, not retrying", {
+          shard_id: shardId,
+          status: res.status,
+          error_message: message,
+        });
+        throw new Error(`Update shard rejected with status ${res.status}: ${message ?? "unknown error"}`);
+      }
+      lastError = new Error(`Update shard failed with status ${res.status}: ${message ?? "unknown error"}`);
     } catch (error) {
-      log.warn("shard update request failed, refreshing app token", {
+      if (error instanceof Error && error.message.startsWith("Update shard rejected")) {
+        throw error;
+      }
+      log.warn("shard update request failed", {
         shard_id: shardId,
         attempt,
         error,
       });
-    }
-
-    // Any failure refreshes the token before the next attempt.
-    try {
-      await getAppToken();
-    } catch (error) {
-      log.error("failed to refresh Twitch app token", { error });
+      lastError = error;
     }
 
     if (attempt < SHARD_UPDATE_MAX_ATTEMPTS) {
@@ -118,19 +157,47 @@ export async function updateShard(sessionId: string, shardId: number): Promise<v
     }
   }
 
-  throw new Error(`Update shard failed after ${SHARD_UPDATE_MAX_ATTEMPTS} attempts`);
+  throw new Error(
+    `Update shard failed after ${SHARD_UPDATE_MAX_ATTEMPTS} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
-function scheduleReconnect(previousWs?: WebSocket): void {
+/** Exponential backoff with jitter for reconnect attempts. */
+function reconnectDelayMs(attempt: number): number {
+  const backoff = RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 6);
+  const capped = Math.min(backoff, RECONNECT_MAX_DELAY_MS);
+  return capped + Math.floor(Math.random() * 1_000);
+}
+
+function scheduleReconnect(previousWs?: WebSocket, opts?: { immediate?: boolean }): void {
+  // Always remember the newest socket that needs closing; a deduped timer
+  // must not lose the reference to it.
+  if (previousWs) pendingPreviousWs = previousWs;
   if (reconnectTimer) return;
+
+  const delay = opts?.immediate ? RECONNECT_BASE_DELAY_MS : reconnectDelayMs(reconnectAttempt);
+  log.warn("scheduling EventSub reconnect", {
+    delay_ms: delay,
+    attempt: reconnectAttempt + 1,
+    immediate: Boolean(opts?.immediate),
+  });
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined;
-    connect(baseUrl, previousWs, true).catch((error) => {
+    const previous = pendingPreviousWs;
+    pendingPreviousWs = undefined;
+    reconnectAttempt += 1;
+    connect(baseUrl, previous, true).catch((error) => {
       console.error("WebSocket reconnect failed:", error);
-      scheduleReconnect(previousWs);
+      scheduleReconnect(previous);
     });
-  }, RECONNECT_DELAY_MS);
+  }, delay);
+}
+
+/** Resets the reconnect backoff after a successful welcome. */
+function resetReconnectBackoff(): void {
+  reconnectAttempt = 0;
+  pendingPreviousWs = undefined;
 }
 
 export function connectWebSocket(url: string): Promise<void> {
@@ -276,6 +343,7 @@ function connect(
             if (connectTimeout) clearTimeout(connectTimeout);
             ws = socket;
             reconnectingFrom = undefined;
+            resetReconnectBackoff();
 
             const sessionId: string = msg.payload?.session?.id;
             const reported = Number(msg.payload?.session?.keepalive_timeout_seconds);
@@ -309,6 +377,16 @@ function connect(
             startLivenessWatch(socket);
             startShardHealthcheck();
             settle("resolve");
+
+            if (!shouldUpdateShard) {
+              // session_reconnect path: Twitch should have moved the shard
+              // binding automatically, but with a single-shard conduit a missed
+              // transfer means silently dropped notifications until the next
+              // 60s healthcheck. Verify immediately instead.
+              void rebindShardIfNeeded().catch((error) => {
+                log.warn("post-reconnect shard verification failed", { error });
+              });
+            }
             break;
           }
           case "session_keepalive":
@@ -378,8 +456,13 @@ function connect(
       boundSessionId = undefined;
       if (reconnectingFrom === socket) return;
 
+      // Twitch close codes: 4003 = shard not bound in time (retry fast),
+      // 4004 = reconnect grace expired, 4007 = invalid reconnect URL,
+      // 4000/4005/4006 = transient server/network issues.
+      const numericCode = Number(code);
+      log.warn("EventSub websocket closed, reconnecting", { code: numericCode });
       console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
-      scheduleReconnect();
+      scheduleReconnect(undefined, { immediate: numericCode === 4003 });
     });
 
     socket.on("error", (error: any) => {

@@ -79,7 +79,10 @@ async function main(): Promise<void> {
 
   if (TWITCH_EVENT_TRANSPORT === "conduit") {
     await withRetry("createConduit", () => createConduit(SHARD_COUNT));
-    await withRetry("connectWebSocket", () => connectWebSocket(TWITCH_WS));
+    // EventSub handshake + shard bind can fail transiently ( DNS blip,
+    // Twitch 5xx, slow welcome). Retry with backoff instead of exiting:
+    // the runtime reconnect loop only starts after a first success.
+    await withRetry("connectWebSocket", () => connectWebSocket(TWITCH_WS), { retries: 5, delayMs: 5_000 });
     // Detect shards Twitch disables after a dropped WebSocket session.
     await withRetry("subscribeToShardDisabled", () => subscribeToShardDisabled());
   }
