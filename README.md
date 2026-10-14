@@ -195,8 +195,8 @@ expired sessions.
 ## Server Provisioning (Ansible)
 
 The `deploy/ansible/` directory contains playbooks that prepare a fresh Ubuntu
-server to run TWN: they install Docker, clone the repository, pull the
-prebuilt Compose images, and create a `.env` file from `.env.example`.
+server to run TWN: they install Docker, clone the repository, render the
+`.env` file from an Ansible Vault, and start the Compose stack.
 
 ### Prerequisites
 
@@ -224,29 +224,42 @@ server1 ansible_host=your_host_ip ansible_user=your_user
 
 `inventory.ini` is git-ignored, so your host details stay local.
 
+### Configure the vault
+
+Copy the example vault, fill in real values (see `.env.example` for reference),
+and encrypt it:
+
+```bash
+cp deploy/ansible/vault.example.yaml deploy/ansible/vault.yaml
+$EDITOR deploy/ansible/vault.yaml
+ansible-vault encrypt deploy/ansible/vault.yaml
+```
+
+`vault.yaml` is git-ignored, so secrets never leave your machine unencrypted.
+The `.env` file on the server is rendered from `templates/.env.j2` with these
+variables — never edited by hand.
+
 ### Run the playbook
 
 ```bash
 cd deploy/ansible
-ansible-playbook twn-deploy.yaml -K
+ansible-playbook twn-deploy.yaml -K --ask-vault-pass
 ```
 
-The entrypoint `twn-deploy.yaml` imports two playbooks in order:
+(`-K` asks for the sudo password, `--ask-vault-pass` for the vault password.
+Omit `--ask-vault-pass` if you kept `vault.yaml` unencrypted.)
+
+The entrypoint `twn-deploy.yaml` imports two playbooks and then deploys:
 
 | Playbook | What it does |
 | --- | --- |
 | `playbooks/docker-setup.yaml` | Installs Docker Engine, the Compose and Buildx plugins, and adds the deploy user to the `docker` group |
-| `playbooks/twn-setup.yaml` | Clones `TwNotifier` into `~/twn`, pulls the Compose images, and copies `.env.example` to `.env` |
+| `playbooks/twn-setup.yaml` | Clones `TwNotifier` into `~/twn` and pulls the Compose images |
+| `twn-deploy.yaml` (deploy play) | Renders `~/twn/.env` from `templates/.env.j2` + `vault.yaml` (mode `0600`) and starts the stack with `docker compose up` |
 
-When it finishes, SSH into the server, fill in `~/twn/.env`, and start the
-stack:
-
-```bash
-ssh your_user@your_host_ip
-cd ~/twn
-$EDITOR .env
-docker compose up -d
-```
+When it finishes, the stack is already running — no manual `.env` editing on
+the server needed. To change config later, edit `vault.yaml` and re-run the
+playbook.
 
 ## Architecture
 

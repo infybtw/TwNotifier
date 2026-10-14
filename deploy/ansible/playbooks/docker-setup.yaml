@@ -1,10 +1,10 @@
 - name: docker-setup
   hosts: all
-  become: true
   tasks:
     - name: apt update
       ansible.builtin.apt:
         update_cache: true
+      become: true
 
     - name: install ca-certificates curl
       ansible.builtin.apt:
@@ -13,23 +13,27 @@
         - curl
         - python3-debian
         state: present
+      become: true
 
     - name: create apt keyring dir
       ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
         mode: '0755'
+      become: true
 
     - name: curl keyring gpg
       ansible.builtin.get_url:
         url: https://download.docker.com/linux/ubuntu/gpg
         dest: /etc/apt/keyrings/docker.asc
         mode: '0644'
+      become: true
 
     - name: Get dpkg architecture
       ansible.builtin.command: dpkg --print-architecture
       register: dpkg_arch
       changed_when: false
+      become: true
 
     - name: Add Docker APT repository
       ansible.builtin.deb822_repository:
@@ -41,10 +45,12 @@
         architectures: "{{ dpkg_arch.stdout }}"
         signed_by: /etc/apt/keyrings/docker.asc
         state: present
+      become: true
 
     - name: apt update
       ansible.builtin.apt:
         update_cache: true
+      become: true
 
     - name: apt docker install
       ansible.builtin.apt:
@@ -54,10 +60,29 @@
         - containerd.io
         - docker-buildx-plugin
         - docker-compose-plugin
+      become: true
+
+    - name: Reset SSH connection
+      ansible.builtin.meta: reset_connection
+
+    - name: Get SSH user
+      ansible.builtin.command: whoami
+      become: false
+      register: ssh_user
+      changed_when: false
 
     - name: add user to docker group
       ansible.builtin.user:
-        user: "{{ ansible_facts['user_id'] }}"
+        user: "{{ ssh_user.stdout }}"
         groups: docker
-        shell: /bin/bash
         append: true
+      become: true
+
+    - name: Reset SSH connection
+      ansible.builtin.meta: reset_connection
+    # - name: Reboot after Docker installation
+    #   ansible.builtin.reboot:
+    #     reboot_timeout: 300
+    #     connect_timeout: 10
+    #     post_reboot_delay: 5
+    #   become: true

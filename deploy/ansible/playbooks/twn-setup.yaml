@@ -16,9 +16,3 @@
     - name: pull docker compose
       community.docker.docker_compose_v2_pull:
         project_src: "{{ ansible_facts['user_dir'] }}/twn"
-
-    - name: copy .env.example to .env
-      ansible.builtin.copy:
-        remote_src: true
-        src: "{{ ansible_facts['user_dir'] }}/twn/.env.example"
-        dest: "{{ ansible_facts['user_dir'] }}/twn/.env"

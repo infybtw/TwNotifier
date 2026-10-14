@@ -38,3 +38,4 @@ docs
 
 # ansible
 */ansible/inventory.ini
+*/ansible/vault.yaml
