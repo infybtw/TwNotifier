@@ -4,7 +4,8 @@ export const BOT_USER_ID: string = String(process.env.BOT_USER_ID);
 
 export const KICK_CLIENT_ID: string = String(process.env.KICK_CLIENT_ID)
 export const KICK_CLIENT_SECRET: string = String(process.env.KICK_CLIENT_SECRET)
-export const KICK_WEBHOOK_PATH: string = String(process.env.KICK_WEBHOOK_PATH)
+/** Static webhook endpoints — not configurable via .env. */
+export const KICK_WEBHOOK_PATH = "/webhook/kick" as const
 
 export const HTTP_SERVER_PORT: number = Number(process.env.HTTP_SERVER_PORT)
 
@@ -22,7 +23,8 @@ export const TWITCH_HELIX: string = String(process.env.TWITCH_HELIX);
 export const TWITCH_OAUTH: string = String(process.env.TWITCH_OAUTH);
 
 export const TWITCH_EVENT_TRANSPORT: string = process.env.TWITCH_EVENT_TRANSPORT || "";
-export const TWITCH_WEBHOOK_PATH: string = process.env.TWITCH_WEBHOOK_PATH || "";
+/** Static webhook endpoint — not configurable via .env. */
+export const TWITCH_WEBHOOK_PATH = "/webhook/twitch" as const;
 export const TWITCH_WEBHOOK_SECRET: string = process.env.TWITCH_WEBHOOK_SECRET || "";
 export const BOT_URL: string = process.env.BOT_URL || "";
 

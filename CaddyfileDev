@@ -4,7 +4,7 @@
 		reverse_proxy twn:3000
 	}
 
-	@webhooks path {$KICK_WEBHOOK_PATH} {$TWITCH_WEBHOOK_PATH}
+	@webhooks path /webhook/kick /webhook/twitch
 	handle @webhooks {
 		reverse_proxy twn:3000
 	}

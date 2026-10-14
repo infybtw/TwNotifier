@@ -55,10 +55,6 @@ async function main(): Promise<void> {
   }
 
   if (TWITCH_EVENT_TRANSPORT === "webhook") {
-    if (!TWITCH_WEBHOOK_PATH) {
-      log.error("TWITCH_WEBHOOK_PATH is required when TWITCH_EVENT_TRANSPORT=webhook");
-      process.exit(1);
-    }
     if (!TWITCH_WEBHOOK_SECRET) {
       log.error("TWITCH_WEBHOOK_SECRET is required when TWITCH_EVENT_TRANSPORT=webhook");
       process.exit(1);
