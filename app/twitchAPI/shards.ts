@@ -14,12 +14,14 @@ const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
 /** Events are routed to a single shard today (SHARD_COUNT=1). */
 const SHARD_ID = 0;
 
-/** Keepalive window Twitch uses unless the welcome message reports another value. */
-const DEFAULT_KEEPALIVE_TIMEOUT_MS = 10_000;
+/** Requested via `keepalive_timeout_seconds` query param (Twitch allows 10–600). */
+const KEEPALIVE_TIMEOUT_SECONDS = 60;
+/** Keepalive window used until the welcome message reports the actual value. */
+const DEFAULT_KEEPALIVE_TIMEOUT_MS = KEEPALIVE_TIMEOUT_SECONDS * 1_000;
 /** How often the liveness watchdog inspects the last inbound message. */
 const LIVENESS_CHECK_INTERVAL_MS = 5_000;
 /** Extra budget on top of keepalive_timeout before the connection is deemed dead. */
-const LIVENESS_GRACE_MS = 5_000;
+const LIVENESS_GRACE_MS = 10_000;
 /** Abort a connection attempt that never yields a welcome message. */
 const CONNECT_TIMEOUT_MS = 15_000;
 /** How often the conduit shard is compared against the live WebSocket session. */
@@ -295,13 +297,21 @@ export async function handleShardDisabled(shardId: unknown, conduitId?: unknown)
   await rebindShardIfNeeded();
 }
 
+function withKeepaliveTimeout(url: string): string {
+  const parsed = new URL(url);
+  if (!parsed.searchParams.has("keepalive_timeout_seconds")) {
+    parsed.searchParams.set("keepalive_timeout_seconds", String(KEEPALIVE_TIMEOUT_SECONDS));
+  }
+  return parsed.toString();
+}
+
 function connect(
   url: string,
   previousWs?: WebSocket,
   shouldUpdateShard = false,
 ): Promise<void> {
   console.log("Connecting to EventSub...");
-  const socket = new WebSocket(url);
+  const socket = new WebSocket(withKeepaliveTimeout(url));
 
   return new Promise((resolve, reject) => {
     let welcomed = false;
