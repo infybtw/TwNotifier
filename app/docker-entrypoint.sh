@@ -32,11 +32,14 @@ if [ -n "${INFISICAL_DOMAIN:-}" ]; then
 fi
 
 echo "[entrypoint] logging into Infisical as machine identity" >&2
+# stdout is swallowed: login prints the access token there and it must
+# never land in container logs. stderr stays for real error messages
+# (non-zero exit still aborts the container thanks to `set -e`).
 # shellcheck disable=SC2086
 infisical login --silent ${LOGIN_DOMAIN} \
   --method=universal-auth \
   --client-id="${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID}" \
-  --client-secret="${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}"
+  --client-secret="${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}" > /dev/null
 
 RECURSIVE_ARG=""
 if [ "${INFISICAL_RECURSIVE:-false}" = "true" ]; then
