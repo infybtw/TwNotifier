@@ -1,5 +1,8 @@
 import { APP_TOKEN, CLIENT_ID, CONDUIT_ID, setConduitId, TWITCH_HELIX } from "../config";
+import logger from "../logger";
 import { getAppToken } from "./auth";
+
+const log = logger.getSubLogger({ name: "twitchAPI:conduits" });
 
 const CONDUIT_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits";
 const SHARD_URL: string = TWITCH_HELIX + "/helix/eventsub/conduits/shards";
@@ -34,12 +37,18 @@ export async function getConduitShards(conduitId: string = CONDUIT_ID, retry = t
 
   if (res.status === 401 && retry) {
     // The cached app token no longer works — refresh it and try once more.
+    log.warn("conduit shards request unauthorized, refreshing app token", { conduit_id: conduitId });
     await getAppToken();
     return getConduitShards(conduitId, false);
   }
 
   const data: any = await res.json().catch(() => ({}));
   if (!res.ok) {
+    log.error("failed to get conduit shards", {
+      conduit_id: conduitId,
+      status: res.status,
+      error_message: data?.message,
+    });
     throw new Error(`Failed to get conduit shards: ${data?.message ?? res.status}`);
   }
 
@@ -56,7 +65,7 @@ export async function getConduits() {
   });
 
   if (!res.ok) {
-    console.error("Failed to get conduits: ", await res.text());
+    log.error("failed to get conduits", { status: res.status, body: await res.text() });
     return;
   }
 
@@ -64,11 +73,11 @@ export async function getConduits() {
   const conduits = json.data || [];
 
   if (conduits.length === 0) {
-    console.log("Conduits not found");
+    log.info("no conduits found");
     return;
   }
 
-  console.log(`${conduits.length} conduits found`);
+  log.info("conduits found", { count: conduits.length, conduit_ids: conduits.map((c: any) => c.id) });
 
   return conduits;
 }
@@ -86,30 +95,31 @@ export async function deleteAllConduits(conduits: any) {
       });
 
       if (res.status === 204) {
-        console.log(`Conduits ${id} deleted`);
+        log.info("conduit deleted", { conduit_id: id });
       } else {
-        console.log(`Failed to delete conduit: ${id}. Status: ${res.status}`);
+        log.error("failed to delete conduit", { conduit_id: id, status: res.status });
       }
     }
 
     await new Promise((r) => setTimeout(r, 1000));
 
-    console.log(`${conduits.length} conduits deleted`);
+    log.info("duplicate conduits deleted", { count: conduits.length });
   } catch (err) {
-    console.error("Failed to delete conduits:", err);
+    log.error("failed to delete conduits", { error_message: err instanceof Error ? err.message : String(err) });
   }
 }
 
 export async function createConduit(shardCount: any) {
   const conduitList = await getConduits();
   if (!conduitList) {
-    console.log("Conduits not found")
+    log.info("no existing conduit, creating a new one", { shard_count: shardCount });
   } else if (conduitList.length > 1) {
+    log.warn("multiple conduits found, deleting them before creating a new one", { count: conduitList.length });
     await deleteAllConduits(conduitList);
   } else if (conduitList.length === 1) {
     const conduit_id = conduitList[0].id
     await setConduitId(conduit_id)
-    console.log(`Conduit reassigned ${conduit_id}`)
+    log.info("reusing existing conduit", { conduit_id });
     return
   }
   const res = await fetch(CONDUIT_URL, {
@@ -126,5 +136,5 @@ export async function createConduit(shardCount: any) {
   if (!res.ok) throw new Error(`Failed to create conduit: ${data.message}`);
 
   await setConduitId(data.data[0].id);
-  console.log("Conduit created successfully");
+  log.info("conduit created", { conduit_id: data.data[0].id, shard_count: shardCount });
 }

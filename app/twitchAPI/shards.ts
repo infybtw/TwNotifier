@@ -64,6 +64,11 @@ function terminate(socket: WebSocket): void {
   }
 }
 
+/** Error objects serialize to `{}` in JSON logs, so log their message instead. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Binds a WebSocket session to the conduit shard.
  *
@@ -99,7 +104,7 @@ export async function updateShard(sessionId: string, shardId: number): Promise<v
       });
 
       if (res.ok) {
-        console.log(`Shard updated successfully. Session ID: `, sessionId);
+        log.info("conduit shard bound to session", { shard_id: shardId, session_id: sessionId, attempt });
         return;
       }
 
@@ -121,7 +126,7 @@ export async function updateShard(sessionId: string, shardId: number): Promise<v
         try {
           await getAppToken();
         } catch (error) {
-          log.error("failed to refresh Twitch app token", { error });
+          log.error("failed to refresh Twitch app token", { error_message: errorMessage(error) });
         }
       } else if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
         log.warn("shard update transient failure, backing off", {
@@ -149,7 +154,7 @@ export async function updateShard(sessionId: string, shardId: number): Promise<v
       log.warn("shard update request failed", {
         shard_id: shardId,
         attempt,
-        error,
+        error_message: errorMessage(error),
       });
       lastError = error;
     }
@@ -171,17 +176,22 @@ function reconnectDelayMs(attempt: number): number {
   return capped + Math.floor(Math.random() * 1_000);
 }
 
-function scheduleReconnect(previousWs?: WebSocket, opts?: { immediate?: boolean }): void {
+function scheduleReconnect(reason: string, previousWs?: WebSocket, opts?: { immediate?: boolean }): void {
   // Always remember the newest socket that needs closing; a deduped timer
   // must not lose the reference to it.
   if (previousWs) pendingPreviousWs = previousWs;
-  if (reconnectTimer) return;
+  if (reconnectTimer) {
+    log.log("EventSub reconnect already scheduled, skipping", { reason });
+    return;
+  }
 
   const delay = opts?.immediate ? RECONNECT_BASE_DELAY_MS : reconnectDelayMs(reconnectAttempt);
   log.warn("scheduling EventSub reconnect", {
+    reason,
     delay_ms: delay,
     attempt: reconnectAttempt + 1,
     immediate: Boolean(opts?.immediate),
+    has_previous_socket: Boolean(pendingPreviousWs),
   });
 
   reconnectTimer = setTimeout(() => {
@@ -189,9 +199,13 @@ function scheduleReconnect(previousWs?: WebSocket, opts?: { immediate?: boolean 
     const previous = pendingPreviousWs;
     pendingPreviousWs = undefined;
     reconnectAttempt += 1;
+    log.info("reconnecting to EventSub", { attempt: reconnectAttempt, reason });
     connect(baseUrl, previous, true).catch((error) => {
-      console.error("WebSocket reconnect failed:", error);
-      scheduleReconnect(previous);
+      log.error("EventSub reconnect attempt failed", {
+        attempt: reconnectAttempt,
+        error_message: errorMessage(error),
+      });
+      scheduleReconnect("connect_failed", previous);
     });
   }, delay);
 }
@@ -229,7 +243,7 @@ function startLivenessWatch(socket: WebSocket): void {
       ws = undefined;
       boundSessionId = undefined;
       terminate(socket);
-      scheduleReconnect();
+      scheduleReconnect("keepalive_timeout");
     }
   }, LIVENESS_CHECK_INTERVAL_MS);
 }
@@ -284,7 +298,7 @@ export async function rebindShardIfNeeded(): Promise<void> {
       await updateShard(boundSessionId, SHARD_ID);
     }
   } catch (error) {
-    log.warn("conduit shard healthcheck failed", { error });
+    log.warn("conduit shard healthcheck failed", { error_message: errorMessage(error) });
   }
 }
 
@@ -310,7 +324,10 @@ function connect(
   previousWs?: WebSocket,
   shouldUpdateShard = false,
 ): Promise<void> {
-  console.log("Connecting to EventSub...");
+  log.info("connecting to EventSub", {
+    reconnect: Boolean(previousWs),
+    update_shard: shouldUpdateShard,
+  });
   const socket = new WebSocket(withKeepaliveTimeout(url));
 
   return new Promise((resolve, reject) => {
@@ -327,15 +344,13 @@ function connect(
     };
 
     connectTimeout = setTimeout(() => {
-      console.error(`WebSocket connection timed out after ${CONNECT_TIMEOUT_MS}ms`);
+      log.error("EventSub session_welcome not received in time", { timeout_ms: CONNECT_TIMEOUT_MS });
       terminate(socket);
       settle("reject", new Error("WebSocket connection timeout"));
     }, CONNECT_TIMEOUT_MS);
 
     socket.on("open", () => {
-      console.log(
-        "WebSocket connected to EventSub, waiting for session_welcome...",
-      );
+      log.info("EventSub socket open, waiting for session_welcome");
     });
 
     socket.on("message", async (raw: any) => {
@@ -358,6 +373,11 @@ function connect(
             const sessionId: string = msg.payload?.session?.id;
             const reported = Number(msg.payload?.session?.keepalive_timeout_seconds);
             keepaliveTimeoutMs = reported > 0 ? reported * 1_000 : DEFAULT_KEEPALIVE_TIMEOUT_MS;
+            log.info("EventSub session_welcome received", {
+              session_id: sessionId,
+              keepalive_timeout_ms: keepaliveTimeoutMs,
+              update_shard: shouldUpdateShard,
+            });
 
             // Twitch keeps the old connection alive until this Welcome arrives.
             // A reconnect URL already transfers the conduit shard automatically.
@@ -370,23 +390,30 @@ function connect(
                 // let the reconnect loop (with token refresh) try again.
                 log.error("failed to bind EventSub session to conduit shard", {
                   session_id: sessionId,
-                  error,
+                  error_message: errorMessage(error),
                 });
                 ws = undefined;
                 boundSessionId = undefined;
                 stopLivenessWatch();
                 terminate(socket);
                 settle("reject", error);
-                scheduleReconnect();
+                scheduleReconnect("bind_failed");
                 return;
               }
             }
 
             boundSessionId = sessionId;
-            if (previousWs && previousWs !== socket) previousWs.close();
+            if (previousWs && previousWs !== socket) {
+              log.info("switched to new EventSub session, closing previous socket", { session_id: sessionId });
+              previousWs.close();
+            }
             startLivenessWatch(socket);
             startShardHealthcheck();
             settle("resolve");
+            log.info("EventSub session active", {
+              session_id: sessionId,
+              path: shouldUpdateShard ? "bound_to_shard" : "reconnect_url",
+            });
 
             if (!shouldUpdateShard) {
               // session_reconnect path: Twitch should have moved the shard
@@ -394,7 +421,7 @@ function connect(
               // transfer means silently dropped notifications until the next
               // 60s healthcheck. Verify immediately instead.
               void rebindShardIfNeeded().catch((error) => {
-                log.warn("post-reconnect shard verification failed", { error });
+                log.warn("post-reconnect shard verification failed", { error_message: errorMessage(error) });
               });
             }
             break;
@@ -404,15 +431,18 @@ function connect(
           case "session_reconnect": {
             if (socket !== ws || reconnectingFrom === socket) break;
 
-            console.warn("Twitch required reconnect");
             const reconnectUrl = msg.payload.session.reconnect_url;
+            log.warn("Twitch requested EventSub reconnect", {
+              session_id: msg.payload.session?.id,
+              has_reconnect_url: Boolean(reconnectUrl),
+            });
             reconnectingFrom = socket;
             connect(reconnectUrl, socket).catch((error) => {
-              console.error("WebSocket reconnect failed:", error);
+              log.error("EventSub reconnect_url attempt failed", { error_message: errorMessage(error) });
               if (!ws || ws === socket) {
                 reconnectingFrom = undefined;
                 // A reconnect URL becomes invalid after an unsuccessful attempt.
-                scheduleReconnect(socket);
+                scheduleReconnect("reconnect_url_failed", socket);
               }
             });
             break;
@@ -446,7 +476,10 @@ function connect(
             break;
         }
       } catch (error) {
-        console.error("WebSocket message handling failed:", error);
+        log.error("EventSub message handling failed", {
+          welcomed,
+          error_message: errorMessage(error),
+        });
         if (!welcomed) {
           socket.close();
           settle("reject", error);
@@ -454,29 +487,36 @@ function connect(
       }
     });
 
-    socket.on("close", (code: any) => {
+    socket.on("close", (code: any, reason: any) => {
+      const numericCode = Number(code);
+      const closeReason = reason?.toString() || undefined;
       if (!welcomed) {
+        log.warn("EventSub socket closed before session_welcome", { code: numericCode, reason: closeReason });
         settle("reject", new Error(`WebSocket closed before welcome (code ${code})`));
       }
-      if (socket !== ws) return;
+      if (socket !== ws) {
+        if (welcomed) log.info("old EventSub socket closed", { code: numericCode, reason: closeReason });
+        return;
+      }
 
       stopLivenessWatch();
       stopShardHealthcheck();
       ws = undefined;
       boundSessionId = undefined;
-      if (reconnectingFrom === socket) return;
+      if (reconnectingFrom === socket) {
+        log.info("EventSub socket closed during reconnect handover", { code: numericCode, reason: closeReason });
+        return;
+      }
 
       // Twitch close codes: 4003 = shard not bound in time (retry fast),
       // 4004 = reconnect grace expired, 4007 = invalid reconnect URL,
       // 4000/4005/4006 = transient server/network issues.
-      const numericCode = Number(code);
-      log.warn("EventSub websocket closed, reconnecting", { code: numericCode });
-      console.warn(`❌ WebSocket closed (code ${code}), reconnecting...`);
-      scheduleReconnect(undefined, { immediate: numericCode === 4003 });
+      log.warn("EventSub websocket closed, reconnecting", { code: numericCode, reason: closeReason });
+      scheduleReconnect("socket_closed", undefined, { immediate: numericCode === 4003 });
     });
 
     socket.on("error", (error: any) => {
-      console.error("WebSocket error:", error.message);
+      log.error("EventSub socket error", { error_message: errorMessage(error) });
       if (!welcomed) settle("reject", error);
     });
   });

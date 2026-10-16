@@ -39,7 +39,7 @@ async function withRetry<T>(
         return await notifyAdminsAndExit(stepName, error);
       }
       log.warn(`Step "${stepName}" failed, retrying...`, {
-        error,
+        error_message: error instanceof Error ? error.message : String(error),
         attempt: attempt + 1,
         retries,
       });

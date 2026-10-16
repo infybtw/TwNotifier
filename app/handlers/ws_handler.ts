@@ -16,7 +16,6 @@ import { updateShard, handleShardDisabled } from "../twitchAPI/shards";
 import { getChannelInfo, getStreamsByUserIds } from "../twitchAPI/users";
 
 export async function onSessionWelcome(sessionId: any) {
-  console.log("Session ID: ", sessionId);
   await updateShard(sessionId, 0);
 }
 
