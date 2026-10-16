@@ -12,6 +12,8 @@
 #   INFISICAL_UNIVERSAL_AUTH_CLIENT_ID
 #   INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET
 #   INFISICAL_TOKEN                       Optional pre-issued token (skips login)
+#   CF_ACCESS_CLIENT_ID                   Optional Cloudflare Access service token ID
+#   CF_ACCESS_CLIENT_SECRET               Optional Cloudflare Access service token secret
 #
 # NOTE: `infisical run` alone does NOT authenticate with client-id/secret —
 # it needs a token. Capture the plain login output and export it for `run`,
@@ -26,6 +28,13 @@ if [ -z "${INFISICAL_PROJECT_ID:-}" ] \
     || [ -z "${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET:-}" ]; }; }; then
   echo "[entrypoint] INFISICAL_* not fully configured, starting with container environment" >&2
   exec "$@"
+fi
+
+# The CLI uses these space-separated headers for both login and secret requests.
+# Only enable Cloudflare Access when the complete service token is provided.
+if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+  INFISICAL_CUSTOM_HEADERS="${INFISICAL_CUSTOM_HEADERS:+${INFISICAL_CUSTOM_HEADERS} }CF-Access-Client-Id=${CF_ACCESS_CLIENT_ID} CF-Access-Client-Secret=${CF_ACCESS_CLIENT_SECRET}"
+  export INFISICAL_CUSTOM_HEADERS
 fi
 
 # INFISICAL_DOMAIN is inherited by both CLI commands from the container env.
