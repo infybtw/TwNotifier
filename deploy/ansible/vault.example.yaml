@@ -5,19 +5,11 @@
 #   ansible-vault encrypt vault.yaml
 # Mirror of /.env.example — same keys, YAML syntax.
 
-# --- Infisical bootstrap (self-hosted, backend pulls secrets at runtime) ---
-# When set, the `twn` entrypoint runs `infisical run` with Universal Auth.
+# --- Doppler bootstrap (backend pulls secrets at runtime) ---
+# Doppler service token scoped to one project/config. When set, the `twn`
+# entrypoint runs `doppler run` and injects the secrets.
 # Leave empty to keep plain .env values for the backend.
-INFISICAL_DOMAIN: "https://secrets.example.com"
-INFISICAL_PROJECT_ID: ""
-INFISICAL_ENVIRONMENT: "prod"
-INFISICAL_SECRET_PATH: "/"
-INFISICAL_RECURSIVE: "false"
-INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ""
-INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ""
-# Optional Cloudflare Access service token protecting Infisical (both required).
-CF_ACCESS_CLIENT_ID: ""
-CF_ACCESS_CLIENT_SECRET: ""
+DOPPLER_TOKEN: ""
 
 # --- Twitch API credentials ---
 CLIENT_ID: "TWITCH_CLIENT_ID"
