@@ -23,12 +23,11 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Backend install, typecheck and test
+      - name: Backend install and typecheck
         working-directory: app
         run: |
           bun install --frozen-lockfile
           bun run typecheck
-          bun test
 
   check-web:
     runs-on: ubuntu-latest

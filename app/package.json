@@ -5,7 +5,6 @@
   "private": true,
   "scripts": {
     "dev": "bun run index.ts",
-    "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

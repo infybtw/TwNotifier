@@ -2,7 +2,6 @@
 
 ## Development Commands
 - `bun run dev` - Run the bot with `.env` file (no file watching)
-- `bun test` - Run tests (no test files currently exist in app/)
 - There is no `start` script; production runs via Docker (`Dockerfile-app`)
 
 ## Environment Setup
@@ -52,6 +51,5 @@
 ## Important Constraints
 - Database file (`*.db`) and session files (`/sessions`) are git-ignored
 - Logs directory (`logs/`) is git-ignored
-- Uses Bun's built-in test runner (no Jest/Mocha configuration found)
-- No existing test files in `app/` directory - `bun test` will run but find no tests
+- No tests in the repo; static checks are `typecheck` scripts (`tsc --noEmit`)
 - `APP_TOKEN`, `KICK_APP_TOKEN`, `CONDUIT_ID` are mutable globals set at runtime in `app/config.ts`

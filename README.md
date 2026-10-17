@@ -70,11 +70,7 @@ docker compose pull
 docker compose up -d
 ```
 
-### Testing
-```bash
-bun test
-```
-
+### Type checking
 Backend type checking (from `app/`):
 ```bash
 cd app && bun run typecheck
