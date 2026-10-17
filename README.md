@@ -237,8 +237,9 @@ $EDITOR deploy/ansible/vault.yaml
 ansible-vault encrypt deploy/ansible/vault.yaml
 ```
 
-The vault is now small: the Doppler bootstrap token, PostgreSQL credentials and
-the compose ports/dumpkeeper values. The backend's own secrets are not in it —
+The vault is now small: the Doppler bootstrap token, PostgreSQL credentials,
+the compose ports and the backup schedule. The backend's own secrets are not
+in it —
 they are configured in Doppler (the KEY=VALUE list is in `.env.example.raw`),
 and the `twn` container pulls them via `doppler run` at startup. Compose
 structure values are documented in `.env.example`.
@@ -270,7 +271,12 @@ the server needed. The rendered `.env` only carries the Doppler bootstrap
 token, PostgreSQL and compose values; app config lives in Doppler (`.env.example.raw`).
 To change backend config later, edit the Doppler config and restart the `twn`
 container (`docker compose restart twn`). To change DB credentials, ports or
-dumpkeeper values, edit `vault.yaml` and re-run the playbook.
+the backup schedule, edit `vault.yaml` and re-run the playbook.
+
+Backups run in the `backup` service (`ghcr.io/infybtw/postgres-backup`), which
+dumps PostgreSQL to S3-compatible storage on `BACKUP_SCHEDULE`. Its `S3_*`
+credentials live in the same Doppler config as the app secrets (`.env.example.raw`)
+and are injected via the shared `DOPPLER_TOKEN`.
 
 ## Architecture
 

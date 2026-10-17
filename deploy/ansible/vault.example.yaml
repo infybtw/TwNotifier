@@ -15,7 +15,7 @@ DOPPLER_TOKEN: ""
 # --- PostgreSQL credentials; DATABASE_URL is built from these, do not set it ---
 POSTGRES_USER: "infydev"
 POSTGRES_PASSWORD: "infy.dev"
-POSTGRES_DB: "twn"
+POSTGRES_DATABASE: "twn"
 # Compose: service name and internal port. Local host process: localhost and 54322.
 POSTGRES_HOST: "postgres"
 POSTGRES_PORT: 5432
@@ -24,9 +24,8 @@ POSTGRES_PORT: 5432
 HTTP_SERVER_PORT: 3000
 WEB_SERVER_PORT: 3001
 ADMINER_PORT: 8080
-DUMPKEEPER_PORT: 8085
 
-# --- Dumpkeeper (plain image without the Doppler CLI, credentials stay in .env) ---
-DUMPKEEPER_AUTH_LOGIN: ""
-DUMPKEEPER_AUTH_PASSWORD: ""
-DUMPKEEPER_BASE_PATH: "/"
+# --- Postgres backups (ghcr.io/infybtw/postgres-backup, no UI, dumps to S3) ---
+# Cron schedule, e.g. "0 2 * * *" = every day at 02:00. Empty = single backup
+# on container start. S3_* credentials live in Doppler (.env.example.raw).
+BACKUP_SCHEDULE: "0 2 * * *"

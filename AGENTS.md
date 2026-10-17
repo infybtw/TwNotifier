@@ -32,7 +32,7 @@
 
 ## Docker Compose Files
 - `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development)
-- `compose.yaml` - PostgreSQL + app + Mini App + adminer + dumpkeeper (production, images pulled from GHCR, config from `.env`)
+- `compose.yaml` - PostgreSQL + app + Mini App + adminer + postgres-backup (production, images pulled from GHCR, config from `.env`)
 
 ## Build & Type Checking
 - TypeScript config: `tsconfig.json` with `rootDir: "./app"`, `outDir: "./dist"`

@@ -15,9 +15,9 @@ export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);
 export const DATABASE_URL: string = (() => {
   const user = process.env.POSTGRES_USER;
   const password = process.env.POSTGRES_PASSWORD;
-  const database = process.env.POSTGRES_DB;
+  const database = process.env.POSTGRES_DATABASE;
   if (!user || !password || !database) {
-    throw new Error("POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DB must be set");
+    throw new Error("POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DATABASE must be set");
   }
   const host = process.env.POSTGRES_HOST || "postgres";
   const port = process.env.POSTGRES_PORT || "5432";
@@ -42,7 +42,6 @@ export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 
 export const ADMINER_URL: string = String(process.env.ADMINER_URL)
-export const DUMPKEEPER_URL: string = String(process.env.DUMPKEEPER_URL)
 
 export const DEFAULT_LANGUAGE: string = process.env.DEFAULT_LANGUAGE || "ru"
 

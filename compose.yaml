@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-twn}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
-      POSTGRES_DB: ${POSTGRES_DB:-twn}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-twn}
     volumes:
       - pgdata-prod:/var/lib/postgresql/data
     healthcheck:
@@ -54,17 +54,14 @@ services:
     networks:
       - pg
 
-  dumpkeeper:
-    image: ghcr.io/infybtw/dumpkeeper
+  # Postgres backups to S3 (no UI). The whole environment comes from .env
+  # (same file as `twn`): S3_* credentials are pulled from Doppler via
+  # DOPPLER_TOKEN at container start, POSTGRES_* always come from this file
+  # and take precedence over Doppler values.
+  backup:
+    image: ghcr.io/infybtw/postgres-backup
     restart: unless-stopped
-    environment:
-      AUTH_LOGIN: ${DUMPKEEPER_AUTH_LOGIN:-}
-      AUTH_PASSWORD: ${DUMPKEEPER_AUTH_PASSWORD:-}
-      BASE_PATH: ${DUMPKEEPER_BASE_PATH:-/}
-    ports:
-      - "${DUMPKEEPER_PORT:-8085}:8080"
-    volumes:
-      - dumpkeeper-data:/data
+    env_file: .env
     networks:
       - pg
     depends_on:
@@ -73,7 +70,6 @@ services:
 
 volumes:
   pgdata-prod:
-  dumpkeeper-data:
 
 networks:
   pg:
