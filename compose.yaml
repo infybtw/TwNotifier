@@ -60,7 +60,6 @@ services:
   # and take precedence over Doppler values.
   backup:
     image: ghcr.io/infybtw/postgres-backup
-    restart: unless-stopped
     env_file: .env
     networks:
       - pg
