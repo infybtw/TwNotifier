@@ -8,8 +8,9 @@
 ## Environment Setup
 - Environment file: `.env` (loaded via `--env-file` flag in package.json script)
 - `.env.example` documents all required variables including Kick integration vars
+- `.env.example.raw` lists the app values to store in Doppler (`KEY=VALUE`, no DB or compose-only keys)
 - Development and production use real Twitch endpoints (`wss://eventsub.wss.twitch.tv/ws`, `https://api.twitch.tv`)
-- `DATABASE_URL` is required - PostgreSQL connection string
+- `DATABASE_URL` is built in `app/config.ts` from `POSTGRES_USER/PASSWORD/DB` and `POSTGRES_HOST/PORT`; do not set it
 
 ## Architecture Notes
 - Entry point: `app/index.ts` - runs migrations, starts Telegram bot, authenticates Twitch/Kick, connects WebSocket, starts HTTP server

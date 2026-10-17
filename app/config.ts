@@ -11,8 +11,18 @@ export const HTTP_SERVER_PORT: number = Number(process.env.HTTP_SERVER_PORT)
 
 export const SHARD_COUNT: number = Number(process.env.SHARD_COUNT);
 export const BOT_TOKEN: string = String(process.env.BOT_TOKEN);
-/** Bun SQL expects `postgres://`; also accept the standard `postgresql://` spelling. */
-export const DATABASE_URL: string = String(process.env.DATABASE_URL).replace(/^postgresql:\/\//i, "postgres://");
+/** Built from POSTGRES_* so the credentials are defined once, in the local .env. */
+export const DATABASE_URL: string = (() => {
+  const user = process.env.POSTGRES_USER;
+  const password = process.env.POSTGRES_PASSWORD;
+  const database = process.env.POSTGRES_DB;
+  if (!user || !password || !database) {
+    throw new Error("POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DB must be set");
+  }
+  const host = process.env.POSTGRES_HOST || "postgres";
+  const port = process.env.POSTGRES_PORT || "5432";
+  return `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`;
+})();
 
 export let APP_TOKEN: string;
 export let KICK_APP_TOKEN: string;
