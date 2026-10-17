@@ -21,6 +21,12 @@
 		}
 	}
 
+	handle_path /adminer* {
+		reverse_proxy adminer:8080 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
 	handle {
 		reverse_proxy web:3001 {
 			header_up X-Real-IP {client_ip}
