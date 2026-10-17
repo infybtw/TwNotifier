@@ -67,8 +67,7 @@ services:
   adminer:
     image: adminer
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:${ADMINER_PORT:-8080}:8080"
+    # Порты наружу не публикуем: доступ только через edge_proxy (/adminer).
     networks:
       - pg
 

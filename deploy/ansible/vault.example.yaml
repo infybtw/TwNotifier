@@ -23,7 +23,6 @@ POSTGRES_PORT: 5432
 # --- Compose ports (read by compose.yaml from .env) ---
 HTTP_SERVER_PORT: 3000
 WEB_SERVER_PORT: 3001
-ADMINER_PORT: 8080
 
 # --- Postgres backups (ghcr.io/infybtw/postgres-backup, no UI, dumps to S3) ---
 # Cron schedule, e.g. "0 2 * * *" = every day at 02:00. Empty = single backup
