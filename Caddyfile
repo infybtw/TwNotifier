@@ -1,0 +1,29 @@
+{
+	servers {
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For X-Real-IP
+	}
+}
+
+:80 {
+	@api path {$API_PATH:/api/v1} {$API_PATH:/api/v1}/*
+	handle @api {
+		reverse_proxy twn:3000 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	@webhooks path /webhook/kick /webhook/twitch
+	handle @webhooks {
+		reverse_proxy twn:3000 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3001 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+}
