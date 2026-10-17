@@ -16,4 +16,4 @@ if [ -z "${DOPPLER_TOKEN:-}" ]; then
 fi
 
 echo "[entrypoint] starting via Doppler" >&2
-exec doppler run -- "$@"
+exec doppler run --no-liveness-ping -- "$@"
