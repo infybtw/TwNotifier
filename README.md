@@ -41,7 +41,10 @@ TwitchNotifierBot is a notification system that monitors Twitch and Kick streame
    cp .env.example .env
    ```
 
-4. Edit `.env` with your configuration (see `.env.example` for all required variables)
+4. Edit `.env` — it only holds the Doppler bootstrap token, PostgreSQL and
+   compose values (see `.env.example`). App secrets come from Doppler (the list
+   is in `.env.example.raw`); for local runs without it you can add them
+   straight to `.env` — it is git-ignored.
 
 ### Running the Bot
 
@@ -51,7 +54,7 @@ bun run dev
 ```
 
 **Development stack** (PostgreSQL, backend, Mini App and Caddy; Twitch uses the
-real API configured in `.env`):
+real API configured in `.env` / Doppler):
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
@@ -226,14 +229,19 @@ server1 ansible_host=your_host_ip ansible_user=your_user
 
 ### Configure the vault
 
-Copy the example vault, fill in real values (see `.env.example` for reference),
-and encrypt it:
+Copy the example vault, fill in real values, and encrypt it:
 
 ```bash
 cp deploy/ansible/vault.example.yaml deploy/ansible/vault.yaml
 $EDITOR deploy/ansible/vault.yaml
 ansible-vault encrypt deploy/ansible/vault.yaml
 ```
+
+The vault is now small: the Doppler bootstrap token, PostgreSQL credentials and
+the compose ports/dumpkeeper values. The backend's own secrets are not in it —
+they are configured in Doppler (the KEY=VALUE list is in `.env.example.raw`),
+and the `twn` container pulls them via `doppler run` at startup. Compose
+structure values are documented in `.env.example`.
 
 `vault.yaml` is git-ignored, so secrets never leave your machine unencrypted.
 The `.env` file on the server is rendered from `templates/.env.j2` with these
@@ -258,8 +266,11 @@ The entrypoint `twn-deploy.yaml` imports two playbooks and then deploys:
 | `twn-deploy.yaml` (deploy play) | Renders `~/twn/.env` from `templates/.env.j2` + `vault.yaml` (mode `0600`) and starts the stack with `docker compose up` |
 
 When it finishes, the stack is already running — no manual `.env` editing on
-the server needed. To change config later, edit `vault.yaml` and re-run the
-playbook.
+the server needed. The rendered `.env` only carries the Doppler bootstrap
+token, PostgreSQL and compose values; app config lives in Doppler (`.env.example.raw`).
+To change backend config later, edit the Doppler config and restart the `twn`
+container (`docker compose restart twn`). To change DB credentials, ports or
+dumpkeeper values, edit `vault.yaml` and re-run the playbook.
 
 ## Architecture
 
