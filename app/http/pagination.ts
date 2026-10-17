@@ -1,3 +1,5 @@
+import { clientIp } from "./clientIp";
+
 export const DEFAULT_PAGE_LIMIT = 20;
 export const MAX_PAGE_LIMIT = 50;
 
@@ -20,7 +22,5 @@ export function parseLimit(value: unknown): number {
 }
 
 export function clientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
+  return clientIp(request);
 }

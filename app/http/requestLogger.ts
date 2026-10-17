@@ -1,4 +1,5 @@
 import logger from "../logger";
+import { clientIp } from "./clientIp";
 
 const log = logger.getSubLogger({ name: "http" });
 
@@ -32,6 +33,7 @@ export function logRequestEnd({ request, set }: { request: Request; set: { statu
   const payload = {
     method: request.method,
     path: new URL(request.url).pathname,
+    ip: clientIp(request),
     status,
     durationMs,
     slow,
