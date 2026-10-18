@@ -11,7 +11,7 @@ import { migrateDB } from "./migrate";
 import { deleteExpiredWebSessions } from "./database/db";
 import { getKickAppToken } from "./kickAPI/auth";
 import { startHTTPServer } from "./handlers/http_handler";
-import { getKickSubscriptions } from "./kickAPI/subscription";
+import { ensureKickMetadataSubscriptions, getKickSubscriptions } from "./kickAPI/subscription";
 import { getEventSubList, subscribeToShardDisabled } from "./twitchAPI/subscriptions";
 import { notifyAdminsAndExit } from "./bot/bot_sender";
 import logger from "./logger";
@@ -84,6 +84,7 @@ async function main(): Promise<void> {
   }
 
   await withRetry("startHTTPServer", () => startHTTPServer());
+  await withRetry("ensureKickMetadataSubscriptions", () => ensureKickMetadataSubscriptions());
   console.log("Kick transport: webhook");
   console.log("Kick webhook path: " + KICK_WEBHOOK_PATH);
   console.log("Kick webhook callback URL: " + BOT_URL + KICK_WEBHOOK_PATH);

@@ -175,7 +175,8 @@ function formatCategoryHistory(summary: StreamSummary, locale: Locale): string {
   }).join("\n");
 }
 
-async function sendTwitchStreamUpdateNotification(
+async function sendStreamUpdateNotification(
+  platform: "twitch" | "kick",
   channelId: number,
   channelName: string,
   notificationKey: "notifications.stream_title_changed" | "notifications.stream_category_changed",
@@ -183,7 +184,7 @@ async function sendTwitchStreamUpdateNotification(
   event: "stream_title_changed" | "stream_category_changed",
   value: string,
 ): Promise<void> {
-  const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, "twitch");
+  const followers = await getChannelFollowersByChannelIdAndPlatform(channelId, platform);
   for (const follower of followers) {
     const settings = await getSettingsStateByUserId(follower.user_id!);
     if (!settings || settings.is_bot_blocked !== 0) continue;
@@ -191,7 +192,7 @@ async function sendTwitchStreamUpdateNotification(
     const locale = (settings.language as Locale) || "ru";
     const text = t(notificationKey, locale)
       .replace("{name}", escapeHtml(channelName))
-      .replace("{url}", `https://twitch.tv/${channelName}`)
+      .replace("{url}", `https://${platform === "twitch" ? "twitch.tv" : "kick.com"}/${channelName}`)
       .replace("{value}", escapeHtml(value));
     try {
       await bot.api.sendMessage(follower.user_id!, text, {
@@ -199,20 +200,28 @@ async function sendTwitchStreamUpdateNotification(
         link_preview_options: { is_disabled: true },
       });
       log.info("message sent", { user_id: follower.user_id, text });
-      await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId, event, status: "sent" });
+      await recordUserNotification({ userId: follower.user_id!, platform, channelId, event, status: "sent" });
     } catch (err) {
-      const status = await handleSendError(follower.user_id!, "twitch stream update notification", err);
-      await recordUserNotification({ userId: follower.user_id!, platform: "twitch", channelId, event, status });
+      const status = await handleSendError(follower.user_id!, `${platform} stream update notification`, err);
+      await recordUserNotification({ userId: follower.user_id!, platform, channelId, event, status });
     }
   }
 }
 
 export function sendTwitchStreamTitleChangedNotificationToUsers(channelId: number, channelName: string, title: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_title_changed", "title_change_notification", "stream_title_changed", title);
+  return sendStreamUpdateNotification("twitch", channelId, channelName, "notifications.stream_title_changed", "title_change_notification", "stream_title_changed", title);
 }
 
 export function sendTwitchStreamCategoryChangedNotificationToUsers(channelId: number, channelName: string, category: string): Promise<void> {
-  return sendTwitchStreamUpdateNotification(channelId, channelName, "notifications.stream_category_changed", "category_change_notification", "stream_category_changed", category);
+  return sendStreamUpdateNotification("twitch", channelId, channelName, "notifications.stream_category_changed", "category_change_notification", "stream_category_changed", category);
+}
+
+export function sendKickStreamTitleChangedNotificationToUsers(channelId: number, channelName: string, title: string): Promise<void> {
+  return sendStreamUpdateNotification("kick", channelId, channelName, "notifications.stream_title_changed", "title_change_notification", "stream_title_changed", title);
+}
+
+export function sendKickStreamCategoryChangedNotificationToUsers(channelId: number, channelName: string, category: string): Promise<void> {
+  return sendStreamUpdateNotification("kick", channelId, channelName, "notifications.stream_category_changed", "category_change_notification", "stream_category_changed", category);
 }
 
 export async function sendKickStreamOnlineNotificationToUsers(channel_id: number, channel_name: string, title: string) {
@@ -288,8 +297,7 @@ export async function sendKickStreamfflineNotificationToUsers(channel_id: number
       const userSettings = await getSettingsStateByUserId(follower.user_id!);
       if (userSettings?.offline_notification === 1 && userSettings.is_bot_blocked === 0) {
         const locale = (userSettings?.language as Locale) || "ru";
-        // Категории для Kick не собираются, поэтому при включённых метаданных
-        // показываем только длительность стрима.
+        // В итоговом уведомлении Kick пока показываем только длительность стрима.
         const text = userSettings?.stream_metadata === 1 && durationMs !== undefined
           ? t("notifications.stream_offline_kick", locale)
             .replace("{name}", escapeHtml(channel_name))

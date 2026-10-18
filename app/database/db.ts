@@ -601,13 +601,25 @@ export async function backfillTwitchStream(channelId: number, streamId: string, 
   });
 }
 export async function updateTwitchStream(channelId: number, title: string, categoryName: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
+  return updateStreamMetadata(channelId, "twitch", title, categoryName);
+}
+
+export async function updateKickStream(channelId: number, title: string, categoryName: string, startedAt: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
+  return updateStreamMetadata(channelId, "kick", title, categoryName, startedAt);
+}
+
+async function updateStreamMetadata(channelId: number, platform: Platform, title: string, categoryName: string, expectedStartedAt?: string): Promise<{ titleChanged: boolean; categoryChanged: boolean; hadActiveSession: boolean }> {
   const now = new Date().toISOString();
   return db.transaction(async (tx) => {
     const [stream] = await tx.select().from(stream_sessions)
-      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, "twitch"), isNull(stream_sessions.ended_at)))
+      .where(and(eq(stream_sessions.channel_id, channelId), eq(stream_sessions.platform, platform), isNull(stream_sessions.ended_at)))
       .orderBy(desc(stream_sessions.id)).limit(1)
       .for("update");
     if (!stream) return { titleChanged: false, categoryChanged: false, hadActiveSession: false };
+    // Проверка API и обработка вебхука могут пересечься со стартом другого стрима.
+    if (expectedStartedAt && new Date(stream.started_at).getTime() !== new Date(expectedStartedAt).getTime()) {
+      return { titleChanged: false, categoryChanged: false, hadActiveSession: false };
+    }
 
     const titleChanged = stream.title !== title;
     if (titleChanged) {
@@ -628,7 +640,8 @@ export async function updateTwitchStream(channelId: number, title: string, categ
         started_at: now,
       });
     }
-    return { titleChanged, categoryChanged, hadActiveSession: true };
+    // У старых Kick-сессий категории ещё нет: первая запись — baseline, не смена.
+    return { titleChanged, categoryChanged: categoryChanged && (platform !== "kick" || !!category), hadActiveSession: true };
   });
 }
 
@@ -679,7 +692,7 @@ export async function finishTwitchStream(channelId: number, streamId?: string): 
   });
 }
 
-export async function startKickStream(channelId: number, title: string, startedAt?: string): Promise<boolean> {
+export async function startKickStream(channelId: number, title: string, startedAt?: string, categoryName?: string): Promise<boolean> {
   const now = new Date();
   // Kick присылает started_at в payload — тогда это реальное начало стрима.
   // Если поля нет или оно мусорное, началом считаем момент получения вебхука.
@@ -697,12 +710,9 @@ export async function startKickStream(channelId: number, title: string, startedA
       .for("update");
 
     if (activeStream) {
-      // Тот же стрим: status.updated приходит и при обновлении метаданных
-      // (title и др.), и при повторной доставке — обновляем title, сессию не трогаем
+      // Метаданные меняет metadata.updated: status.updated не должен затирать
+      // прежнее название до сравнения в обработчике метаданных.
       if (activeStream.started_at === effectiveStart) {
-        if (title && activeStream.title !== title) {
-          await tx.update(stream_sessions).set({ title }).where(eq(stream_sessions.id, activeStream.id));
-        }
         log.info("kick stream session already active", { channel_id: channelId });
         return false;
       }
@@ -727,6 +737,8 @@ export async function startKickStream(channelId: number, title: string, startedA
       // Незакрытая сессия предыдущего стрима (offline был пропущен) — закрываем молча
       log.warn("closing stale kick stream session", { channel_id: channelId, stale_session_id: activeStream.id });
       await tx.update(stream_sessions).set({ ended_at: effectiveStart }).where(eq(stream_sessions.id, activeStream.id));
+      await tx.update(stream_categories).set({ ended_at: effectiveStart })
+        .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
     }
 
     const [inserted] = await tx.insert(stream_sessions).values({
@@ -740,6 +752,13 @@ export async function startKickStream(channelId: number, title: string, startedA
       // Гонка параллельных вебхуков: активную сессию уже создал другой обработчик
       log.warn("active kick stream session already exists", { channel_id: channelId });
       return false;
+    }
+    if (categoryName !== undefined) {
+      await tx.insert(stream_categories).values({
+        stream_session_id: inserted.id,
+        category_name: categoryName,
+        started_at: now.toISOString(),
+      });
     }
     return true;
   });
@@ -780,6 +799,8 @@ export async function finishKickStream(channelId: number, expectedStartedAt?: st
       : now;
 
     await tx.update(stream_sessions).set({ ended_at: effectiveEnd }).where(eq(stream_sessions.id, activeStream.id));
+    await tx.update(stream_categories).set({ ended_at: effectiveEnd })
+      .where(and(eq(stream_categories.stream_session_id, activeStream.id), isNull(stream_categories.ended_at)));
     return { outcome: "closed", durationMs: new Date(effectiveEnd).getTime() - sessionStartMs };
   });
 }

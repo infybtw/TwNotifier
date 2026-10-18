@@ -2,6 +2,7 @@ import { sleep } from "bun";
 import { KICK_APP_TOKEN, KICK_API, KICK_OAUTH } from "../config";
 import logger from "../logger";
 import { getKickAppToken } from "./auth";
+import { getChannelsWithFollowersByPlatform } from "../database/db";
 
 const log = logger.getSubLogger({ name: "kickAPI:subscriptions" });
 
@@ -23,6 +24,15 @@ interface KickSubscriptionData {
 
 
 export async function subscribeToKickChannelOnline(broadcasterId: number): Promise<number> {
+  // Раздельные запросы: конфликт уже существующей status-подписки не должен
+  // мешать созданию metadata-подписки.
+  for (const event of ["livestream.status.updated", "livestream.metadata.updated"]) {
+    if (await subscribeToKickEvent(broadcasterId, event) !== 202) return -1;
+  }
+  return 202;
+}
+
+async function subscribeToKickEvent(broadcasterId: number, event: string): Promise<number> {
 
   const res = await fetch(`${KICK_API}/public/v1/events/subscriptions`, {
     method: "POST",
@@ -34,7 +44,7 @@ export async function subscribeToKickChannelOnline(broadcasterId: number): Promi
       broadcaster_user_id: broadcasterId,
       events: [
         {
-          name: "livestream.status.updated",
+          name: event,
           version: 1
         },
       ],
@@ -46,8 +56,17 @@ export async function subscribeToKickChannelOnline(broadcasterId: number): Promi
 
 
   if (res.status === 200 || res.status === 201 || res.status === 409) {
+    if (res.status !== 409 && (!data.data?.length || data.data.some((sub: { error?: string }) => sub.error))) {
+      // Kick can report an existing subscription as a per-event error in a
+      // successful response. Confirm it exists rather than swallowing errors.
+      const existing = await getKickSubscriptions();
+      if (!existing.some((sub) => Number(sub.broadcaster_user_id) === broadcasterId && sub.event === event && sub.version === 1)) {
+        log.error("subscription event error", { event, broadcaster_id: broadcasterId, data });
+        return -1;
+      }
+    }
     log.info("subscribed to event", {
-      event: "livestream.status.updated",
+      event,
       broadcaster_id: broadcasterId,
       status: res.status,
     });
@@ -57,19 +76,34 @@ export async function subscribeToKickChannelOnline(broadcasterId: number): Promi
       broadcaster_id: broadcasterId,
     })
     await sleep(10000)
-    return subscribeToKickChannelOnline(broadcasterId)
+    return subscribeToKickEvent(broadcasterId, event)
   } else if (res.status === 401) {
     await getKickAppToken();
     log.warn("eventsub error: unauthorized", {
       broadcaster_id: broadcasterId,
     } )
     await sleep(10000);
-    return subscribeToKickChannelOnline(broadcasterId)
+    return subscribeToKickEvent(broadcasterId, event)
   } else {
     log.error("subscription error", {
       broadcaster_id: broadcasterId,
     });
     return -1;
+  }
+}
+
+/** Upgrade existing active subscriptions without recreating or enabling disconnected ones. */
+export async function ensureKickMetadataSubscriptions(): Promise<void> {
+  const subscriptions = await getKickSubscriptions();
+  const channels = await getChannelsWithFollowersByPlatform("kick");
+  const activeChannels = new Set(subscriptions.filter((sub) => sub.event === "livestream.status.updated").map((sub) => Number(sub.broadcaster_user_id)));
+  const metadataChannels = new Set(subscriptions.filter((sub) => sub.event === "livestream.metadata.updated").map((sub) => Number(sub.broadcaster_user_id)));
+  for (const channel of channels) {
+    if (activeChannels.has(channel.channel_id) && !metadataChannels.has(channel.channel_id)) {
+      if (await subscribeToKickEvent(channel.channel_id, "livestream.metadata.updated") !== 202) {
+        throw new Error(`Failed to subscribe to Kick metadata for ${channel.channel_id}`);
+      }
+    }
   }
 }
 
