@@ -237,6 +237,59 @@ export async function subscribeAllChannelUpdates(onProgress?: ProgressCallback) 
   log.info("subscribed to all channel updates", { count: channels.length });
 }
 
+/** Reconcile managed subscriptions only after the selected transport is ready. */
+export async function ensureEventSubTransport(): Promise<void> {
+  const subscriptions = await getEventSubList();
+  const channelTypes = ["stream.online", "stream.offline", "channel.update"];
+  const currentSubscriptions = new Set<string>();
+  let deleted = 0;
+  let created = 0;
+
+  for (const subscription of subscriptions) {
+    const isChannelEvent = channelTypes.includes(subscription.type);
+    const isShardEvent = subscription.type === "conduit.shard.disabled";
+    if (!isChannelEvent && !isShardEvent) continue;
+
+    const transport = subscription.transport;
+    const matches = transport.method === TWITCH_EVENT_TRANSPORT
+      && (transport.method !== "webhook" || transport.callback === BOT_URL + TWITCH_WEBHOOK_PATH)
+      && (transport.method !== "conduit" || transport.conduit_id === CONDUIT_ID);
+
+    if (!matches || (isShardEvent && TWITCH_EVENT_TRANSPORT !== "conduit")) {
+      log.info("removing subscription with outdated transport", {
+        subscription_id: subscription.id,
+        type: subscription.type,
+        previous_transport: transport.method,
+        transport: TWITCH_EVENT_TRANSPORT,
+      });
+      await deleteSub(subscription);
+      deleted++;
+    } else if (isChannelEvent) {
+      currentSubscriptions.add(`${subscription.type}:${subscription.condition.broadcaster_user_id}`);
+    }
+  }
+
+  // Also repair missing subscriptions after an interrupted migration/restart.
+  const channels = await getChannelsWithFollowersByPlatform("twitch");
+  const subscribers = [
+    ["stream.online", subscribeToChannelOnline],
+    ["stream.offline", subscribeToChannelOffline],
+    ["channel.update", subscribeToChannelUpdate],
+  ] as const;
+  for (const channel of channels) {
+    for (const [type, subscribe] of subscribers) {
+      if (currentSubscriptions.has(`${type}:${channel.channel_id}`)) continue;
+      const result = await subscribe(channel.channel_id, channel.channel_name);
+      if (result !== 202 && result !== 409) {
+        throw new Error(`Failed to reconcile ${type} subscription for ${channel.channel_id}`);
+      }
+      created++;
+    }
+  }
+
+  log.info("eventsub transport reconciled", { transport: TWITCH_EVENT_TRANSPORT, deleted, created });
+}
+
 /**
  * Best-effort recovery after Twitch revoked a subscription: re-create it when
  * the channel still exists and still has followers. Failures are logged and
@@ -406,7 +459,9 @@ async function deleteSub(sub: TwitchEventSubSubscription, retries = 3) {
       broadcaster_id: sub.condition.broadcaster_user_id,
       status: res.status,
     })
-    return
+    if (retries <= 0) throw new Error(`deleteSub: status ${res.status} after retries`);
+    await sleep(10000);
+    return deleteSub(sub, retries - 1);
   }
 }
 

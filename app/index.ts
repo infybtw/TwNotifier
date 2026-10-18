@@ -12,7 +12,7 @@ import { deleteExpiredWebSessions } from "./database/db";
 import { getKickAppToken } from "./kickAPI/auth";
 import { startHTTPServer } from "./handlers/http_handler";
 import { ensureKickMetadataSubscriptions, getKickSubscriptions } from "./kickAPI/subscription";
-import { getEventSubList, subscribeToShardDisabled } from "./twitchAPI/subscriptions";
+import { ensureEventSubTransport, getEventSubList, subscribeToShardDisabled } from "./twitchAPI/subscriptions";
 import { notifyAdminsAndExit } from "./bot/bot_sender";
 import logger from "./logger";
 import { sleep } from "bun";
@@ -79,11 +79,14 @@ async function main(): Promise<void> {
     // Twitch 5xx, slow welcome). Retry with backoff instead of exiting:
     // the runtime reconnect loop only starts after a first success.
     await withRetry("connectWebSocket", () => connectWebSocket(TWITCH_WS), { retries: 5, delayMs: 5_000 });
-    // Detect shards Twitch disables after a dropped WebSocket session.
-    await withRetry("subscribeToShardDisabled", () => subscribeToShardDisabled());
   }
 
   await withRetry("startHTTPServer", () => startHTTPServer());
+  await withRetry("ensureEventSubTransport", () => ensureEventSubTransport());
+  if (TWITCH_EVENT_TRANSPORT === "conduit") {
+    // Recreate this subscription after removing any outdated transport.
+    await withRetry("subscribeToShardDisabled", () => subscribeToShardDisabled());
+  }
   await withRetry("ensureKickMetadataSubscriptions", () => ensureKickMetadataSubscriptions());
   console.log("Kick transport: webhook");
   console.log("Kick webhook path: " + KICK_WEBHOOK_PATH);
