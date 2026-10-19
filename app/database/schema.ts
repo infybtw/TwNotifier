@@ -193,3 +193,33 @@ export const user_notifications = pgTable("user_notifications", {
 
 export type UserNotification = typeof user_notifications.$inferSelect
 export type NewUserNotification = typeof user_notifications.$inferInsert
+
+export type EventSubReconnectReason =
+  | "socket_closed"
+  | "keepalive_timeout"
+  | "session_reconnect"
+  | "reconnect_url_failed"
+  | "bind_failed"
+  | "connect_failed";
+
+/** Completed WebSocket reconnect attempts; independent of stream/channel logs. */
+export const eventsub_reconnects = pgTable("eventsub_reconnects", {
+  id: serial("id").primaryKey(),
+  started_at: text().notNull(),
+  finished_at: text().notNull(),
+  reason: varchar({ length: 32 }).$type<EventSubReconnectReason>().notNull(),
+  status: varchar({ length: 16 }).$type<"connected" | "failed">().notNull(),
+  attempt: integer().notNull(),
+  delay_ms: integer().notNull(),
+  close_code: integer(),
+  close_reason: text(),
+  details: text(),
+  error: text(),
+  previous_session_id: text(),
+  session_id: text(),
+}, (table) => [
+  index("eventsub_reconnects_started_at_id_idx").on(table.started_at, table.id),
+]);
+
+export type EventSubReconnect = typeof eventsub_reconnects.$inferSelect;
+export type NewEventSubReconnect = typeof eventsub_reconnects.$inferInsert;

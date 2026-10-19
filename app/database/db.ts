@@ -4,6 +4,7 @@ import { DATABASE_URL } from "../config";
 import { admin_keys, AdminKey, admin_settings, AdminSettings, Channel, channels, NewAdminSettings, NewUserSettings, Platform, StreamCategory, StreamLog, stream_categories, stream_logs, stream_sessions, User, UserFollow, user_notifications, users, users_follows, users_settings, UserSettings, WebSession, web_sessions } from "./schema";
 import { and, asc, count, desc, eq, inArray, isNull, like, lt, or, sql } from "drizzle-orm";
 import logger from "../logger";
+import { eventsub_reconnects, type EventSubReconnect, type NewEventSubReconnect } from "./schema";
 
 const sqlConnect = new SQL(DATABASE_URL)
 const db = drizzle(sqlConnect)
@@ -11,6 +12,22 @@ const db = drizzle(sqlConnect)
 const log = logger.getSubLogger({ name: "db" });
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Diagnostics must never block or break EventSub recovery. */
+export async function insertEventSubReconnect(record: NewEventSubReconnect): Promise<void> {
+  try {
+    await db.insert(eventsub_reconnects).values(record);
+  } catch (error) {
+    log.warn("failed to save EventSub reconnect history", {
+      error_message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function getRecentEventSubReconnects(limit = 50): Promise<EventSubReconnect[]> {
+  return db.select().from(eventsub_reconnects)
+    .orderBy(desc(eventsub_reconnects.started_at), desc(eventsub_reconnects.id)).limit(limit);
+}
 
 // Повторная доставка Kick-вебхука приходит в течение секунд,
 // а payload без валидного started_at не даёт отличить дубликат от нового стрима

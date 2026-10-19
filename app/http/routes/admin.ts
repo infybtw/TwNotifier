@@ -10,6 +10,7 @@ import {
   getAllAdminKeys,
   getFollowsWithChannelPage,
   getRecentStreamLogs,
+  getRecentEventSubReconnects,
   getUserByUserId,
   getUserNotificationsPage,
   revokeAdminKey,
@@ -358,6 +359,28 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     await requireAdmin(auth);
     set.headers["cache-control"] = "no-store";
     return getEventSubStatus();
+  })
+  .get("/eventsub/reconnects", async ({ auth, set }) => {
+    await requireAdmin(auth);
+    const rows = await getRecentEventSubReconnects(LOGS_LIMIT);
+    set.headers["cache-control"] = "no-store";
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        startedAt: row.started_at,
+        finishedAt: row.finished_at,
+        reason: row.reason,
+        status: row.status,
+        attempt: row.attempt,
+        delayMs: row.delay_ms,
+        closeCode: row.close_code,
+        closeReason: row.close_reason,
+        details: row.details,
+        error: row.error,
+        previousSessionId: row.previous_session_id,
+        sessionId: row.session_id,
+      })),
+    };
   })
   .post("/eventsub/reload", async ({ auth, request, set }) => {
     rateLimit(request);

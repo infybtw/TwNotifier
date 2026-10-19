@@ -113,6 +113,22 @@ export interface KickWebhookStatus {
   livestream: number;
 }
 
+export interface EventSubReconnect {
+  id: number;
+  startedAt: string;
+  finishedAt: string;
+  reason: "socket_closed" | "keepalive_timeout" | "session_reconnect" | "reconnect_url_failed" | "bind_failed" | "connect_failed";
+  status: "connected" | "failed";
+  attempt: number;
+  delayMs: number;
+  closeCode: number | null;
+  closeReason: string | null;
+  details: string | null;
+  error: string | null;
+  previousSessionId: string | null;
+  sessionId: string | null;
+}
+
 interface Page<T> {
   items: T[];
   nextCursor: string | null;
@@ -171,6 +187,7 @@ export function useAdmin() {
       return api.postForm<{ sent: number; failed: number }>("/admin/broadcast", form);
     },
     eventSubStatus: () => api.get<EventSubStatus>("/admin/eventsub"),
+    eventSubReconnects: () => api.get<{ items: EventSubReconnect[] }>("/admin/eventsub/reconnects"),
     eventSubReload: () => api.post<{ before: number; after: number }>("/admin/eventsub/reload"),
     eventSubDisconnect: () => api.post<{ deleted: number }>("/admin/eventsub/disconnect"),
     eventSubCleanup: () => api.post<{ total: number; removed: number; remaining: number }>("/admin/eventsub/cleanup"),

@@ -168,5 +168,7 @@ onMounted(() => void load());
 
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>
     </template>
+
+    <EventSubReconnectHistory />
   </section>
 </template>

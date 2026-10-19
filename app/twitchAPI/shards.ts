@@ -7,6 +7,8 @@ import { getAppToken } from "./auth";
 import { getConduitShards } from "./conduits";
 import { beginEventMessage, completeEventMessage, releaseEventMessage } from "./message_dedup";
 import { resubscribeRevoked } from "./subscriptions";
+import { insertEventSubReconnect } from "../database/db";
+import type { EventSubReconnectReason, NewEventSubReconnect } from "../database/schema";
 
 const log = logger.getSubLogger({ name: "twitchAPI:shards" });
 
@@ -176,7 +178,49 @@ function reconnectDelayMs(attempt: number): number {
   return capped + Math.floor(Math.random() * 1_000);
 }
 
-function scheduleReconnect(reason: string, previousWs?: WebSocket, opts?: { immediate?: boolean }): void {
+interface ReconnectOptions {
+  immediate?: boolean;
+  closeCode?: number;
+  closeReason?: string;
+  details?: string;
+  previousSessionId?: string;
+}
+
+/** Save the outcome asynchronously: a database outage must not delay recovery. */
+async function reconnect(
+  url: string,
+  previousWs: WebSocket | undefined,
+  shouldUpdateShard: boolean,
+  reason: EventSubReconnectReason,
+  attempt: number,
+  delay: number,
+  opts?: ReconnectOptions,
+): Promise<void> {
+  const record: NewEventSubReconnect = {
+    started_at: new Date().toISOString(),
+    finished_at: "",
+    reason,
+    status: "failed",
+    attempt,
+    delay_ms: delay,
+    close_code: opts?.closeCode,
+    close_reason: opts?.closeReason,
+    details: opts?.details,
+    previous_session_id: opts?.previousSessionId,
+  };
+  try {
+    record.session_id = await connect(url, previousWs, shouldUpdateShard);
+    record.status = "connected";
+  } catch (error) {
+    record.error = errorMessage(error);
+    throw error;
+  } finally {
+    record.finished_at = new Date().toISOString();
+    void insertEventSubReconnect(record);
+  }
+}
+
+function scheduleReconnect(reason: EventSubReconnectReason, previousWs?: WebSocket, opts?: ReconnectOptions): void {
   // Always remember the newest socket that needs closing; a deduped timer
   // must not lose the reference to it.
   if (previousWs) pendingPreviousWs = previousWs;
@@ -200,12 +244,12 @@ function scheduleReconnect(reason: string, previousWs?: WebSocket, opts?: { imme
     pendingPreviousWs = undefined;
     reconnectAttempt += 1;
     log.info("reconnecting to EventSub", { attempt: reconnectAttempt, reason });
-    connect(baseUrl, previous, true).catch((error) => {
+    reconnect(baseUrl, previous, true, reason, reconnectAttempt, delay, opts).catch((error) => {
       log.error("EventSub reconnect attempt failed", {
         attempt: reconnectAttempt,
         error_message: errorMessage(error),
       });
-      scheduleReconnect("connect_failed", previous);
+      scheduleReconnect("connect_failed", previous, { details: errorMessage(error) });
     });
   }, delay);
 }
@@ -218,7 +262,7 @@ function resetReconnectBackoff(): void {
 
 export function connectWebSocket(url: string): Promise<void> {
   baseUrl = url;
-  return connect(url, undefined, true);
+  return connect(url, undefined, true).then(() => undefined);
 }
 
 function startLivenessWatch(socket: WebSocket): void {
@@ -240,10 +284,14 @@ function startLivenessWatch(socket: WebSocket): void {
         keepalive_timeout_ms: keepaliveTimeoutMs,
       });
       stopLivenessWatch();
+      const previousSessionId = boundSessionId;
       ws = undefined;
       boundSessionId = undefined;
       terminate(socket);
-      scheduleReconnect("keepalive_timeout");
+      scheduleReconnect("keepalive_timeout", undefined, {
+        previousSessionId,
+        details: `idle_ms=${idleMs}, keepalive_timeout_ms=${keepaliveTimeoutMs}`,
+      });
     }
   }, LIVENESS_CHECK_INTERVAL_MS);
 }
@@ -323,7 +371,7 @@ function connect(
   url: string,
   previousWs?: WebSocket,
   shouldUpdateShard = false,
-): Promise<void> {
+): Promise<string> {
   log.info("connecting to EventSub", {
     reconnect: Boolean(previousWs),
     update_shard: shouldUpdateShard,
@@ -333,13 +381,14 @@ function connect(
   return new Promise((resolve, reject) => {
     let welcomed = false;
     let settled = false;
+    let lastSocketError: string | undefined;
     let connectTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const settle = (action: "resolve" | "reject", value?: unknown): void => {
       if (settled) return;
       settled = true;
       if (connectTimeout) clearTimeout(connectTimeout);
-      if (action === "resolve") resolve();
+      if (action === "resolve") resolve(value as string);
       else reject(value);
     };
 
@@ -397,7 +446,10 @@ function connect(
                 stopLivenessWatch();
                 terminate(socket);
                 settle("reject", error);
-                scheduleReconnect("bind_failed");
+                scheduleReconnect("bind_failed", undefined, {
+                  previousSessionId: sessionId,
+                  details: errorMessage(error),
+                });
                 return;
               }
             }
@@ -409,7 +461,7 @@ function connect(
             }
             startLivenessWatch(socket);
             startShardHealthcheck();
-            settle("resolve");
+            settle("resolve", sessionId);
             log.info("EventSub session active", {
               session_id: sessionId,
               path: shouldUpdateShard ? "bound_to_shard" : "reconnect_url",
@@ -437,12 +489,16 @@ function connect(
               has_reconnect_url: Boolean(reconnectUrl),
             });
             reconnectingFrom = socket;
-            connect(reconnectUrl, socket).catch((error) => {
+            const previousSessionId = boundSessionId;
+            reconnect(reconnectUrl, socket, false, "session_reconnect", 1, 0, { previousSessionId }).catch((error) => {
               log.error("EventSub reconnect_url attempt failed", { error_message: errorMessage(error) });
               if (!ws || ws === socket) {
                 reconnectingFrom = undefined;
                 // A reconnect URL becomes invalid after an unsuccessful attempt.
-                scheduleReconnect("reconnect_url_failed", socket);
+                scheduleReconnect("reconnect_url_failed", socket, {
+                  previousSessionId,
+                  details: errorMessage(error),
+                });
               }
             });
             break;
@@ -492,7 +548,7 @@ function connect(
       const closeReason = reason?.toString() || undefined;
       if (!welcomed) {
         log.warn("EventSub socket closed before session_welcome", { code: numericCode, reason: closeReason });
-        settle("reject", new Error(`WebSocket closed before welcome (code ${code})`));
+        settle("reject", new Error(`WebSocket closed before welcome (code ${code})${closeReason ? `: ${closeReason}` : ""}`));
       }
       if (socket !== ws) {
         if (welcomed) log.info("old EventSub socket closed", { code: numericCode, reason: closeReason });
@@ -501,6 +557,7 @@ function connect(
 
       stopLivenessWatch();
       stopShardHealthcheck();
+      const previousSessionId = boundSessionId;
       ws = undefined;
       boundSessionId = undefined;
       if (reconnectingFrom === socket) {
@@ -512,10 +569,17 @@ function connect(
       // 4004 = reconnect grace expired, 4007 = invalid reconnect URL,
       // 4000/4005/4006 = transient server/network issues.
       log.warn("EventSub websocket closed, reconnecting", { code: numericCode, reason: closeReason });
-      scheduleReconnect("socket_closed", undefined, { immediate: numericCode === 4003 });
+      scheduleReconnect("socket_closed", undefined, {
+        immediate: numericCode === 4003,
+        closeCode: numericCode,
+        closeReason,
+        details: lastSocketError,
+        previousSessionId,
+      });
     });
 
     socket.on("error", (error: any) => {
+      lastSocketError = errorMessage(error);
       log.error("EventSub socket error", { error_message: errorMessage(error) });
       if (!welcomed) settle("reject", error);
     });
