@@ -12,7 +12,3 @@
       ansible.builtin.git:
         repo: https://github.com/infybtw/TwNotifier
         dest: "{{ ansible_facts['user_dir'] }}/twn"
-
-    - name: pull docker compose
-      community.docker.docker_compose_v2_pull:
-        project_src: "{{ ansible_facts['user_dir'] }}/twn"

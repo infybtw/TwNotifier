@@ -1,66 +1,69 @@
 - name: docker-setup
   hosts: all
   tasks:
-    - name: apt update
-      ansible.builtin.apt:
-        update_cache: true
-      become: true
-
-    - name: install ca-certificates curl
-      ansible.builtin.apt:
-        pkg:
-        - ca-certificates
-        - curl
-        - python3-debian
-        state: present
-      become: true
-
-    - name: create apt keyring dir
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-      become: true
-
-    - name: curl keyring gpg
-      ansible.builtin.get_url:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        dest: /etc/apt/keyrings/docker.asc
-        mode: '0644'
-      become: true
-
-    - name: Get dpkg architecture
-      ansible.builtin.command: dpkg --print-architecture
-      register: dpkg_arch
+    - name: Check whether Docker is installed
+      ansible.builtin.command: docker --version
+      register: docker_version
       changed_when: false
-      become: true
+      failed_when: false
+      check_mode: false
 
-    - name: Add Docker APT repository
-      ansible.builtin.deb822_repository:
-        name: docker
-        types: [deb]
-        uris: https://download.docker.com/linux/ubuntu
-        suites: "{{ ansible_facts['distribution_release'] }}"
-        components: [stable]
-        architectures: "{{ dpkg_arch.stdout }}"
-        signed_by: /etc/apt/keyrings/docker.asc
-        state: present
+    - name: Install Docker when missing
+      when: docker_version.rc != 0
       become: true
+      block:
+        - name: apt update
+          ansible.builtin.apt:
+            update_cache: true
 
-    - name: apt update
-      ansible.builtin.apt:
-        update_cache: true
-      become: true
+        - name: install ca-certificates curl
+          ansible.builtin.apt:
+            pkg:
+            - ca-certificates
+            - curl
+            - python3-debian
+            state: present
 
-    - name: apt docker install
-      ansible.builtin.apt:
-        pkg:
-        - docker-ce
-        - docker-ce-cli
-        - containerd.io
-        - docker-buildx-plugin
-        - docker-compose-plugin
-      become: true
+        - name: create apt keyring dir
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
+        - name: curl keyring gpg
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: '0644'
+
+        - name: Get dpkg architecture
+          ansible.builtin.command: dpkg --print-architecture
+          register: dpkg_arch
+          changed_when: false
+
+        - name: Add Docker APT repository
+          ansible.builtin.deb822_repository:
+            name: docker
+            types: [deb]
+            uris: https://download.docker.com/linux/ubuntu
+            suites: "{{ ansible_facts['distribution_release'] }}"
+            components: [stable]
+            architectures: "{{ dpkg_arch.stdout }}"
+            signed_by: /etc/apt/keyrings/docker.asc
+            state: present
+
+        - name: apt update
+          ansible.builtin.apt:
+            update_cache: true
+
+        - name: apt docker install
+          ansible.builtin.apt:
+            pkg:
+            - docker-ce
+            - docker-ce-cli
+            - containerd.io
+            - docker-buildx-plugin
+            - docker-compose-plugin
 
     - name: Reset SSH connection
       ansible.builtin.meta: reset_connection
@@ -80,9 +83,3 @@
 
     - name: Reset SSH connection
       ansible.builtin.meta: reset_connection
-    # - name: Reboot after Docker installation
-    #   ansible.builtin.reboot:
-    #     reboot_timeout: 300
-    #     connect_timeout: 10
-    #     post_reboot_delay: 5
-    #   become: true
