@@ -8,6 +8,31 @@
   vars_files:
   - vault.yaml
   tasks:
+    - name: fetch release tags
+      ansible.builtin.command:
+        cmd: >-
+          git -C {{ ansible_facts['user_dir'] }}/twn
+          fetch --tags --force --quiet origin
+      changed_when: false
+      check_mode: false
+
+    - name: list release tags
+      ansible.builtin.command:
+        cmd: >-
+          git -C {{ ansible_facts['user_dir'] }}/twn
+          tag --sort=-creatordate
+      register: twn_tags
+      changed_when: false
+      check_mode: false
+
+    - name: pick the latest release tag
+      ansible.builtin.set_fact:
+        twn_version: "{{ twn_tags.stdout_lines | first | default('latest', true) }}"
+
+    - name: show the version being deployed
+      ansible.builtin.debug:
+        msg: "Deploying TWN images tagged {{ twn_version }}"
+
     - name: render .env from vault
       ansible.builtin.template:
         src: "{{ playbook_dir }}/templates/.env.j2"

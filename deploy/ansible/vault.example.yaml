@@ -24,6 +24,11 @@ POSTGRES_PORT: 5432
 HTTP_SERVER_PORT: 3000
 WEB_SERVER_PORT: 3001
 
+# --- Image tag (optional) ---
+# Leave unset: the deploy play resolves the latest git tag and uses it.
+# Set it to pin a specific release, e.g. TWN_VERSION: "3.1.1".
+# TWN_VERSION: ""
+
 # --- Postgres backups (ghcr.io/infybtw/postgres-backup, no UI, dumps to S3) ---
 # Cron schedule, e.g. "0 2 * * *" = every day at 02:00. Empty = single backup
 # on container start. S3_* credentials live in Doppler (.env.example.raw).

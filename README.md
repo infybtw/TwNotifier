@@ -260,14 +260,25 @@ The entrypoint `twn-deploy.yaml` imports two playbooks and then deploys:
 | --- | --- |
 | `playbooks/docker-setup.yaml` | Installs Docker Engine, the Compose and Buildx plugins, and adds the deploy user to the `docker` group |
 | `playbooks/twn-setup.yaml` | Clones `TwNotifier` into `~/twn` and pulls the Compose images |
-| `twn-deploy.yaml` (deploy play) | Renders `~/twn/.env` from `templates/.env.j2` + `vault.yaml` (mode `0600`) and starts the stack with `docker compose up` |
+| `twn-deploy.yaml` (deploy play) | Resolves the latest git tag, renders `~/twn/.env` from `templates/.env.j2` + `vault.yaml` (mode `0600`) and starts the stack with `docker compose up` |
+
+The deploy does not follow the moving `latest` image tag: the play runs
+`git fetch --tags` in the deployed clone, picks the newest tag by creation date
+(`3.1.1`, `3.0.8-beta11`, …) and writes it as `TWN_VERSION` into the rendered
+`.env`, which `compose.yaml` interpolates into both image names
+(`ghcr.io/infybtw/twnotifier:<tag>`, `ghcr.io/infybtw/twnotifier-web:<tag>`).
+So each deploy runs the images built by the `docker-build.yml` run for that
+tag. Leave `TWN_VERSION` unset in `vault.yaml` to always track the newest tag;
+set it (e.g. `TWN_VERSION: "3.1.1"`) to pin a release, including rolling back.
+Bare `docker compose up` without that variable still uses `latest`.
 
 When it finishes, the stack is already running — no manual `.env` editing on
 the server needed. The rendered `.env` only carries the Doppler bootstrap
 token, PostgreSQL and compose values; app config lives in Doppler (`.env.example.raw`).
 To change backend config later, edit the Doppler config and restart the `twn`
-container (`docker compose restart twn`). To change DB credentials, ports or
-the backup schedule, edit `vault.yaml` and re-run the playbook.
+container (`docker compose restart twn`). To change DB credentials, ports, the
+backup schedule or the pinned version, edit `vault.yaml` and re-run the
+playbook.
 
 Backups run in the `backup` service (`ghcr.io/infybtw/postgres-backup`), which
 dumps PostgreSQL to S3-compatible storage on `BACKUP_SCHEDULE`. Its `S3_*`

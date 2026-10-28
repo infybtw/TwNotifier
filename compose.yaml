@@ -6,6 +6,10 @@
 #
 # Images are pulled from GHCR; nothing is built here. Build them with the
 # `docker-build.yml` workflow (git tag push) or locally with the dev stack.
+#
+# `TWN_VERSION` pins the image tag to a release. The Ansible deploy resolves the
+# latest git tag and writes it to `.env`; when unset (bare `docker compose up`
+# on a checkout without that variable) the images fall back to `latest`.
 services:
   postgres:
     image: postgres:16
@@ -25,7 +29,7 @@ services:
       - pg
 
   twn:
-    image: ghcr.io/infybtw/twnotifier
+    image: ghcr.io/infybtw/twnotifier:${TWN_VERSION:-latest}
     env_file: .env
     restart: unless-stopped
     networks:
@@ -37,7 +41,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ghcr.io/infybtw/twnotifier-web
+    image: ghcr.io/infybtw/twnotifier-web:${TWN_VERSION:-latest}
     restart: unless-stopped
     environment:
       WEB_SERVER_PORT: ${WEB_SERVER_PORT:-3001}
