@@ -41,10 +41,9 @@ TwitchNotifierBot is a notification system that monitors Twitch and Kick streame
    cp .env.example .env
    ```
 
-4. Edit `.env` — it only holds the Doppler bootstrap token, PostgreSQL and
-   compose values (see `.env.example`). App secrets come from Doppler (the list
-   is in `.env.example.raw`); for local runs without it you can add them
-   straight to `.env` — it is git-ignored.
+4. Edit `.env` — fill in the values documented in `.env.example` (Telegram,
+   Twitch/Kick credentials, Mini App settings). It is git-ignored, so secrets
+   stay local. In production this file is rendered by Ansible (see below).
 
 ### Running the Bot
 
@@ -54,7 +53,7 @@ bun run dev
 ```
 
 **Development stack** (PostgreSQL, backend, Mini App and Caddy; Twitch uses the
-real API configured in `.env` / Doppler):
+real API configured in `.env`):
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
@@ -233,12 +232,14 @@ $EDITOR deploy/ansible/vault.yaml
 ansible-vault encrypt deploy/ansible/vault.yaml
 ```
 
-The vault is now small: the Doppler bootstrap token, PostgreSQL credentials,
-the compose ports and the backup schedule. The backend's own secrets are not
-in it —
-they are configured in Doppler (the KEY=VALUE list is in `.env.example.raw`),
-and the `twn` container pulls them via `doppler run` at startup. Compose
-structure values are documented in `.env.example`.
+The vault holds every secret and deployment value: Telegram, Twitch and Kick
+credentials, PostgreSQL, Mini App/API settings, compose ports, the backup
+schedule and S3 credentials. The full key list is in `vault.example.yaml`.
+The deploy play renders the server's `.env` from `templates/.env.j2` with
+these values, so nothing is pulled from an external secret manager at runtime.
+
+If you are migrating a vault created before the secrets moved into it, add the
+new keys from `vault.example.yaml` and remove `DOPPLER_TOKEN`.
 
 `vault.yaml` is git-ignored, so secrets never leave your machine unencrypted.
 The `.env` file on the server is rendered from `templates/.env.j2` with these
@@ -273,17 +274,16 @@ set it (e.g. `TWN_VERSION: "3.1.1"`) to pin a release, including rolling back.
 Bare `docker compose up` without that variable still uses `latest`.
 
 When it finishes, the stack is already running — no manual `.env` editing on
-the server needed. The rendered `.env` only carries the Doppler bootstrap
-token, PostgreSQL and compose values; app config lives in Doppler (`.env.example.raw`).
-To change backend config later, edit the Doppler config and restart the `twn`
-container (`docker compose restart twn`). To change DB credentials, ports, the
-backup schedule or the pinned version, edit `vault.yaml` and re-run the
-playbook.
+the server needed. To change backend config (bot tokens, provider credentials,
+webhook secrets, API settings), edit `vault.yaml` and re-run the playbook;
+`.env` is only re-rendered during deploy, so restarting the container alone
+does not pick up vault changes. To change DB credentials, ports, the backup
+schedule or the pinned version, edit `vault.yaml` and re-run the playbook as
+well.
 
 Backups run in the `backup` service (`ghcr.io/infybtw/postgres-backup`), which
 dumps PostgreSQL to S3-compatible storage on `BACKUP_SCHEDULE`. Its `S3_*`
-credentials live in the same Doppler config as the app secrets (`.env.example.raw`)
-and are injected via the shared `DOPPLER_TOKEN`.
+credentials are stored in `vault.yaml` and land in the same rendered `.env`.
 
 ## Architecture
 

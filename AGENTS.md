@@ -6,8 +6,8 @@
 
 ## Environment Setup
 - Environment file: `.env` (loaded via `--env-file` flag in package.json script)
-- `.env.example` documents all required variables including Kick integration vars
-- `.env.example.raw` lists the app values to store in Doppler (`KEY=VALUE`, no DB or compose-only keys)
+- `.env.example` documents all required variables, including Twitch, Kick and Mini App settings
+- Production `.env` is rendered by Ansible from `deploy/ansible/vault.yaml` (`templates/.env.j2`); no runtime secret manager is used
 - Development and production use real Twitch endpoints (`wss://eventsub.wss.twitch.tv/ws`, `https://api.twitch.tv`)
 - `DATABASE_URL` is built in `app/config.ts` from `POSTGRES_USER/PASSWORD/DB` and `POSTGRES_HOST/PORT`; do not set it
 

@@ -1,8 +1,9 @@
 # Production stack.
 #
 # Everything configurable is read from `.env` (see `.env.example`). Compose
-# interpolates `${...}` from the `.env` file next to this file, and the `twn`
-# container additionally receives `.env` via `env_file`.
+# interpolates `${...}` from the `.env` file next to this file, and the
+# containers receive it via `env_file`. In production Ansible renders `.env`
+# from `deploy/ansible/vault.yaml` (see deploy/ansible).
 #
 # Images are pulled from GHCR; nothing is built here. Build them with the
 # `docker-build.yml` workflow (git tag push) or locally with the dev stack.
@@ -76,9 +77,7 @@ services:
       - pg
 
   # Postgres backups to S3 (no UI). The whole environment comes from .env
-  # (same file as `twn`): S3_* credentials are pulled from Doppler via
-  # DOPPLER_TOKEN at container start, POSTGRES_* always come from this file
-  # and take precedence over Doppler values.
+  # (same file as `twn`), including POSTGRES_* and S3_* credentials.
   backup:
     image: ghcr.io/infybtw/postgres-backup
     env_file: .env
