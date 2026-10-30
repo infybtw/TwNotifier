@@ -5,8 +5,6 @@
 
 - name: twn deploy
   hosts: all
-  vars_files:
-  - vault.yaml
   tasks:
     - name: fetch release tags
       ansible.builtin.command:

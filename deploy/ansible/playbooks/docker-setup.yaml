@@ -1,6 +1,20 @@
-- name: docker-setup
+- name: Set up Docker
   hosts: all
+  gather_facts: true
+  vars:
+    docker_distribution: "{{ ansible_facts['distribution'] | lower }}"
+    docker_repository_url: "https://download.docker.com/linux/{{ docker_distribution }}"
   tasks:
+    - name: Check supported operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] in ['Ubuntu', 'Debian']
+          - ansible_facts['distribution_release'] | length > 0
+        fail_msg: >-
+          Docker setup supports only Ubuntu and Debian with a release codename.
+          Detected: {{ ansible_facts['distribution'] }}
+          {{ ansible_facts['distribution_version'] }}.
+
     - name: Check whether Docker is installed
       ansible.builtin.command: docker --version
       register: docker_version
@@ -12,27 +26,27 @@
       when: docker_version.rc != 0
       become: true
       block:
-        - name: apt update
+        - name: Update APT cache
           ansible.builtin.apt:
             update_cache: true
 
-        - name: install ca-certificates curl
+        - name: Install repository dependencies
           ansible.builtin.apt:
             pkg:
-            - ca-certificates
-            - curl
-            - python3-debian
+              - ca-certificates
+              - curl
+              - python3-debian
             state: present
 
-        - name: create apt keyring dir
+        - name: Create APT keyring directory
           ansible.builtin.file:
             path: /etc/apt/keyrings
             state: directory
             mode: '0755'
 
-        - name: curl keyring gpg
+        - name: Download Docker GPG key
           ansible.builtin.get_url:
-            url: https://download.docker.com/linux/ubuntu/gpg
+            url: "{{ docker_repository_url }}/gpg"
             dest: /etc/apt/keyrings/docker.asc
             mode: '0644'
 
@@ -40,41 +54,48 @@
           ansible.builtin.command: dpkg --print-architecture
           register: dpkg_arch
           changed_when: false
+          check_mode: false
 
         - name: Add Docker APT repository
           ansible.builtin.deb822_repository:
             name: docker
             types: [deb]
-            uris: https://download.docker.com/linux/ubuntu
+            uris: "{{ docker_repository_url }}"
             suites: "{{ ansible_facts['distribution_release'] }}"
             components: [stable]
             architectures: "{{ dpkg_arch.stdout }}"
             signed_by: /etc/apt/keyrings/docker.asc
             state: present
 
-        - name: apt update
+        - name: Update APT cache after adding Docker repository
           ansible.builtin.apt:
             update_cache: true
 
-        - name: apt docker install
+        - name: Install Docker packages
           ansible.builtin.apt:
             pkg:
-            - docker-ce
-            - docker-ce-cli
-            - containerd.io
-            - docker-buildx-plugin
-            - docker-compose-plugin
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
 
-    - name: Reset SSH connection
-      ansible.builtin.meta: reset_connection
+    - name: Ensure Docker is enabled and running
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
+      become: true
 
     - name: Get SSH user
       ansible.builtin.command: whoami
       become: false
       register: ssh_user
       changed_when: false
+      check_mode: false
 
-    - name: add user to docker group
+    - name: Add user to docker group
       ansible.builtin.user:
         user: "{{ ssh_user.stdout }}"
         groups: docker

@@ -192,13 +192,21 @@ expired sessions.
 
 ## Server Provisioning (Ansible)
 
-The `deploy/ansible/` directory contains playbooks that prepare a fresh Ubuntu
+The `deploy/ansible/` directory contains playbooks that prepare a fresh Ubuntu or Debian
 server to run TWN: they install Docker, clone the repository, render the
 `.env` file from an Ansible Vault, and start the Compose stack.
 
+`playbooks/docker-setup.yaml` automatically detects the distribution and release
+codename using Ansible facts, then installs Docker using the matching official
+Docker APT repository and GPG key. All Docker setup tasks are in this single
+playbook.
+Other distributions are rejected before installation. If Docker is already
+installed, package installation is skipped; the service is enabled and started,
+and the deploy user is added to the `docker` group.
+
 ### Prerequisites
 
-- Ansible installed on your control machine (the machine you run the playbook
+- Ansible with `ansible-core` 2.15 or newer installed on your control machine (the machine you run the playbook
   from).
 - SSH access to the target server with a user that can escalate via `sudo`.
 - The `community.docker` collection:
@@ -259,7 +267,7 @@ The entrypoint `twn-deploy.yaml` imports two playbooks and then deploys:
 
 | Playbook | What it does |
 | --- | --- |
-| `playbooks/docker-setup.yaml` | Installs Docker Engine, the Compose and Buildx plugins, and adds the deploy user to the `docker` group |
+| `playbooks/docker-setup.yaml` | Detects Ubuntu or Debian, installs Docker Engine and the Compose and Buildx plugins, enables the Docker service, and adds the deploy user to the `docker` group |
 | `playbooks/twn-setup.yaml` | Clones `TwNotifier` into `~/twn` and pulls the Compose images |
 | `twn-deploy.yaml` (deploy play) | Resolves the latest git tag, renders `~/twn/.env` from `templates/.env.j2` + `vault.yaml` (mode `0600`) and starts the stack with `docker compose up` |
 
