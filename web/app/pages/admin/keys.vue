@@ -8,6 +8,7 @@ const { keys, createKey, revokeKey, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
 const items = ref<AdminKeyItem[]>([]);
+const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
 const loading = ref(true);
 const busy = ref(false);
 const revoking = ref<AdminKeyItem | null>(null);
@@ -36,6 +37,7 @@ async function create(): Promise<void> {
     await createKey();
     notice.value = t("admin.keys.created");
     await load();
+    goToPage(1);
   } catch (err) {
     error.value = localizeError(err);
   } finally {
@@ -76,7 +78,8 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
+  <section class="flex flex-col gap-4" data-paginated>
+    <NuxtLink to="/admin" class="text-sm font-medium tg-link">← {{ t("admin.title") }}</NuxtLink>
     <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("admin.keys.title") }}</h1>
     <p class="text-xs tg-hint">{{ t("admin.keys.hint") }}</p>
 
@@ -96,7 +99,7 @@ onMounted(() => void load());
     <EmptyState v-else-if="items.length === 0" :message="t('admin.empty')" />
     <ul v-else class="flex flex-col gap-2">
       <li
-        v-for="key in items"
+        v-for="key in visibleItems"
         :key="key.id"
         class="flex flex-col gap-2 rounded-2xl px-4 py-3 tg-card"
       >
@@ -132,6 +135,12 @@ onMounted(() => void load());
         </button>
       </li>
     </ul>
+
+    <PaginationControls
+      v-if="items.length"
+      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading || busy"
+      @change="goToPage" @page-size="setPageSize"
+    />
 
     <ConfirmDialog
       :open="revoking !== null"

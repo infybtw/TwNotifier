@@ -2,10 +2,13 @@
 import type { Follow } from "~/composables/useFollows";
 
 const { t } = useLocale();
-const { loading, error, loadOnline } = useFollows();
+const { loadOnline } = useFollows();
+const loading = ref(false);
+const error = ref<string | null>(null);
 const { openExternal } = useTelegram();
 
 const items = ref<Follow[]>([]);
+const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
 const checkedAt = ref<string | null>(null);
 
 async function reload(): Promise<void> {
@@ -13,6 +16,7 @@ async function reload(): Promise<void> {
   error.value = null;
   try {
     items.value = await loadOnline();
+    goToPage(1);
     checkedAt.value = new Date().toISOString();
   } catch {
     error.value = t("common.error");
@@ -25,7 +29,7 @@ onMounted(() => void reload());
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
+  <section class="flex flex-col gap-4" data-paginated>
     <header class="flex items-baseline justify-between gap-2">
       <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("online.title") }}</h1>
       <button type="button" class="text-xs font-medium tg-link" @click="reload">
@@ -38,7 +42,7 @@ onMounted(() => void reload());
     <EmptyState v-else-if="items.length === 0" :message="t('online.empty')" />
     <ul v-else class="flex flex-col gap-2">
       <li
-        v-for="follow in items"
+        v-for="follow in visibleItems"
         :key="`${follow.platform}:${follow.channelId}`"
         class="flex cursor-pointer flex-col gap-2.5 rounded-2xl p-4 tg-card"
         @click="navigateTo(`/follow/${follow.platform}/${follow.channelId}`)"
@@ -80,5 +84,10 @@ onMounted(() => void reload());
         </dl>
       </li>
     </ul>
+    <PaginationControls
+      v-if="items.length && !error"
+      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
+      @change="goToPage" @page-size="setPageSize"
+    />
   </section>
 </template>

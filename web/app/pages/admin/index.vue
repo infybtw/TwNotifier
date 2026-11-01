@@ -109,16 +109,16 @@ onMounted(() => void load());
         {{ t("admin.stats.blocked", { count: stats.blockedUsers }) }}
       </p>
 
-      <nav class="flex flex-col gap-2" :aria-label="t('admin.title')">
+      <nav class="grid grid-cols-2 gap-2" :aria-label="t('admin.title')">
         <NuxtLink
           v-for="section in sections"
           :key="section.to"
           :to="section.to"
-          class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 tg-card"
+          class="flex min-w-0 items-center justify-between gap-2 rounded-2xl px-3 py-3.5 tg-card"
         >
-          <span class="flex items-center gap-3">
+          <span class="flex min-w-0 items-center gap-2">
             <span class="text-lg" aria-hidden="true">{{ section.icon }}</span>
-            <span class="text-sm font-medium tg-text">{{ section.label }}</span>
+            <span class="break-words text-sm font-medium tg-text">{{ section.label }}</span>
           </span>
           <span class="text-lg tg-hint" aria-hidden="true">›</span>
         </NuxtLink>

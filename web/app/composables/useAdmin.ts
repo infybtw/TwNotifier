@@ -163,19 +163,19 @@ export function useAdmin() {
     formatDate,
     loadSettings,
     overview: () => api.get<AdminStats>("/admin/overview"),
-    users: (opts: { search?: string; cursor?: string | null } = {}) =>
-      api.get<Page<AdminUser>>("/admin/users", { search: opts.search, cursor: opts.cursor ?? undefined }),
+    users: (opts: { search?: string; cursor?: string | null; limit?: number } = {}) =>
+      api.get<Page<AdminUser>>("/admin/users", { search: opts.search, cursor: opts.cursor ?? undefined, limit: opts.limit }),
     userDetail: (id: string) => api.get<AdminUserDetail>(`/admin/users/${id}`),
-    userFollows: (id: string, cursor?: string | null) =>
-      api.get<Page<AdminUserFollow>>(`/admin/users/${id}/follows`, { cursor: cursor ?? undefined }),
-    userNotifications: (id: string, cursor?: string | null) =>
-      api.get<Page<AdminUserNotification>>(`/admin/users/${id}/notifications`, { cursor: cursor ?? undefined }),
+    userFollows: (id: string, cursor?: string | null, limit?: number) =>
+      api.get<Page<AdminUserFollow>>(`/admin/users/${id}/follows`, { cursor: cursor ?? undefined, limit }),
+    userNotifications: (id: string, cursor?: string | null, limit?: number) =>
+      api.get<Page<AdminUserNotification>>(`/admin/users/${id}/notifications`, { cursor: cursor ?? undefined, limit }),
     updateUser: (id: string, patch: { isAdmin?: boolean; isBotBlocked?: boolean }) =>
       api.patch<{ id: string; isAdmin: boolean; isBotBlocked: boolean }>(`/admin/users/${id}`, patch),
-    channels: (opts: { platform?: string; cursor?: string | null } = {}) =>
-      api.get<Page<AdminChannel>>("/admin/channels", { platform: opts.platform, cursor: opts.cursor ?? undefined }),
-    follows: (cursor?: string | null) =>
-      api.get<Page<AdminFollow>>("/admin/follows", { cursor: cursor ?? undefined }),
+    channels: (opts: { platform?: string; cursor?: string | null; limit?: number } = {}) =>
+      api.get<Page<AdminChannel>>("/admin/channels", { platform: opts.platform, cursor: opts.cursor ?? undefined, limit: opts.limit }),
+    follows: (cursor?: string | null, limit?: number) =>
+      api.get<Page<AdminFollow>>("/admin/follows", { cursor: cursor ?? undefined, limit }),
     logs: () => api.get<{ items: AdminLog[] }>("/admin/logs"),
     keys: () => api.get<{ items: AdminKeyItem[] }>("/admin/keys"),
     createKey: () => api.post<AdminKeyItem>("/admin/keys"),

@@ -2,24 +2,32 @@
 import type { Follow } from "~/composables/useFollows";
 
 const { t } = useLocale();
-const { items, loading, loadingMore, error, nextCursor, load, loadMore } = useFollows();
+const { getPage } = useFollows();
 
-const platform = ref<"twitch" | "kick" | "">("");
-const search = ref("");
+const platform = useState<"twitch" | "kick" | "">("follows-platform", () => "");
+const search = useState("follows-search", () => "");
+const { items, page, pageSize, hasNext, loading, error, load, reset, invalidate, setPageSize } = useCursorPagination<Follow>(
+  "follows", (request) => getPage({ ...request, platform: platform.value || undefined, search: search.value || undefined }),
+);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const onlineCount = computed(() => items.value.filter((item: Follow) => item.online === "online").length);
 
 async function reload(): Promise<void> {
-  await load({ platform: platform.value || undefined, search: search.value || undefined });
+  await load();
 }
 
 function onSearchInput(): void {
   if (searchTimer) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => void reload(), 300);
+  invalidate();
+  loading.value = true;
+  searchTimer = setTimeout(() => void reset(), 300);
 }
 
-watch(platform, () => void reload());
+watch(platform, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  void reset();
+});
 onMounted(() => void reload());
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer);
@@ -27,11 +35,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <header class="flex items-baseline justify-between gap-2">
+  <section class="flex flex-col gap-4" data-paginated>
+    <header class="flex flex-wrap items-baseline justify-between gap-2">
       <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("follows.title") }}</h1>
       <p class="text-xs tg-hint">
-        {{ t("follows.total", { total: items.length }) }} · {{ t("follows.online_count", { online: onlineCount }) }}
+        {{ t("follows.page_summary", { total: items.length, online: onlineCount }) }}
       </p>
     </header>
 
@@ -40,6 +48,8 @@ onBeforeUnmount(() => {
       type="search"
       class="w-full rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
       :placeholder="t('follows.search')"
+      :aria-label="t('follows.search')"
+      maxlength="64"
       @input="onSearchInput"
     >
 
@@ -62,7 +72,7 @@ onBeforeUnmount(() => {
     </div>
 
     <LoadingState v-if="loading" />
-    <ErrorState v-else-if="error" :message="error" @retry="reload" />
+    <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="reload" />
     <EmptyState
       v-else-if="items.length === 0"
       :message="t('follows.empty')"
@@ -75,14 +85,11 @@ onBeforeUnmount(() => {
       </li>
     </ul>
 
-    <button
-      v-if="nextCursor"
-      type="button"
-      class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
-      :disabled="loadingMore"
-      @click="loadMore({ platform: platform || undefined, search: search || undefined })"
-    >
-      {{ t("follows.load_more") }}
-    </button>
+    <PaginationControls
+      v-if="items.length || page > 1 || loading"
+      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
+      @change="load" @page-size="setPageSize"
+    />
+    <ErrorState v-if="error && items.length > 0" :message="error" @retry="reload" />
   </section>
 </template>

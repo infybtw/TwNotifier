@@ -17,6 +17,7 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const busyAction = ref<string | null>(null);
 const confirming = ref<{ target: InfraTarget; action: InfraAction } | null>(null);
+const activeSection = ref<"services" | "history">("services");
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -89,12 +90,18 @@ onMounted(() => void load());
 
 <template>
   <section class="flex flex-col gap-4">
+    <NuxtLink to="/admin" class="text-sm font-medium tg-link">← {{ t("admin.title") }}</NuxtLink>
     <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("admin.infra.title") }}</h1>
 
-    <LoadingState v-if="loading" />
-    <ErrorState v-else-if="error && !eventSub" :message="error" @retry="load" />
+    <nav class="section-switcher" :aria-label="t('admin.infra.title')">
+      <button type="button" :aria-pressed="activeSection === 'services'" @click="activeSection = 'services'">{{ t("admin.infra.services") }}</button>
+      <button type="button" :aria-pressed="activeSection === 'history'" @click="activeSection = 'history'">{{ t("admin.infra.reconnects.title") }}</button>
+    </nav>
 
-    <template v-else>
+    <LoadingState v-if="activeSection === 'services' && loading" />
+    <ErrorState v-else-if="activeSection === 'services' && error && !eventSub" :message="error" @retry="load" />
+
+    <template v-else-if="activeSection === 'services'">
       <div v-if="eventSub" class="rounded-2xl p-4 tg-card">
         <h2 class="text-sm font-semibold tg-text">{{ t("admin.infra.eventsub") }}</h2>
         <p class="mt-2 text-xs tg-hint">
@@ -169,6 +176,6 @@ onMounted(() => void load());
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>
     </template>
 
-    <EventSubReconnectHistory />
+    <EventSubReconnectHistory v-if="activeSection === 'history'" />
   </section>
 </template>

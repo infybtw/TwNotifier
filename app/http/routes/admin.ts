@@ -69,10 +69,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     await requireAdmin(auth);
     const limit = parseLimit(query.limit);
     const offset = decodeCursor(query.cursor);
-    const rows = await getAdminUsersPage({ search: query.search ?? undefined, limit, offset });
+    const rows = await getAdminUsersPage({ search: query.search ?? undefined, limit: limit + 1, offset });
     set.headers["cache-control"] = "no-store";
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, limit).map((row) => ({
         id: String(row.user_id),
         username: row.username || null,
         firstName: row.first_name || null,
@@ -81,7 +81,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         isBotBlocked: Number(row.is_bot_blocked) === 1,
         follows: Number(row.follows),
       })),
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     query: t.Object({
@@ -129,17 +129,17 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     const userId = parseUserId(params.id);
     const limit = parseLimit(query.limit);
     const offset = decodeCursor(query.cursor);
-    const rows = await getFollowsWithChannelPage(userId, { limit, offset });
+    const rows = await getFollowsWithChannelPage(userId, { limit: limit + 1, offset });
     set.headers["cache-control"] = "no-store";
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, limit).map((row) => ({
         platform: row.platform,
         channelId: String(row.channel_id),
         channelName: row.channel_name,
         channelLogin: row.channel_login,
         created: row.created,
       })),
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     params: t.Object({ id: t.String() }),
@@ -153,10 +153,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     const userId = parseUserId(params.id);
     const limit = parseLimit(query.limit);
     const offset = decodeCursor(query.cursor);
-    const rows = await getUserNotificationsPage(userId, { limit, offset });
+    const rows = await getUserNotificationsPage(userId, { limit: limit + 1, offset });
     set.headers["cache-control"] = "no-store";
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, limit).map((row) => ({
         id: row.id,
         platform: row.platform,
         channelId: row.channel_id != null ? String(row.channel_id) : null,
@@ -165,7 +165,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         status: row.status,
         created: row.created,
       })),
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     params: t.Object({ id: t.String() }),
@@ -218,17 +218,17 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     const platform = (query.platform === "twitch" || query.platform === "kick")
       ? query.platform as Platform
       : undefined;
-    const rows = await getAdminChannelsPage({ platform, limit, offset });
+    const rows = await getAdminChannelsPage({ platform, limit: limit + 1, offset });
     set.headers["cache-control"] = "no-store";
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, limit).map((row) => ({
         platform: row.platform,
         channelId: String(row.channel_id),
         name: row.channel_name,
         login: row.channel_login,
         followers: Number(row.followers),
       })),
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     query: t.Object({
@@ -241,10 +241,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     await requireAdmin(auth);
     const limit = parseLimit(query.limit);
     const offset = decodeCursor(query.cursor);
-    const rows = await getAdminFollowsPage({ limit, offset });
+    const rows = await getAdminFollowsPage({ limit: limit + 1, offset });
     set.headers["cache-control"] = "no-store";
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, limit).map((row) => ({
         userId: String(row.user_id),
         username: row.username || null,
         firstName: row.first_name || null,
@@ -253,7 +253,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         channelName: row.channel_name,
         created: row.created,
       })),
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     query: t.Object({

@@ -1,5 +1,5 @@
 import { useApi } from "./useApi";
-import { useApiError } from "./useApi";
+import type { PageRequest } from "./usePagination";
 
 export interface FollowLive {
   status: "online" | "offline" | "unknown";
@@ -55,49 +55,8 @@ interface FollowListResponse {
 
 export function useFollows() {
   const api = useApi();
-  const localizeError = useApiError();
-
-  const items = useState<Follow[]>("follows", () => []);
-  const nextCursor = useState<string | null>("follows-cursor", () => null);
-  const loading = useState<boolean>("follows-loading", () => false);
-  const loadingMore = useState<boolean>("follows-loading-more", () => false);
-  const error = useState<string | null>("follows-error", () => null);
-
-  async function load(options: { platform?: "twitch" | "kick"; search?: string } = {}): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const response = await api.get<FollowListResponse>("/follows", {
-        platform: options.platform,
-        search: options.search,
-        limit: 20,
-      });
-      items.value = response.items;
-      nextCursor.value = response.nextCursor;
-    } catch (err) {
-      error.value = localizeError(err);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function loadMore(options: { platform?: "twitch" | "kick"; search?: string } = {}): Promise<void> {
-    if (!nextCursor.value || loadingMore.value) return;
-    loadingMore.value = true;
-    try {
-      const response = await api.get<FollowListResponse>("/follows", {
-        platform: options.platform,
-        search: options.search,
-        cursor: nextCursor.value,
-        limit: 20,
-      });
-      items.value = [...items.value, ...response.items];
-      nextCursor.value = response.nextCursor;
-    } catch (err) {
-      error.value = localizeError(err);
-    } finally {
-      loadingMore.value = false;
-    }
+  async function getPage(options: PageRequest & { platform?: "twitch" | "kick"; search?: string }): Promise<FollowListResponse> {
+    return api.get<FollowListResponse>("/follows", { ...options });
   }
 
   async function getDetails(platform: string, channelId: string): Promise<FollowDetails> {
@@ -109,11 +68,7 @@ export function useFollows() {
   }
 
   async function removeFollow(platform: string, channelId: string): Promise<{ removed: boolean }> {
-    const result = await api.del<{ removed: boolean }>(`/follows/${platform}/${channelId}`);
-    if (result.removed) {
-      items.value = items.value.filter((item) => !(item.platform === platform && item.channelId === channelId));
-    }
-    return result;
+    return api.del<{ removed: boolean }>(`/follows/${platform}/${channelId}`);
   }
 
   async function resolve(query: string, platform?: "twitch" | "kick"): Promise<ResolveResponse> {
@@ -126,13 +81,7 @@ export function useFollows() {
   }
 
   return {
-    items,
-    nextCursor,
-    loading,
-    loadingMore,
-    error,
-    load,
-    loadMore,
+    getPage,
     getDetails,
     addFollow,
     removeFollow,

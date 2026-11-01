@@ -15,13 +15,15 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 
-const follows = ref<AdminUserFollow[]>([]);
-const followsCursor = ref<string | null>(null);
-const followsLoading = ref(false);
-
-const notifications = ref<AdminUserNotification[]>([]);
-const notificationsCursor = ref<string | null>(null);
-const notificationsLoading = ref(false);
+const activeSection = ref<"overview" | "settings" | "follows" | "notifications">("overview");
+const {
+  items: follows, page: followsPage, pageSize: followsPageSize, hasNext: followsHasNext,
+  loading: followsLoading, error: followsError, load: loadFollows, setPageSize: setFollowsPageSize,
+} = useCursorPagination<AdminUserFollow>(`user-${userId}-follows`, ({ cursor, limit }) => userFollows(userId, cursor, limit));
+const {
+  items: notifications, page: notificationsPage, pageSize: notificationsPageSize, hasNext: notificationsHasNext,
+  loading: notificationsLoading, error: notificationsError, load: loadNotifications, setPageSize: setNotificationsPageSize,
+} = useCursorPagination<AdminUserNotification>(`user-${userId}-notifications`, ({ cursor, limit }) => userNotifications(userId, cursor, limit));
 
 const savingAdmin = ref(false);
 const savingBlocked = ref(false);
@@ -69,14 +71,6 @@ async function load(): Promise<void> {
   try {
     await loadSettings();
     detail.value = await userDetail(userId);
-    const [followsPage, notificationsPage] = await Promise.all([
-      userFollows(userId),
-      userNotifications(userId),
-    ]);
-    follows.value = followsPage.items;
-    followsCursor.value = followsPage.nextCursor;
-    notifications.value = notificationsPage.items;
-    notificationsCursor.value = notificationsPage.nextCursor;
   } catch (err) {
     error.value = localizeError(err);
   } finally {
@@ -84,33 +78,10 @@ async function load(): Promise<void> {
   }
 }
 
-async function loadMoreFollows(): Promise<void> {
-  if (!followsCursor.value || followsLoading.value) return;
-  followsLoading.value = true;
-  try {
-    const page = await userFollows(userId, followsCursor.value);
-    follows.value = [...follows.value, ...page.items];
-    followsCursor.value = page.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    followsLoading.value = false;
-  }
-}
-
-async function loadMoreNotifications(): Promise<void> {
-  if (!notificationsCursor.value || notificationsLoading.value) return;
-  notificationsLoading.value = true;
-  try {
-    const page = await userNotifications(userId, notificationsCursor.value);
-    notifications.value = [...notifications.value, ...page.items];
-    notificationsCursor.value = page.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    notificationsLoading.value = false;
-  }
-}
+watch(activeSection, (section) => {
+  if (section === "follows") void loadFollows();
+  if (section === "notifications") void loadNotifications();
+});
 
 async function setAdmin(isAdmin: boolean): Promise<void> {
   if (savingAdmin.value) return;
@@ -198,7 +169,17 @@ onMounted(() => void load());
         </dl>
       </header>
 
-      <div class="flex flex-col gap-2 rounded-2xl px-4 py-4 tg-card">
+      <nav class="section-switcher" :aria-label="t('admin.user.sections')">
+        <button
+          v-for="section in ['overview', 'settings', 'follows', 'notifications'] as const"
+          :key="section" type="button" :aria-pressed="activeSection === section"
+          @click="activeSection = section"
+        >
+          {{ t(`admin.user.tab_${section}`) }}
+        </button>
+      </nav>
+
+      <div v-if="activeSection === 'overview'" class="flex flex-col gap-2 rounded-2xl px-4 py-4 tg-card">
         <h2 class="text-sm font-semibold tg-text">{{ t("admin.user.actions") }}</h2>
         <div class="flex flex-wrap gap-2">
           <button
@@ -249,7 +230,7 @@ onMounted(() => void load());
         <p v-if="notice" class="text-xs tg-link">{{ notice }}</p>
       </div>
 
-      <div class="flex flex-col gap-2 rounded-2xl px-4 py-4 tg-card">
+      <div v-if="activeSection === 'settings'" class="flex flex-col gap-2 rounded-2xl px-4 py-4 tg-card">
         <h2 class="text-sm font-semibold tg-text">{{ t("admin.user.settings") }}</h2>
         <ul class="flex flex-col gap-1.5 text-xs">
           <li v-for="row in settingRows" :key="row.label" class="flex items-center justify-between gap-2">
@@ -265,16 +246,18 @@ onMounted(() => void load());
         </ul>
       </div>
 
-      <section class="flex flex-col gap-2">
+      <section v-if="activeSection === 'follows'" class="flex flex-col gap-2" data-paginated>
         <h2 class="text-sm font-semibold tg-text">
           {{ t("admin.user.follows", { count: detail.follows }) }}
         </h2>
-        <EmptyState v-if="follows.length === 0" :message="t('admin.empty')" />
+        <LoadingState v-if="followsLoading" />
+        <ErrorState v-else-if="followsError && follows.length === 0" :message="followsError" @retry="loadFollows()" />
+        <EmptyState v-else-if="follows.length === 0" :message="t('admin.empty')" />
         <ul v-else class="flex flex-col gap-2">
           <li
             v-for="follow in follows"
             :key="`${follow.platform}:${follow.channelId}`"
-            class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
           >
             <span class="flex min-w-0 flex-col gap-1">
               <span class="truncate text-sm font-medium tg-text">{{ follow.channelName }}</span>
@@ -283,27 +266,26 @@ onMounted(() => void load());
             <span class="shrink-0 text-xs tg-hint">{{ formatDate(follow.created) }}</span>
           </li>
         </ul>
-        <button
-          v-if="followsCursor"
-          type="button"
-          class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
-          :disabled="followsLoading"
-          @click="loadMoreFollows"
-        >
-          {{ t("follows.load_more") }}
-        </button>
+        <PaginationControls
+          v-if="follows.length || followsPage > 1 || followsLoading"
+          :page="followsPage" :page-size="followsPageSize" :has-next="followsHasNext" :loading="followsLoading"
+          :label="t('admin.user.tab_follows')" @change="loadFollows" @page-size="setFollowsPageSize"
+        />
+        <ErrorState v-if="followsError && follows.length > 0" :message="followsError" @retry="loadFollows()" />
       </section>
 
-      <section class="flex flex-col gap-2">
+      <section v-if="activeSection === 'notifications'" class="flex flex-col gap-2" data-paginated>
         <h2 class="text-sm font-semibold tg-text">
           {{ t("admin.user.notifications") }} ({{ detail.notifications }})
         </h2>
-        <EmptyState v-if="notifications.length === 0" :message="t('admin.empty')" />
+        <LoadingState v-if="notificationsLoading" />
+        <ErrorState v-else-if="notificationsError && notifications.length === 0" :message="notificationsError" @retry="loadNotifications()" />
+        <EmptyState v-else-if="notifications.length === 0" :message="t('admin.empty')" />
         <ul v-else class="flex flex-col gap-2">
           <li
             v-for="item in notifications"
             :key="item.id"
-            class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 tg-card"
           >
             <span class="flex min-w-0 flex-col gap-1">
               <span class="truncate text-sm font-medium tg-text">
@@ -323,15 +305,12 @@ onMounted(() => void load());
             <span class="shrink-0 text-xs tg-hint">{{ formatDate(item.created) }}</span>
           </li>
         </ul>
-        <button
-          v-if="notificationsCursor"
-          type="button"
-          class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
-          :disabled="notificationsLoading"
-          @click="loadMoreNotifications"
-        >
-          {{ t("follows.load_more") }}
-        </button>
+        <PaginationControls
+          v-if="notifications.length || notificationsPage > 1 || notificationsLoading"
+          :page="notificationsPage" :page-size="notificationsPageSize" :has-next="notificationsHasNext" :loading="notificationsLoading"
+          :label="t('admin.user.tab_notifications')" @change="loadNotifications" @page-size="setNotificationsPageSize"
+        />
+        <ErrorState v-if="notificationsError && notifications.length > 0" :message="notificationsError" @retry="loadNotifications()" />
       </section>
 
       <p v-if="error" class="text-sm tg-destructive">{{ error }}</p>

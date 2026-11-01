@@ -1,52 +1,25 @@
 <script setup lang="ts">
-import { useApiError } from "~/composables/useApi";
 import type { AdminUser } from "~/composables/useAdmin";
 
 const { t } = useLocale();
-const localizeError = useApiError();
 const { users, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
-const items = ref<AdminUser[]>([]);
-const nextCursor = ref<string | null>(null);
-const search = ref("");
-const loading = ref(true);
-const loadingMore = ref(false);
-const error = ref<string | null>(null);
-let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = null;
-  try {
+const search = useState("admin-users-search", () => "");
+const { items, page, pageSize, hasNext, loading, error, load, reset, invalidate, setPageSize } = useCursorPagination<AdminUser>(
+  "admin-users",
+  async (request) => {
     await loadSettings();
-    const response = await users({ search: search.value || undefined });
-    items.value = response.items;
-    nextCursor.value = response.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadMore(): Promise<void> {
-  if (!nextCursor.value || loadingMore.value) return;
-  loadingMore.value = true;
-  try {
-    const response = await users({ search: search.value || undefined, cursor: nextCursor.value });
-    items.value = [...items.value, ...response.items];
-    nextCursor.value = response.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    loadingMore.value = false;
-  }
-}
+    return users({ ...request, search: search.value || undefined });
+  },
+);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 function onSearchInput(): void {
   if (searchTimer) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => void load(), 300);
+  invalidate();
+  loading.value = true;
+  searchTimer = setTimeout(() => void reset(), 300);
 }
 
 function displayName(user: AdminUser): string {
@@ -60,7 +33,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
+  <section class="flex flex-col gap-4" data-paginated>
+    <NuxtLink to="/admin" class="text-sm font-medium tg-link">← {{ t("admin.title") }}</NuxtLink>
     <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("admin.users.title") }}</h1>
 
     <input
@@ -68,11 +42,13 @@ onBeforeUnmount(() => {
       type="search"
       class="w-full rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
       :placeholder="t('admin.users.search')"
+      :aria-label="t('admin.users.search')"
+      maxlength="64"
       @input="onSearchInput"
     >
 
     <LoadingState v-if="loading" />
-    <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="load" />
+    <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="load()" />
     <EmptyState v-else-if="items.length === 0" :message="t('admin.empty')" />
     <ul v-else class="flex flex-col gap-2">
       <li v-for="user in items" :key="user.id">
@@ -106,15 +82,11 @@ onBeforeUnmount(() => {
       </li>
     </ul>
 
-    <button
-      v-if="nextCursor"
-      type="button"
-      class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
-      :disabled="loadingMore"
-      @click="loadMore"
-    >
-      {{ t("follows.load_more") }}
-    </button>
+    <PaginationControls
+      v-if="items.length || page > 1 || loading"
+      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
+      @change="load" @page-size="setPageSize"
+    />
     <p v-if="error && items.length > 0" class="text-sm tg-destructive">{{ error }}</p>
   </section>
 </template>

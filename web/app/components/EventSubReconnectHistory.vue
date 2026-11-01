@@ -6,6 +6,7 @@ const { t } = useLocale();
 const localizeError = useApiError();
 const admin = useAdmin();
 const items = ref<EventSubReconnect[]>([]);
+const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -16,6 +17,7 @@ async function load(): Promise<void> {
   try {
     const [response] = await Promise.all([admin.eventSubReconnects(), admin.loadSettings()]);
     items.value = response.items;
+    goToPage(1);
   } catch (err) {
     error.value = localizeError(err);
   } finally {
@@ -41,7 +43,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="rounded-2xl p-4 tg-card">
+  <div class="rounded-2xl p-4 tg-card" data-paginated>
     <header class="flex items-baseline justify-between gap-2">
       <h2 class="text-sm font-semibold tg-text">{{ t("admin.infra.reconnects.title") }}</h2>
       <button type="button" class="text-xs font-medium tg-link" :disabled="loading" @click="load">
@@ -56,7 +58,7 @@ onMounted(() => void load());
       {{ t("admin.infra.reconnects.empty") }}
     </p>
     <ul v-else class="mt-3 flex flex-col gap-2">
-      <li v-for="item in items" :key="item.id" class="min-w-0 rounded-xl p-3 tg-secondary">
+      <li v-for="item in visibleItems" :key="item.id" class="min-w-0 rounded-xl p-3 tg-secondary">
         <div class="flex flex-wrap items-baseline justify-between gap-1">
           <time :datetime="item.startedAt" class="text-xs tg-hint">{{ formatTime(item.startedAt) }}</time>
           <span class="text-xs font-semibold" :class="item.status === 'failed' ? 'tg-destructive' : 'tg-text'">
@@ -86,5 +88,11 @@ onMounted(() => void load());
         </details>
       </li>
     </ul>
+    <PaginationControls
+      v-if="items.length && !error"
+      class="mt-4"
+      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
+      @change="goToPage" @page-size="setPageSize"
+    />
   </div>
 </template>

@@ -25,7 +25,7 @@ function isActive(path: string): boolean {
 
 <template>
   <nav
-    class="fixed inset-x-0 bottom-0 z-20 border-t tg-bar safe-bottom"
+    class="shrink-0 border-t tg-bar safe-bottom"
     style="border-color: var(--tg-border)"
     :aria-label="t('nav.follows')"
   >

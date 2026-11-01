@@ -36,17 +36,18 @@ export const followRoutes = new Elysia()
     const rows = await getFollowsWithChannelPage(userId, {
       platform,
       search: query.search ?? undefined,
-      limit,
+      limit: limit + 1,
       offset,
     });
 
-    const lives = await getLiveStatuses(rows.map((row) => ({
+    const pageRows = rows.slice(0, limit);
+    const lives = await getLiveStatuses(pageRows.map((row) => ({
       platform: row.platform,
       channelId: row.channel_id,
       login: row.channel_login,
     })));
 
-    const items: FollowDto[] = rows.map((row) => toFollowDto({
+    const items: FollowDto[] = pageRows.map((row) => toFollowDto({
       platform: row.platform,
       channelId: row.channel_id,
       login: row.channel_login,
@@ -58,7 +59,7 @@ export const followRoutes = new Elysia()
     set.headers["cache-control"] = "no-store";
     return {
       items,
-      nextCursor: rows.length === limit ? encodeCursor(offset + limit) : null,
+      nextCursor: rows.length > limit ? encodeCursor(offset + limit) : null,
     };
   }, {
     query: t.Object({

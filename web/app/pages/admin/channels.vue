@@ -1,53 +1,22 @@
 <script setup lang="ts">
-import { useApiError } from "~/composables/useApi";
 import type { AdminChannel } from "~/composables/useAdmin";
 
 const { t } = useLocale();
-const localizeError = useApiError();
 const { channels } = useAdmin();
 useAdminGuard();
 
-const items = ref<AdminChannel[]>([]);
-const nextCursor = ref<string | null>(null);
-const platform = ref<"twitch" | "kick" | "">("");
-const loading = ref(true);
-const loadingMore = ref(false);
-const error = ref<string | null>(null);
+const platform = useState<"twitch" | "kick" | "">("admin-channels-platform", () => "");
+const { items, page, pageSize, hasNext, loading, error, load, reset, setPageSize } = useCursorPagination<AdminChannel>(
+  "admin-channels", (request) => channels({ ...request, platform: platform.value || undefined }),
+);
 
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = null;
-  try {
-    const response = await channels({ platform: platform.value || undefined });
-    items.value = response.items;
-    nextCursor.value = response.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadMore(): Promise<void> {
-  if (!nextCursor.value || loadingMore.value) return;
-  loadingMore.value = true;
-  try {
-    const response = await channels({ platform: platform.value || undefined, cursor: nextCursor.value });
-    items.value = [...items.value, ...response.items];
-    nextCursor.value = response.nextCursor;
-  } catch (err) {
-    error.value = localizeError(err);
-  } finally {
-    loadingMore.value = false;
-  }
-}
-
-watch(platform, () => void load());
+watch(platform, () => void reset());
 onMounted(() => void load());
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
+  <section class="flex flex-col gap-4" data-paginated>
+    <NuxtLink to="/admin" class="text-sm font-medium tg-link">← {{ t("admin.title") }}</NuxtLink>
     <h1 class="text-lg font-semibold tracking-tight tg-text">{{ t("admin.channels.title") }}</h1>
 
     <div class="flex gap-2" role="group">
@@ -69,7 +38,7 @@ onMounted(() => void load());
     </div>
 
     <LoadingState v-if="loading" />
-    <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="load" />
+    <ErrorState v-else-if="error && items.length === 0" :message="error" @retry="load()" />
     <EmptyState v-else-if="items.length === 0" :message="t('admin.empty')" />
     <ul v-else class="flex flex-col gap-2">
       <li
@@ -87,15 +56,11 @@ onMounted(() => void load());
       </li>
     </ul>
 
-    <button
-      v-if="nextCursor"
-      type="button"
-      class="rounded-xl px-4 py-2.5 text-sm font-medium tg-secondary tg-text"
-      :disabled="loadingMore"
-      @click="loadMore"
-    >
-      {{ t("follows.load_more") }}
-    </button>
+    <PaginationControls
+      v-if="items.length || page > 1 || loading"
+      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
+      @change="load" @page-size="setPageSize"
+    />
     <p v-if="error && items.length > 0" class="text-sm tg-destructive">{{ error }}</p>
   </section>
 </template>

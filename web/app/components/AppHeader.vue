@@ -18,7 +18,7 @@ async function switchLanguage(): Promise<void> {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 border-b tg-bar safe-top" style="border-color: var(--tg-border)">
+  <header class="shrink-0 border-b tg-bar safe-top" style="border-color: var(--tg-border)">
     <div class="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pb-3">
       <div class="flex min-w-0 items-center gap-2">
         <NuxtLink to="/" class="flex min-w-0 items-center gap-2">
