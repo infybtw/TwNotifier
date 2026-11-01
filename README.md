@@ -249,7 +249,8 @@ these values, so nothing is pulled from an external secret manager at runtime.
 If you are migrating a vault created before the secrets moved into it, add the
 new keys from `vault.example.yaml` and remove `DOPPLER_TOKEN`.
 
-`vault.yaml` is git-ignored, so secrets never leave your machine unencrypted.
+`vault.yaml` can be committed only after encryption with Ansible Vault.
+Keep the vault password outside the repository and never commit decrypted secrets.
 The `.env` file on the server is rendered from `templates/.env.j2` with these
 variables — never edited by hand.
 
