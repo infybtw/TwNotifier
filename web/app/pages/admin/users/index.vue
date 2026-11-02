@@ -6,7 +6,7 @@ const { users, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
 const search = useState("admin-users-search", () => "");
-const { items, page, pageSize, hasNext, loading, error, load, reset, invalidate, setPageSize } = useCursorPagination<AdminUser>(
+const { items, page, hasNext, loading, error, load, reset, invalidate } = useCursorPagination<AdminUser>(
   "admin-users",
   async (request) => {
     await loadSettings();
@@ -84,8 +84,8 @@ onBeforeUnmount(() => {
 
     <PaginationControls
       v-if="items.length || page > 1 || loading"
-      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
-      @change="load" @page-size="setPageSize"
+      :page="page" :has-next="hasNext" :loading="loading"
+      @change="load"
     />
     <p v-if="error && items.length > 0" class="text-sm tg-destructive">{{ error }}</p>
   </section>

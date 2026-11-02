@@ -17,12 +17,12 @@ const notice = ref<string | null>(null);
 
 const activeSection = ref<"overview" | "settings" | "follows" | "notifications">("overview");
 const {
-  items: follows, page: followsPage, pageSize: followsPageSize, hasNext: followsHasNext,
-  loading: followsLoading, error: followsError, load: loadFollows, setPageSize: setFollowsPageSize,
+  items: follows, page: followsPage, hasNext: followsHasNext,
+  loading: followsLoading, error: followsError, load: loadFollows,
 } = useCursorPagination<AdminUserFollow>(`user-${userId}-follows`, ({ cursor, limit }) => userFollows(userId, cursor, limit));
 const {
-  items: notifications, page: notificationsPage, pageSize: notificationsPageSize, hasNext: notificationsHasNext,
-  loading: notificationsLoading, error: notificationsError, load: loadNotifications, setPageSize: setNotificationsPageSize,
+  items: notifications, page: notificationsPage, hasNext: notificationsHasNext,
+  loading: notificationsLoading, error: notificationsError, load: loadNotifications,
 } = useCursorPagination<AdminUserNotification>(`user-${userId}-notifications`, ({ cursor, limit }) => userNotifications(userId, cursor, limit));
 
 const savingAdmin = ref(false);
@@ -268,8 +268,8 @@ onMounted(() => void load());
         </ul>
         <PaginationControls
           v-if="follows.length || followsPage > 1 || followsLoading"
-          :page="followsPage" :page-size="followsPageSize" :has-next="followsHasNext" :loading="followsLoading"
-          :label="t('admin.user.tab_follows')" @change="loadFollows" @page-size="setFollowsPageSize"
+          :page="followsPage" :has-next="followsHasNext" :loading="followsLoading"
+          :label="t('admin.user.tab_follows')" @change="loadFollows"
         />
         <ErrorState v-if="followsError && follows.length > 0" :message="followsError" @retry="loadFollows()" />
       </section>
@@ -307,8 +307,8 @@ onMounted(() => void load());
         </ul>
         <PaginationControls
           v-if="notifications.length || notificationsPage > 1 || notificationsLoading"
-          :page="notificationsPage" :page-size="notificationsPageSize" :has-next="notificationsHasNext" :loading="notificationsLoading"
-          :label="t('admin.user.tab_notifications')" @change="loadNotifications" @page-size="setNotificationsPageSize"
+          :page="notificationsPage" :has-next="notificationsHasNext" :loading="notificationsLoading"
+          :label="t('admin.user.tab_notifications')" @change="loadNotifications"
         />
         <ErrorState v-if="notificationsError && notifications.length > 0" :message="notificationsError" @retry="loadNotifications()" />
       </section>

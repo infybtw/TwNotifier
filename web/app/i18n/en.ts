@@ -23,7 +23,6 @@ export default {
   "pagination.label": "Page navigation",
   "pagination.page": "Page {page}",
   "pagination.page_of": "Page {page} of {total}",
-  "pagination.per_page": "Per page",
   "pagination.previous": "Previous",
   "pagination.next": "Next",
   "admin.user.sections": "User sections",

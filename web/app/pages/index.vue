@@ -6,7 +6,7 @@ const { getPage } = useFollows();
 
 const platform = useState<"twitch" | "kick" | "">("follows-platform", () => "");
 const search = useState("follows-search", () => "");
-const { items, page, pageSize, hasNext, loading, error, load, reset, invalidate, setPageSize } = useCursorPagination<Follow>(
+const { items, page, hasNext, loading, error, load, reset, invalidate } = useCursorPagination<Follow>(
   "follows", (request) => getPage({ ...request, platform: platform.value || undefined, search: search.value || undefined }),
 );
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -87,8 +87,8 @@ onBeforeUnmount(() => {
 
     <PaginationControls
       v-if="items.length || page > 1 || loading"
-      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
-      @change="load" @page-size="setPageSize"
+      :page="page" :has-next="hasNext" :loading="loading"
+      @change="load"
     />
     <ErrorState v-if="error && items.length > 0" :message="error" @retry="reload" />
   </section>

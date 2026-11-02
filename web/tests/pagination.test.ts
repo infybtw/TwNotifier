@@ -96,19 +96,18 @@ describe("cursor pagination", () => {
     expect(pager.items.value).toEqual([]);
   });
 
-  test("changing page size resets cursors and requests the new limit", async () => {
+  test("requests the fixed page size on every page", async () => {
     const requests: PageRequest[] = [];
     const pager = cursorPager(async (request) => {
       requests.push(request);
-      return { items: [1], nextCursor: "next" };
+      return request.cursor ? { items: [6, 7], nextCursor: null } : { items: [1, 2, 3, 4, 5], nextCursor: "opaque-next" };
     });
     await pager.load();
     await pager.load(2);
-    await pager.setPageSize(10);
-    expect(pager.page.value).toBe(1);
-    expect(requests.at(-1)).toEqual({ cursor: undefined, limit: 10 });
-    await pager.setPageSize(999);
-    expect(pager.pageSize.value).toBe(10);
+    expect(requests).toEqual([
+      { cursor: undefined, limit: 10 },
+      { cursor: "opaque-next", limit: 10 },
+    ]);
   });
 
   test("recovers if the last page disappears after deletion", async () => {
@@ -122,16 +121,15 @@ describe("cursor pagination", () => {
     expect(pager.loading.value).toBe(false);
   });
 
-  test("restores the page and size when revisiting a list", async () => {
+  test("restores the page when revisiting a list", async () => {
     const fetchPage = async ({ cursor }: PageRequest) => ({ items: [cursor ? 2 : 1], nextCursor: cursor ? null : "next" });
     const first = cursorPager(fetchPage);
-    await first.setPageSize(10);
+    await first.load();
     await first.load(2);
     scopes[0]!.stop();
     const second = cursorPager(fetchPage);
     await second.load();
     expect(second.page.value).toBe(2);
-    expect(second.pageSize.value).toBe(10);
     expect(second.items.value).toEqual([2]);
   });
 
@@ -145,13 +143,13 @@ describe("cursor pagination", () => {
 });
 
 describe("snapshot pagination", () => {
-  test("slices records and clamps the page when data shrinks", async () => {
+  test("slices records in fixed pages and clamps the page when data shrinks", async () => {
     const items = ref(Array.from({ length: 12 }, (_, index) => index + 1));
     const scope = effectScope();
     scopes.push(scope);
     const pager = scope.run(() => useLocalPagination(items))!;
-    expect(pager.totalPages.value).toBe(3);
-    pager.goToPage(3);
+    expect(pager.totalPages.value).toBe(2);
+    pager.goToPage(2);
     expect(pager.visibleItems.value).toEqual([11, 12]);
     items.value = [1, 2];
     await nextTick();
@@ -159,7 +157,7 @@ describe("snapshot pagination", () => {
     expect(pager.visibleItems.value).toEqual([1, 2]);
   });
 
-  test("handles an empty snapshot and resets after resizing", () => {
+  test("handles an empty snapshot", () => {
     const scope = effectScope();
     scopes.push(scope);
     const pager = scope.run(() => useLocalPagination(ref<number[]>([])))!;
@@ -167,7 +165,5 @@ describe("snapshot pagination", () => {
     expect(pager.page.value).toBe(1);
     expect(pager.totalPages.value).toBe(1);
     expect(pager.visibleItems.value).toEqual([]);
-    pager.setPageSize(20);
-    expect(pager.pageSize.value).toBe(20);
   });
 });

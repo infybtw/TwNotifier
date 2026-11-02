@@ -8,7 +8,7 @@ const { keys, createKey, revokeKey, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
 const items = ref<AdminKeyItem[]>([]);
-const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
+const { page, totalPages, visibleItems, goToPage } = useLocalPagination(items);
 const loading = ref(true);
 const busy = ref(false);
 const revoking = ref<AdminKeyItem | null>(null);
@@ -138,8 +138,8 @@ onMounted(() => void load());
 
     <PaginationControls
       v-if="items.length"
-      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading || busy"
-      @change="goToPage" @page-size="setPageSize"
+      :page="page" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading || busy"
+      @change="goToPage"
     />
 
     <ConfirmDialog

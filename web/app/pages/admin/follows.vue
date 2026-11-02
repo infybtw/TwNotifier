@@ -5,7 +5,7 @@ const { t } = useLocale();
 const { follows, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
-const { items, page, pageSize, hasNext, loading, error, load, setPageSize } = useCursorPagination<AdminFollow>(
+const { items, page, hasNext, loading, error, load } = useCursorPagination<AdminFollow>(
   "admin-follows", async ({ cursor, limit }) => {
     await loadSettings();
     return follows(cursor, limit);
@@ -48,8 +48,8 @@ onMounted(() => void load());
 
     <PaginationControls
       v-if="items.length || page > 1 || loading"
-      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
-      @change="load" @page-size="setPageSize"
+      :page="page" :has-next="hasNext" :loading="loading"
+      @change="load"
     />
     <p v-if="error && items.length > 0" class="text-sm tg-destructive">{{ error }}</p>
   </section>

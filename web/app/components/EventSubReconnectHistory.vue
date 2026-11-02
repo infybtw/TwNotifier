@@ -6,7 +6,7 @@ const { t } = useLocale();
 const localizeError = useApiError();
 const admin = useAdmin();
 const items = ref<EventSubReconnect[]>([]);
-const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
+const { page, totalPages, visibleItems, goToPage } = useLocalPagination(items);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -91,8 +91,8 @@ onMounted(() => void load());
     <PaginationControls
       v-if="items.length && !error"
       class="mt-4"
-      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
-      @change="goToPage" @page-size="setPageSize"
+      :page="page" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
+      @change="goToPage"
     />
   </div>
 </template>

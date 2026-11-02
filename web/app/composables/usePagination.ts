@@ -11,6 +11,9 @@ export interface PageRequest {
   limit: number;
 }
 
+/** Fixed page size for every paginated list. */
+export const PAGE_SIZE = 10;
+
 /** Keep opaque API cursors; replacing a page never appends to the collection. */
 export function useCursorPagination<T>(
   key: string,
@@ -20,9 +23,8 @@ export function useCursorPagination<T>(
     items: T[];
     cursors: (string | null)[];
     page: number;
-    pageSize: number;
     nextCursor: string | null;
-  }>(`pagination:${key}`, () => ({ items: [], cursors: [null], page: 1, pageSize: 5, nextCursor: null }));
+  }>(`pagination:${key}`, () => ({ items: [], cursors: [null], page: 1, nextCursor: null }));
   const loading = ref(false);
   const error = ref<string | null>(null);
   const localizeError = useApiError();
@@ -32,11 +34,10 @@ export function useCursorPagination<T>(
     if (!Number.isInteger(target) || target < 1 || target > state.value.cursors.length) return;
     const id = ++requestId;
     const cursor = state.value.cursors[target - 1] ?? undefined;
-    const limit = state.value.pageSize;
     loading.value = true;
     error.value = null;
     try {
-      const response = await fetchPage({ cursor, limit });
+      const response = await fetchPage({ cursor, limit: PAGE_SIZE });
       if (id !== requestId) return;
       // Data can shrink between visits. Never strand the user on an empty last page.
       if (response.items.length === 0 && target > 1) {
@@ -71,46 +72,31 @@ export function useCursorPagination<T>(
     await load(1);
   }
 
-  async function setPageSize(size: number): Promise<void> {
-    if (![5, 10, 20].includes(size) || loading.value) return;
-    state.value.pageSize = size;
-    await reset();
-  }
-
   onScopeDispose(() => { requestId++; });
 
   return {
     items: computed(() => state.value.items),
     page: computed(() => state.value.page),
-    pageSize: computed(() => state.value.pageSize),
     hasNext: computed(() => Boolean(state.value.nextCursor)),
     loading,
     error,
     load,
     reset,
     invalidate,
-    setPageSize,
   };
 }
 
 /** Paginate endpoints which already return a bounded snapshot (online, recent logs). */
-export function useLocalPagination<T>(items: Ref<T[]>, defaultSize = 5) {
+export function useLocalPagination<T>(items: Ref<T[]>) {
   const page = ref(1);
-  const pageSize = ref(defaultSize);
-  const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / pageSize.value)));
-  const visibleItems = computed(() => items.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value));
+  const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / PAGE_SIZE)));
+  const visibleItems = computed(() => items.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
   function goToPage(target: number): void {
     page.value = Math.max(1, Math.min(totalPages.value, target));
   }
 
-  function setPageSize(size: number): void {
-    if (![5, 10, 20].includes(size)) return;
-    pageSize.value = size;
-    page.value = 1;
-  }
-
   watch(totalPages, () => goToPage(page.value));
 
-  return { page, pageSize, totalPages, visibleItems, goToPage, setPageSize };
+  return { page, totalPages, visibleItems, goToPage };
 }

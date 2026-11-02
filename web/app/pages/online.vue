@@ -8,7 +8,7 @@ const error = ref<string | null>(null);
 const { openExternal } = useTelegram();
 
 const items = ref<Follow[]>([]);
-const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
+const { page, totalPages, visibleItems, goToPage } = useLocalPagination(items);
 const checkedAt = ref<string | null>(null);
 
 async function reload(): Promise<void> {
@@ -86,8 +86,8 @@ onMounted(() => void reload());
     </ul>
     <PaginationControls
       v-if="items.length && !error"
-      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
-      @change="goToPage" @page-size="setPageSize"
+      :page="page" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
+      @change="goToPage"
     />
   </section>
 </template>

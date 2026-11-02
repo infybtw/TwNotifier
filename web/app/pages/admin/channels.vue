@@ -6,7 +6,7 @@ const { channels } = useAdmin();
 useAdminGuard();
 
 const platform = useState<"twitch" | "kick" | "">("admin-channels-platform", () => "");
-const { items, page, pageSize, hasNext, loading, error, load, reset, setPageSize } = useCursorPagination<AdminChannel>(
+const { items, page, hasNext, loading, error, load, reset } = useCursorPagination<AdminChannel>(
   "admin-channels", (request) => channels({ ...request, platform: platform.value || undefined }),
 );
 
@@ -58,8 +58,8 @@ onMounted(() => void load());
 
     <PaginationControls
       v-if="items.length || page > 1 || loading"
-      :page="page" :page-size="pageSize" :has-next="hasNext" :loading="loading"
-      @change="load" @page-size="setPageSize"
+      :page="page" :has-next="hasNext" :loading="loading"
+      @change="load"
     />
     <p v-if="error && items.length > 0" class="text-sm tg-destructive">{{ error }}</p>
   </section>

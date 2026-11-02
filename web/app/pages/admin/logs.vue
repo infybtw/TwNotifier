@@ -8,7 +8,7 @@ const { logs, formatDate, loadSettings } = useAdmin();
 useAdminGuard();
 
 const items = ref<AdminLog[]>([]);
-const { page, pageSize, totalPages, visibleItems, goToPage, setPageSize } = useLocalPagination(items);
+const { page, totalPages, visibleItems, goToPage } = useLocalPagination(items);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
@@ -67,8 +67,8 @@ onMounted(() => void load());
     </ul>
     <PaginationControls
       v-if="items.length && !error"
-      :page="page" :page-size="pageSize" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
-      @change="goToPage" @page-size="setPageSize"
+      :page="page" :total-pages="totalPages" :has-next="page < totalPages" :loading="loading"
+      @change="goToPage"
     />
   </section>
 </template>

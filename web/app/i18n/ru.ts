@@ -23,7 +23,6 @@ export default {
   "pagination.label": "Навигация по страницам",
   "pagination.page": "Страница {page}",
   "pagination.page_of": "Страница {page} из {total}",
-  "pagination.per_page": "На странице",
   "pagination.previous": "Назад",
   "pagination.next": "Далее",
   "admin.user.sections": "Разделы пользователя",
