@@ -61,12 +61,13 @@ docker compose -f docker-compose.dev.yml up --build
 The stack is available on `http://localhost:3000`; Caddy forwards Mini App,
 `API_PATH`, and provider webhooks to the internal containers. Only PostgreSQL
 (`localhost:54322`) and Caddy (`localhost:3000`) are published to the host.
+No `TUNNEL_TOKEN` is required for development.
 
 **Production mode** (via Docker):
 ```bash
 docker compose pull
 
-docker compose up -d
+docker compose up -d --remove-orphans
 ```
 
 ### Type checking
@@ -165,26 +166,65 @@ above. Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
 
 ### Docker deployment
 
-`compose.yaml` starts the API and static Mini App as independent
-containers:
+`compose.yaml` uses **Cloudflare Tunnel as the only public entry point**:
+
+```text
+Internet → Cloudflare (HTTPS) → cloudflared → twn / web / adminer
+```
+
+The connector makes outbound connections; no inbound HTTP/HTTPS ports are
+published on the server. Allow outbound tunnel traffic on port `7844` (UDP for
+QUIC or TCP for HTTP/2). The API and static Mini App run independently:
 
 - API: `HTTP_SERVER_PORT` (default `3000`) with routes under `API_PATH`
   (default `/api/v1`).
-- Mini App: `WEB_SERVER_PORT` (default `3001`); Caddy serves the static build,
-  with client-side routes falling back to `index.html`.
-- Set `NUXT_PUBLIC_API_BASE` to the absolute public API URL including
-  `API_PATH`, and add the Mini App origin to `CORS_ORIGINS` when they use
-  different origins.
+- Mini App: `WEB_SERVER_PORT` (default `3001`); the Caddy **inside the web image**
+  only serves static files and SPA fallbacks, not public ingress.
 
-Both public endpoints must be HTTPS for Telegram. TLS termination, if needed,
-is provided outside this Compose stack.
+#### Cloudflare Tunnel setup
 
-Before deploying, confirm:
+1. Add your domain to Cloudflare and create a remotely-managed Cloudflare
+   Tunnel in the dashboard (Networking → Tunnels).
+2. Copy the connector token from the Docker installation command into
+   `TUNNEL_TOKEN` in `.env`, or into the encrypted Ansible vault for production.
+   The connector receives only this token, not the other application secrets.
+3. Add published application routes in this order (example hostname
+   `app.example.com`; path values are regular expressions):
 
-1. The production Mini App domain and where the external HTTPS proxy is managed.
-2. A separate test bot and HTTPS URL for Mini App testing.
-3. Visual style preferences; the default is a compact interface using Telegram
-   theme colors.
+   | Hostname | Path | HTTP service |
+   | --- | --- | --- |
+   | `app.example.com` | `^/api/v1(/.*)?$` | `http://twn:3000` |
+   | `app.example.com` | `^/webhook/(kick\|twitch)$` | `http://twn:3000` |
+   | `app.example.com` | empty (all remaining paths) | `http://web:3001` |
+
+   Specific paths must precede the Mini App catch-all. Paths are forwarded
+   unchanged. Match the API expression to `API_PATH` if you change it, and use
+   the configured internal ports if they differ from `3000`/`3001`.
+   The origin hostnames are Docker service names, **not `localhost`**.
+4. Set `WEB_APP_URL=https://app.example.com`, `BOT_URL=https://app.example.com`
+   (webhook callback base), and `CORS_ORIGINS=https://app.example.com`.
+   Keep the frontend API base at `/api/v1` for this same-origin setup. A custom
+   API prefix also requires rebuilding the web image with matching
+   `NUXT_PUBLIC_API_BASE`.
+5. If Adminer is needed, first protect `db.example.com` with a Cloudflare Access
+   application and an explicit allow policy, then publish that hostname to
+   `http://adminer:8080`. Set `ADMINER_URL=https://db.example.com` in the vault.
+   The old `/adminer` prefix is no longer stripped/routed. The dev stack does
+   not include Adminer.
+
+Do not put Access login or interactive challenges in front of the public Mini
+App/API or provider webhook routes: Telegram and webhook providers must reach
+them without a browser login. Keep normal API authentication and webhook
+signature verification enabled. Disable Cloudflare caching for API and webhook
+paths; never add a cache-everything rule covering authenticated API responses.
+
+For migration, remove `EDGE_HTTP_PORT` from your vault/local `.env`, add
+`TUNNEL_TOKEN`, configure the routes, then deploy with `--remove-orphans` as
+above. Ansible also removes orphaned containers so the old `edge_proxy` cannot
+keep port 80 exposed. Stop using any external reverse proxy for this app and
+remove obsolete public origin DNS/port-forwarding rules. Existing Caddy volumes
+are left untouched. The development stack continues to use local Caddy and
+does not run a Cloudflare Tunnel connector.
 
 If the Mini App fails to load, users can keep managing everything through chat
 commands; reopening the Mini App from the bot button is the recovery path for
@@ -241,8 +281,9 @@ ansible-vault encrypt deploy/ansible/vault.yaml
 ```
 
 The vault holds every secret and deployment value: Telegram, Twitch and Kick
-credentials, PostgreSQL, Mini App/API settings, compose ports, the backup
-schedule and S3 credentials. The full key list is in `vault.example.yaml`.
+credentials, the Cloudflare Tunnel token, PostgreSQL, Mini App/API settings,
+internal ports, the backup schedule and S3 credentials. The full key list is in
+`vault.example.yaml`.
 The deploy play renders the server's `.env` from `templates/.env.j2` with
 these values, so nothing is pulled from an external secret manager at runtime.
 

@@ -5,7 +5,16 @@
 
 - name: twn deploy
   hosts: all
+  vars_files:
+    - "{{ playbook_dir }}/vault.yaml"
   tasks:
+    - name: require a Cloudflare Tunnel token
+      ansible.builtin.assert:
+        that:
+          - (TUNNEL_TOKEN | default('') | trim | length) > 0
+        fail_msg: "Set TUNNEL_TOKEN in vault.yaml before deploying."
+        quiet: true
+
     - name: fetch release tags
       ansible.builtin.command:
         cmd: >-
@@ -42,3 +51,5 @@
         project_src: ~/twn
         state: present
         pull: always
+        # Remove the old edge_proxy container so it no longer exposes port 80.
+        remove_orphans: true

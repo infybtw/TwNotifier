@@ -47,32 +47,27 @@ services:
     environment:
       WEB_SERVER_PORT: ${WEB_SERVER_PORT:-3001}
 
-  # Единая точка входа: принимает трафик либо напрямую из интернета,
-  # либо от внешнего Caddy (TLS-терминация там), и раскидывает по контейнерам.
-  # twn/web порты наружу не публикуют — всё идёт через edge_proxy, поэтому
-  # rate-limit по IP в app (X-Forwarded-For/X-Real-IP) видит реальный IP.
-  # Состоит в обеих сетях: twn живёт в `pg`, web — в `default`.
-  edge_proxy:
-    image: caddy
+  # Sole public entry point; routes are managed in the Cloudflare dashboard.
+  # No inbound host ports: Cloudflare terminates HTTPS and the connector makes
+  # outbound connections. Both networks are needed to reach all origins.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    env_file: .env
-    ports:
-      - "${EDGE_HTTP_PORT:-80}:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN to the Cloudflare Tunnel token}
     networks:
       - pg
       - default
     depends_on:
       - twn
       - web
+      - adminer
 
   adminer:
     image: adminer
     restart: unless-stopped
-    # Порты наружу не публикуем: доступ только через edge_proxy (/adminer).
+    # No host ports; publish a separate hostname protected by Cloudflare Access.
     networks:
       - pg
 
@@ -89,8 +84,6 @@ services:
 
 volumes:
   pgdata-prod:
-  caddy-data:
-  caddy-config:
 
 networks:
   pg:

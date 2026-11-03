@@ -30,8 +30,9 @@
 - Schema tables: `users`, `channels`, `users_follows`, `users_settings`, `admin_keys`
 
 ## Docker Compose Files
-- `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development)
-- `compose.yaml` - PostgreSQL + app + Mini App + adminer + postgres-backup (production, images pulled from GHCR, config from `.env`)
+- `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development, http://localhost:3000; no tunnel token required)
+- `compose.yaml` - PostgreSQL + app + Mini App + cloudflared + adminer + postgres-backup (production, images pulled from GHCR, config from `.env`)
+- In production, `cloudflared` is the sole public entry point; `TUNNEL_TOKEN` is required. Routes are managed in Cloudflare, not in local ingress files. API/web/adminer have no host ports; the web image still uses Caddy internally to serve static files.
 
 ## Build & Type Checking
 - TypeScript config: `tsconfig.json` with `rootDir: "./app"`, `outDir: "./dist"`
