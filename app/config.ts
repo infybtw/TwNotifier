@@ -41,7 +41,7 @@ export const BOT_URL: string = process.env.BOT_URL || "";
 export const KICK_API: string = String(process.env.KICK_API)
 export const KICK_OAUTH: string = String(process.env.KICK_OAUTH)
 
-export const ADMINER_URL: string = String(process.env.ADMINER_URL)
+export const DBX_URL: string = process.env.DBX_URL || "https://twn.infybtw.dev/dbx"
 
 export const DEFAULT_LANGUAGE: string = process.env.DEFAULT_LANGUAGE || "ru"
 

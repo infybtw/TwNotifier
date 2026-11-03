@@ -31,8 +31,9 @@
 
 ## Docker Compose Files
 - `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development, http://localhost:3000; no tunnel token required)
-- `compose.yaml` - PostgreSQL + app + Mini App + cloudflared + adminer + postgres-backup (production, images pulled from GHCR, config from `.env`)
-- In production, `cloudflared` is the sole public entry point; `TUNNEL_TOKEN` is required. Routes are managed in Cloudflare, not in local ingress files. API/web/adminer have no host ports; the web image still uses Caddy internally to serve static files.
+- `compose.yaml` - PostgreSQL + app + Mini App + cloudflared + DBX + postgres-backup (production, app/web images pulled from GHCR, config from `.env`)
+- In production, `cloudflared` is the sole public entry point; `TUNNEL_TOKEN` is required. Routes are managed in Cloudflare, not in local ingress files. API/web/DBX have no host ports; the web image still uses Caddy internally to serve static files.
+- DBX uses `t8y2/dbx:latest` with `DBX_PUBLIC_BASE_PATH=/dbx` and persistent `dbx-data`. Cloudflare must forward `^/dbx(/.*)?$` unchanged to `http://dbx:4224` before the Mini App catch-all, with Cloudflare Access protecting this path. The bot link defaults to `https://twn.infybtw.dev/dbx` (`DBX_URL`).
 
 ## Build & Type Checking
 - TypeScript config: `tsconfig.json` with `rootDir: "./app"`, `outDir: "./dist"`

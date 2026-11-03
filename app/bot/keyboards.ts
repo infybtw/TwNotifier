@@ -1,7 +1,7 @@
 import { InlineKeyboard } from "grammy";
 import { getAdminSettings, getAllAdminKeys, getAllFollowsWithDetails, getSettingsStateByUserId, getUserByUserId } from "../database/db";
 import { Channel, User, UserSettings } from "../database/schema";
-import { ADMINER_URL, WEB_APP_URL } from "../config";
+import { DBX_URL, WEB_APP_URL } from "../config";
 import { t, Locale } from "../i18n";
 
 const ADMIN_PAGE_SIZE = 10;
@@ -109,7 +109,7 @@ export function buildAdminKeyboard(locale: Locale = "ru"): InlineKeyboard {
     .text(t("admin.btn.follows", locale), "admin_follows").text(t("admin.btn.broadcast", locale), "admin_broadcast").row()
     .text(t("admin.btn.eventsub", locale), "admin_eventsub").text(t("admin.btn.webhook", locale), "admin_webhook").row()
     .text(t("admin.btn.logs", locale), "admin_logs").row()
-  if (ADMINER_URL && ADMINER_URL !== "undefined") kb.url("🗃 Adminer", ADMINER_URL)
+  if (DBX_URL) kb.url("🗃 DBX", DBX_URL)
   kb.text(t("admin.btn.settings", locale), "admin_settings").row()
   kb.text(t("admin.btn.restart", locale), "admin_restart").row()
   kb.text(t("admin.btn.exit", locale), "admin_exit")

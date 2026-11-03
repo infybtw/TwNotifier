@@ -169,7 +169,7 @@ above. Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
 `compose.yaml` uses **Cloudflare Tunnel as the only public entry point**:
 
 ```text
-Internet → Cloudflare (HTTPS) → cloudflared → twn / web / adminer
+Internet → Cloudflare (HTTPS) → cloudflared → twn / web / dbx
 ```
 
 The connector makes outbound connections; no inbound HTTP/HTTPS ports are
@@ -188,35 +188,44 @@ QUIC or TCP for HTTP/2). The API and static Mini App run independently:
 2. Copy the connector token from the Docker installation command into
    `TUNNEL_TOKEN` in `.env`, or into the encrypted Ansible vault for production.
    The connector receives only this token, not the other application secrets.
-3. Add published application routes in this order (example hostname
-   `app.example.com`; path values are regular expressions):
+3. Add published application routes in this order (path values are regular
+   expressions). Protect `/dbx` and `/dbx/*` with Cloudflare Access and an
+   explicit allow policy **before publishing the DBX route**:
 
    | Hostname | Path | HTTP service |
    | --- | --- | --- |
-   | `app.example.com` | `^/api/v1(/.*)?$` | `http://twn:3000` |
-   | `app.example.com` | `^/webhook/(kick\|twitch)$` | `http://twn:3000` |
-   | `app.example.com` | empty (all remaining paths) | `http://web:3001` |
+   | `twn.infybtw.dev` | `^/api/v1(/.*)?$` | `http://twn:3000` |
+   | `twn.infybtw.dev` | `^/webhook/(kick\|twitch)$` | `http://twn:3000` |
+   | `twn.infybtw.dev` | `^/dbx(/.*)?$` | `http://dbx:4224` |
+   | `twn.infybtw.dev` | empty (all remaining paths) | `http://web:3001` |
 
    Specific paths must precede the Mini App catch-all. Paths are forwarded
    unchanged. Match the API expression to `API_PATH` if you change it, and use
    the configured internal ports if they differ from `3000`/`3001`.
    The origin hostnames are Docker service names, **not `localhost`**.
-4. Set `WEB_APP_URL=https://app.example.com`, `BOT_URL=https://app.example.com`
-   (webhook callback base), and `CORS_ORIGINS=https://app.example.com`.
+4. Set `WEB_APP_URL=https://twn.infybtw.dev`, `BOT_URL=https://twn.infybtw.dev`
+   (webhook callback base), and `CORS_ORIGINS=https://twn.infybtw.dev`.
    Keep the frontend API base at `/api/v1` for this same-origin setup. A custom
    API prefix also requires rebuilding the web image with matching
    `NUXT_PUBLIC_API_BASE`.
-5. If Adminer is needed, first protect `db.example.com` with a Cloudflare Access
-   application and an explicit allow policy, then publish that hostname to
-   `http://adminer:8080`. Set `ADMINER_URL=https://db.example.com` in the vault.
-   The old `/adminer` prefix is no longer stripped/routed. The dev stack does
-   not include Adminer.
+5. DBX is available at `https://twn.infybtw.dev/dbx`. Its native
+   `DBX_PUBLIC_BASE_PATH=/dbx` handles the prefix, including assets and API;
+   do not strip it or add a separate proxy. `DBX_URL` sets the admin bot button
+   and defaults to this URL even with an older vault. Replace the old
+   `ADMINER_URL` vault key with `DBX_URL` when next editing the vault. Remove
+   any old Adminer tunnel route; `--remove-orphans` removes its container.
+   Connect to PostgreSQL at `postgres:5432` using the configured `POSTGRES_*`
+   credentials. The `dbx-data` volume persists DBX settings and saved
+   connections; back it up in full, including `.dbx/secret.key`, which encrypts
+   stored credentials. The existing PostgreSQL backup service does not back up
+   this volume. The dev stack is unchanged and does not include DBX.
 
 Do not put Access login or interactive challenges in front of the public Mini
 App/API or provider webhook routes: Telegram and webhook providers must reach
 them without a browser login. Keep normal API authentication and webhook
-signature verification enabled. Disable Cloudflare caching for API and webhook
-paths; never add a cache-everything rule covering authenticated API responses.
+signature verification enabled. Disable Cloudflare caching for API, webhook
+and DBX paths; never add a cache-everything rule covering authenticated API
+responses.
 
 For migration, remove `EDGE_HTTP_PORT` from your vault/local `.env`, add
 `TUNNEL_TOKEN`, configure the routes, then deploy with `--remove-orphans` as
