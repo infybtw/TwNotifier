@@ -79,9 +79,10 @@ cd app && bun run typecheck
 Frontend commands (from `web/`):
 ```bash
 bun install
-bun run dev        # Nuxt dev server on :3001
-bun run typecheck
-bun run generate   # static SPA into web/.output/public
+bun run dev        # Astro dev server on :3001
+bun run typecheck  # astro check
+bun test           # pagination tests
+bun run build      # SSR build into web/dist
 ```
 
 ### Deep Links
@@ -103,14 +104,14 @@ Telegram deep links use the `start` parameter, so `?prefollow=twitch/justovich22
 
 ## Telegram Mini App
 
-The bot ships with a Telegram Mini App (a static Nuxt SPA in `web/`) that covers
+The bot ships with a Telegram Mini App (an Astro SSR app in `web/`) that covers
 every user-facing feature: follows, adding and removing channels, live status,
 all notification settings, language and help. Chat commands and buttons keep
 working in parallel; notifications are always delivered in the private chat,
 whether or not the Mini App is open.
 
 ```
-web/ (Nuxt 4 SPA, static build)
+web/ (Astro 7 + Tailwind 4, Node SSR)
       │ HTTPS /api/v1 + bearer token
       ▼
 Bun / Elysia: auth → validation → services ─── PostgreSQL
@@ -149,9 +150,9 @@ the bot token never reaches the frontend.
 
 ### Frontend
 
-The Mini App is a static Nuxt SPA under `web/`; frontend commands are listed
-above. Public configuration is limited to `NUXT_PUBLIC_API_BASE` and
-`NUXT_PUBLIC_BOT_USERNAME`; no backend secret is exposed.
+The Mini App is an Astro SSR app under `web/`; frontend commands are listed
+above. Public configuration is limited to `PUBLIC_API_BASE` and
+`PUBLIC_BOT_USERNAME`; no backend secret is exposed.
 
 ### Launching the Mini App
 
@@ -174,12 +175,12 @@ Internet → Cloudflare (HTTPS) → cloudflared → twn / web / dbx
 
 The connector makes outbound connections; no inbound HTTP/HTTPS ports are
 published on the server. Allow outbound tunnel traffic on port `7844` (UDP for
-QUIC or TCP for HTTP/2). The API and static Mini App run independently:
+QUIC or TCP for HTTP/2). The API and Mini App run independently:
 
 - API: `HTTP_SERVER_PORT` (default `3000`) with routes under `API_PATH`
   (default `/api/v1`).
-- Mini App: `WEB_SERVER_PORT` (default `3001`); the Caddy **inside the web image**
-  only serves static files and SPA fallbacks, not public ingress.
+- Mini App: `WEB_SERVER_PORT` (default `3001`); the web image runs Astro's
+  standalone Node server and does not include Caddy.
 
 #### Cloudflare Tunnel setup
 
@@ -207,7 +208,7 @@ QUIC or TCP for HTTP/2). The API and static Mini App run independently:
    (webhook callback base), and `CORS_ORIGINS=https://twn.infybtw.dev`.
    Keep the frontend API base at `/api/v1` for this same-origin setup. A custom
    API prefix also requires rebuilding the web image with matching
-   `NUXT_PUBLIC_API_BASE`.
+   `PUBLIC_API_BASE`.
 5. DBX is available at `https://twn.infybtw.dev/dbx`. Its native
    `DBX_PUBLIC_BASE_PATH=/dbx` handles the prefix, including assets and API;
    do not strip it or add a separate proxy. `DBX_URL` sets the admin bot button
@@ -398,7 +399,7 @@ app/
 └── utils/                # Utilities
     ├── settings.ts       # User settings helpers
     └── urlParser.ts      # URL parsing
-web/                      # Telegram Mini App (Nuxt 4 + Tailwind 4 SPA)
+web/                      # Telegram Mini App (Astro 7 + Tailwind 4, Node SSR)
 ```
 
 ## Libraries Used

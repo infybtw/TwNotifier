@@ -1,0 +1,80 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+
+const tzOptions = Array.from({ length: 27 }, (_, index) => index - 12);
+const sections = [
+  { to: "/admin/users", icon: "👥", label: "admin.section.users" },
+  { to: "/admin/channels", icon: "📺", label: "admin.section.channels" },
+  { to: "/admin/follows", icon: "🔗", label: "admin.section.follows" },
+  { to: "/admin/logs", icon: "📜", label: "admin.section.logs" },
+  { to: "/admin/keys", icon: "🔑", label: "admin.section.keys" },
+  { to: "/admin/broadcast", icon: "📣", label: "admin.section.broadcast" },
+  { to: "/admin/infra", icon: "🛰️", label: "admin.section.infra" },
+] as const;
+---
+<AppLayout>
+  <section id="page-admin" data-page="admin" class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="admin.title"></h1>
+
+    <div data-admin-state></div>
+
+    <div class="flex flex-col gap-4" data-admin-content hidden>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="rounded-2xl p-4 tg-card">
+          <p class="text-2xl font-semibold tg-text" data-stat="users">—</p>
+          <p class="mt-1 text-xs tg-hint" data-i18n="admin.stats.users"></p>
+        </div>
+        <div class="rounded-2xl p-4 tg-card">
+          <p class="text-2xl font-semibold tg-text" data-stat="follows">—</p>
+          <p class="mt-1 text-xs tg-hint" data-i18n="admin.stats.follows"></p>
+        </div>
+        <div class="rounded-2xl p-4 tg-card">
+          <p class="text-2xl font-semibold tg-text" data-stat="channels">—</p>
+          <p class="mt-1 text-xs tg-hint">
+            <span data-i18n="admin.stats.channels"></span>
+            <span data-stat-channels-meta></span>
+          </p>
+        </div>
+        <div class="rounded-2xl p-4 tg-card">
+          <p class="text-2xl font-semibold tg-text" data-stat="admins">—</p>
+          <p class="mt-1 text-xs tg-hint" data-i18n="admin.stats.admins"></p>
+        </div>
+      </div>
+      <p class="text-xs tg-hint" data-admin-blocked hidden></p>
+
+      <nav class="grid grid-cols-2 gap-2" data-i18n-aria-label="admin.title">
+        {sections.map((section) => (
+          <a href={section.to} class="flex min-w-0 items-center justify-between gap-2 rounded-2xl px-3 py-3.5 tg-card">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="text-lg" aria-hidden="true">{section.icon}</span>
+              <span class="break-words text-sm font-medium tg-text" data-i18n={section.label}></span>
+            </span>
+            <span class="text-lg tg-hint" aria-hidden="true">›</span>
+          </a>
+        ))}
+      </nav>
+
+      <div class="rounded-2xl p-4 tg-card">
+        <label class="text-sm font-medium tg-text" for="admin-tz" data-i18n="admin.tz"></label>
+        <div class="mt-3 flex items-center gap-2">
+          <select id="admin-tz" data-admin-tz class="flex-1 rounded-xl px-3 py-2.5 text-sm tg-secondary tg-text">
+            {tzOptions.map((offset) => (
+              <option value={offset}>UTC{offset >= 0 ? `+${offset}` : offset}</option>
+            ))}
+          </select>
+          <span class="text-xs tg-hint" data-tz-saved hidden data-i18n="common.saved"></span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        data-admin-restart
+        class="rounded-xl px-4 py-3 text-sm font-semibold tg-secondary tg-destructive"
+        data-i18n="admin.restart"
+      ></button>
+
+      <p class="text-sm tg-destructive" data-admin-error hidden></p>
+    </div>
+  </section>
+</AppLayout>
+

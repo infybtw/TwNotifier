@@ -3,6 +3,7 @@
 ## Development Commands
 - `bun run dev` - Run the bot with `.env` file (no file watching)
 - There is no `start` script; production runs via Docker (`Dockerfile-app`)
+- Web app (from `web/`): `bun run dev`, `bun run build`, `bun run typecheck`, `bun test`
 
 ## Environment Setup
 - Environment file: `.env` (loaded via `--env-file` flag in package.json script)
@@ -14,6 +15,7 @@
 ## Architecture Notes
 - Entry point: `app/index.ts` - runs migrations, starts Telegram bot, authenticates Twitch/Kick, connects WebSocket, starts HTTP server
 - Uses Bun runtime with TypeScript (ES modules, `"type": "module"` in package.json)
+- `web/` is an Astro 7 + Tailwind 4 SSR app: routes in `src/pages`, page controllers in `src/lib/pages`, shared client runtime in `src/lib`, styles in `src/styles/global.css`
 - Telegram bot built with grammy.js framework (`app/bot/`)
 - Twitch EventSub WebSocket integration for real-time stream notifications (`app/twitchAPI/`)
 - Kick integration via webhooks handled by Elysia HTTP server (`app/kickAPI/`, `app/handlers/http_handler.ts`)
@@ -32,7 +34,7 @@
 ## Docker Compose Files
 - `docker-compose.dev.yml` - PostgreSQL + app + Mini App + Caddy (local development, http://localhost:3000; no tunnel token required)
 - `compose.yaml` - PostgreSQL + app + Mini App + cloudflared + DBX + postgres-backup (production, app/web images pulled from GHCR, config from `.env`)
-- In production, `cloudflared` is the sole public entry point; `TUNNEL_TOKEN` is required. Routes are managed in Cloudflare, not in local ingress files. API/web/DBX have no host ports; the web image still uses Caddy internally to serve static files.
+- In production, `cloudflared` is the sole public entry point; `TUNNEL_TOKEN` is required. Routes are managed in Cloudflare, not in local ingress files. API/web/DBX have no host ports; the web image runs Astro's standalone Node server (no Caddy).
 - DBX uses `t8y2/dbx:latest` with `DBX_PUBLIC_BASE_PATH=/dbx` and persistent `dbx-data`. Cloudflare must forward `^/dbx(/.*)?$` unchanged to `http://dbx:4224` before the Mini App catch-all, with Cloudflare Access protecting this path. The bot link defaults to `https://twn.infybtw.dev/dbx` (`DBX_URL`).
 
 ## Build & Type Checking
@@ -53,5 +55,5 @@
 ## Important Constraints
 - Database file (`*.db`) and session files (`/sessions`) are git-ignored
 - Logs directory (`logs/`) is git-ignored
-- No tests in the repo; static checks are `typecheck` scripts (`tsc --noEmit`)
+- Frontend tests cover pagination (`bun test` in `web/`); static checks are `typecheck` scripts (`tsc --noEmit` for the backend, `astro check` for the web app)
 - `APP_TOKEN`, `KICK_APP_TOKEN`, `CONDUIT_ID` are mutable globals set at runtime in `app/config.ts`

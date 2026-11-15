@@ -1,0 +1,23 @@
+---
+// Persistent Mini App header: brand, Telegram username and language switch.
+---
+<header class="shrink-0 border-b tg-bar safe-top" style="border-color: var(--tg-border)" {...Astro.props}>
+  <div class="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pb-3">
+    <div class="flex min-w-0 items-center gap-2">
+      <a href="/" class="flex min-w-0 items-center gap-2">
+        <span class="text-lg" aria-hidden="true">📡</span>
+        <span class="truncate text-base font-semibold tracking-tight tg-text">TWN</span>
+      </a>
+    </div>
+    <div class="flex items-center gap-3">
+      <span data-header-username class="max-w-[10rem] truncate text-xs tg-hint" hidden></span>
+      <button
+        type="button"
+        data-language-toggle
+        class="rounded-full px-3 py-1.5 text-xs font-semibold tg-secondary tg-text"
+        data-i18n-aria-label="settings.language"
+        disabled
+      >RU</button>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,20 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+import BackLink from "../../components/BackLink.astro";
+import Pagination from "../../components/Pagination.astro";
+---
+<AppLayout>
+  <section id="page-admin-keys" data-page="admin-keys" class="flex flex-col gap-4" data-paginated>
+    <BackLink href="/admin" labelKey="admin.title" />
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="admin.keys.title"></h1>
+    <p class="text-xs tg-hint" data-i18n="admin.keys.hint"></p>
+
+    <button type="button" data-keys-create class="rounded-xl px-4 py-3 text-sm font-semibold tg-button" data-i18n="admin.keys.create"></button>
+
+    <p class="rounded-2xl px-4 py-3 text-sm tg-card tg-text" data-keys-notice hidden></p>
+
+    <div data-keys-list></div>
+    <Pagination />
+  </section>
+</AppLayout>
+

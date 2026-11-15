@@ -1,0 +1,48 @@
+---
+// Persistent shell navigation; the admin destination appears for admins only.
+---
+<nav
+  class="shrink-0 border-t tg-bar safe-bottom"
+  style="border-color: var(--tg-border)"
+  data-i18n-aria-label="nav.follows"
+  {...Astro.props}
+>
+  <ul class="mx-auto flex max-w-2xl items-stretch justify-between px-2">
+    <li class="flex-1">
+      <a href="/" data-nav="follows" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">📋</span>
+        <span data-i18n="nav.follows"></span>
+      </a>
+    </li>
+    <li class="flex-1">
+      <a href="/online" data-nav="online" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">🟢</span>
+        <span data-i18n="nav.online"></span>
+      </a>
+    </li>
+    <li class="flex-1">
+      <a href="/add" data-nav="add" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">➕</span>
+        <span data-i18n="nav.add"></span>
+      </a>
+    </li>
+    <li class="flex-1">
+      <a href="/settings" data-nav="settings" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">⚙️</span>
+        <span data-i18n="nav.settings"></span>
+      </a>
+    </li>
+    <li class="flex-1">
+      <a href="/about" data-nav="about" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">ℹ️</span>
+        <span data-i18n="nav.about"></span>
+      </a>
+    </li>
+    <li class="flex-1" data-admin-nav hidden>
+      <a href="/admin" data-nav="admin" class="flex flex-col items-center gap-1 rounded-lg px-1 pt-2 text-[11px] font-medium transition-colors tg-hint">
+        <span class="text-lg leading-none" aria-hidden="true">🎛️</span>
+        <span data-i18n="nav.control"></span>
+      </a>
+    </li>
+  </ul>
+</nav>

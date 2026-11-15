@@ -105,7 +105,7 @@ Preserve the implemented theme, not a replacement identity. Compact typography, 
 - Persistent shell navigation around one scrolling content region.
 - Bounded pages, independent collection controls and Russian/English labels.
 
-Source of truth: `web/app/assets/css/main.css`, `app.vue`, shared navigation/pagination components and the implemented admin pages. Frontmatter values describe existing styles; component entries are representative variants, not universal dimensions for every button.
+Source of truth: `web/src/styles/global.css`, `web/src/layouts/AppLayout.astro`, shared navigation/pagination components and the implemented admin pages. Frontmatter values describe existing styles; component entries are representative variants, not universal dimensions for every button.
 
 ## Colors
 
@@ -157,7 +157,7 @@ Profiles separate overview/actions, settings, follows and notifications through 
 
 ### Pagination
 
-**The Bounded Page Rule.** Long collections throughout the Mini App replace the visible page rather than append rows with “Load more.” Default page size is 5; choices are 5, 10 and 20. Keep Previous, current page and Next explicit.
+**The Bounded Page Rule.** Long collections throughout the Mini App replace the visible page rather than append rows with “Load more.” Page size is fixed at 10. Keep Previous, current page and Next explicit.
 
 **The Honest Total Rule.** Cursor-backed collections show the current page without a fabricated last page or total. Local snapshot pagination may show page totals only for the returned bounded dataset; recent logs and reconnect history are not complete archives.
 

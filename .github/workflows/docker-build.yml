@@ -39,12 +39,13 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Frontend install, typecheck and build
+      - name: Frontend install, typecheck, test and build
         working-directory: web
         run: |
           bun install --frozen-lockfile
           bun run typecheck
-          bun run generate
+          bun test
+          bun run build
 
   build-backend:
     needs: check-backend
@@ -98,9 +99,10 @@ jobs:
           push: false
           load: true
           tags: ${{ env.WEB_TEMP_TAG }}
+          # Fall back to the old NUXT_* repository variables until renamed.
           build-args: |
-            NUXT_PUBLIC_API_BASE=${{ vars.NUXT_PUBLIC_API_BASE }}
-            NUXT_PUBLIC_BOT_USERNAME=${{ vars.NUXT_PUBLIC_BOT_USERNAME }}
+            PUBLIC_API_BASE=${{ vars.PUBLIC_API_BASE || vars.NUXT_PUBLIC_API_BASE }}
+            PUBLIC_BOT_USERNAME=${{ vars.PUBLIC_BOT_USERNAME || vars.NUXT_PUBLIC_BOT_USERNAME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -1,0 +1,24 @@
+---
+import AppLayout from "../../../layouts/AppLayout.astro";
+import BackLink from "../../../components/BackLink.astro";
+import Pagination from "../../../components/Pagination.astro";
+---
+<AppLayout>
+  <section id="page-admin-users" data-page="admin-users" class="flex flex-col gap-4" data-paginated>
+    <BackLink href="/admin" labelKey="admin.title" />
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="admin.users.title"></h1>
+
+    <input
+      type="search"
+      data-users-search
+      class="w-full rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
+      data-i18n-placeholder="admin.users.search"
+      data-i18n-aria-label="admin.users.search"
+      maxlength="64"
+    />
+
+    <div data-users-list></div>
+    <Pagination />
+  </section>
+</AppLayout>
+
