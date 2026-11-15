@@ -1,0 +1,72 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+
+const toggles = [
+  { key: "onlineNotification", label: "settings.stream_start" },
+  { key: "offlineNotification", label: "settings.stream_end" },
+  { key: "titleChangeNotification", label: "settings.title_change" },
+  { key: "categoryChangeNotification", label: "settings.category_change" },
+  { key: "streamMetadata", label: "settings.stream_metadata" },
+  { key: "linkPreview", label: "settings.link_preview" },
+] as const;
+---
+<AppLayout>
+  <section id="page-settings" data-page="settings" class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="settings.title"></h1>
+
+    <div class="flex flex-col gap-2" data-settings-list>
+      {toggles.map((toggle) => (
+        <label class="flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 tg-card">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium tg-text" data-i18n={toggle.label}></span>
+          </span>
+          <input
+            type="checkbox"
+            class="h-6 w-6 shrink-0 accent-[var(--tg-button)]"
+            data-setting={toggle.key}
+          />
+        </label>
+      ))}
+    </div>
+
+    <p class="text-xs tg-hint" data-i18n="settings.kick_note"></p>
+
+    <div class="rounded-2xl p-4 tg-card">
+      <p class="text-sm font-medium tg-text" data-i18n="settings.language"></p>
+      <div class="mt-3 flex gap-2">
+        <button
+          type="button"
+          data-language="ru"
+          class="rounded-xl px-4 py-2.5 text-sm font-medium transition-colors tg-secondary tg-text"
+          aria-pressed="false"
+        >🇷🇺 Русский</button>
+        <button
+          type="button"
+          data-language="en"
+          class="rounded-xl px-4 py-2.5 text-sm font-medium transition-colors tg-secondary tg-text"
+          aria-pressed="false"
+        >🇬🇧 English</button>
+      </div>
+    </div>
+
+    <div class="rounded-2xl p-4 tg-card">
+      <p class="text-sm font-medium tg-text">
+        <span data-i18n="settings.chat_delivery"></span>: <span data-delivery-label></span>
+      </p>
+      <p class="mt-2 text-xs tg-hint" data-delivery-hint hidden data-i18n="settings.delivery_blocked_hint"></p>
+      <a
+        href={import.meta.env.PUBLIC_BOT_USERNAME ? `https://t.me/${import.meta.env.PUBLIC_BOT_USERNAME.trim()}` : undefined}
+        target="_blank"
+        rel="noopener"
+        data-bot-link
+        class="mt-3 inline-block rounded-xl px-4 py-2.5 text-xs font-semibold tg-secondary tg-text"
+        hidden
+        data-i18n="onboarding.open_chat"
+      ></a>
+    </div>
+
+    <p class="text-sm tg-destructive" data-save-error hidden></p>
+    <p class="text-xs tg-hint" data-saved hidden data-i18n="common.saved"></p>
+  </section>
+</AppLayout>
+

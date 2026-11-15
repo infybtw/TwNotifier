@@ -1,0 +1,32 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout>
+  <section id="page-add" data-page="add" class="flex flex-col gap-4">
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="add.title"></h1>
+
+    <form class="flex gap-2" data-add-form>
+      <input
+        type="text"
+        data-add-input
+        class="min-w-0 flex-1 rounded-xl px-4 py-2.5 text-sm tg-card tg-text placeholder:text-[var(--tg-hint)]"
+        data-i18n-placeholder="add.placeholder"
+        data-i18n-aria-label="add.placeholder"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        enterkeyhint="search"
+      />
+      <button
+        type="submit"
+        data-add-submit
+        class="rounded-xl px-4 py-2.5 text-sm font-semibold tg-button"
+        disabled
+        data-i18n="add.submit"
+      ></button>
+    </form>
+
+    <div class="flex flex-col gap-2" data-add-result></div>
+  </section>
+</AppLayout>
+

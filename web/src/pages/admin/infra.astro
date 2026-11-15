@@ -1,0 +1,33 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+import BackLink from "../../components/BackLink.astro";
+import Pagination from "../../components/Pagination.astro";
+---
+<AppLayout>
+  <section id="page-admin-infra" data-page="admin-infra" class="flex flex-col gap-4">
+    <BackLink href="/admin" labelKey="admin.title" />
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="admin.infra.title"></h1>
+
+    <nav class="section-switcher" data-infra-sections data-i18n-aria-label="admin.infra.title">
+      <button type="button" data-infra-tab="services" aria-pressed="true" data-i18n="admin.infra.services"></button>
+      <button type="button" data-infra-tab="history" aria-pressed="false" data-i18n="admin.infra.reconnects.title"></button>
+    </nav>
+
+    <div data-infra-pane="services">
+      <div data-infra-services></div>
+    </div>
+
+    <section data-infra-pane="history" class="flex flex-col gap-4" data-paginated hidden>
+      <div class="rounded-2xl p-4 tg-card">
+        <header class="flex items-baseline justify-between gap-2">
+          <h2 class="text-sm font-semibold tg-text" data-i18n="admin.infra.reconnects.title"></h2>
+          <button type="button" data-history-refresh class="text-xs font-medium tg-link" data-i18n="common.refresh"></button>
+        </header>
+        <p class="mt-2 text-xs tg-hint" data-i18n="admin.infra.reconnects.hint"></p>
+        <div data-history-list></div>
+        <Pagination labelKey="admin.infra.reconnects.title" />
+      </div>
+    </section>
+  </section>
+</AppLayout>
+

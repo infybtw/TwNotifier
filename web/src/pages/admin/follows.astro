@@ -1,0 +1,15 @@
+---
+import AppLayout from "../../layouts/AppLayout.astro";
+import BackLink from "../../components/BackLink.astro";
+import Pagination from "../../components/Pagination.astro";
+---
+<AppLayout>
+  <section id="page-admin-follows" data-page="admin-follows" class="flex flex-col gap-4" data-paginated>
+    <BackLink href="/admin" labelKey="admin.title" />
+    <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="admin.follows.title"></h1>
+
+    <div data-admin-follows-list></div>
+    <Pagination />
+  </section>
+</AppLayout>
+

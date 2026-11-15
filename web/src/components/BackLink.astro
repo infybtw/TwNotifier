@@ -1,0 +1,9 @@
+---
+interface Props {
+  href: string;
+  labelKey?: string;
+}
+
+const { href, labelKey = "common.back" } = Astro.props;
+---
+<a href={href} class="text-sm font-medium tg-link">← <span data-i18n={labelKey}></span></a>

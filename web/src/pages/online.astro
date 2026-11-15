@@ -1,0 +1,16 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+import Pagination from "../components/Pagination.astro";
+---
+<AppLayout>
+  <section id="page-online" data-page="online" class="flex flex-col gap-4" data-paginated>
+    <header class="flex items-baseline justify-between gap-2">
+      <h1 class="text-lg font-semibold tracking-tight tg-text" data-i18n="online.title"></h1>
+      <button type="button" data-online-refresh class="text-xs font-medium tg-link" data-i18n="common.refresh"></button>
+    </header>
+
+    <div data-online-list></div>
+    <Pagination />
+  </section>
+</AppLayout>
+

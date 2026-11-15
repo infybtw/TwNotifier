@@ -1,22 +1,34 @@
-# Static Mini App built with Nuxt and served by Caddy.
-FROM oven/bun:1 AS build
+# Telegram Mini App built with Astro and served by its Node adapter.
 
+# Astro's standalone server externalizes runtime dependencies, so the runtime
+# image needs production node_modules in addition to dist/.
+FROM oven/bun:1 AS deps
+WORKDIR /web
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+FROM oven/bun:1 AS build
 WORKDIR /web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 
-ARG NUXT_PUBLIC_API_BASE=
-ARG NUXT_PUBLIC_BOT_USERNAME=
-ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
-ENV NUXT_PUBLIC_BOT_USERNAME=$NUXT_PUBLIC_BOT_USERNAME
+ARG PUBLIC_API_BASE=
+ARG PUBLIC_BOT_USERNAME=
 
 COPY web/ ./
-RUN bun run generate
+# Reference the build args in the RUN command so Docker's layer cache is keyed
+# by their values; otherwise a cached build can bake stale PUBLIC_* settings.
+RUN PUBLIC_API_BASE="$PUBLIC_API_BASE" PUBLIC_BOT_USERNAME="$PUBLIC_BOT_USERNAME" bun run build
 
-FROM caddy:2-alpine
+FROM node:24-alpine AS runtime
 
-COPY --from=build /web/.output/public /web/public
-COPY web/Caddyfile /etc/caddy/Caddyfile
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3001
 
-ENV WEB_SERVER_PORT=3001
+COPY --from=deps /web/node_modules ./node_modules
+COPY --from=build /web/dist ./dist
+
 EXPOSE 3001
+CMD ["node", "./dist/server/entry.mjs"]

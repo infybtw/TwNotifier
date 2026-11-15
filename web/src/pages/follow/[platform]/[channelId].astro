@@ -1,0 +1,11 @@
+---
+import AppLayout from "../../../layouts/AppLayout.astro";
+
+const { platform, channelId } = Astro.params;
+---
+<AppLayout>
+  <section id="page-follow" data-page="follow" class="flex flex-col gap-4" data-platform={platform} data-channel-id={channelId}>
+    <div data-follow-content></div>
+  </section>
+</AppLayout>
+

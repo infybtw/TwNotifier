@@ -1,0 +1,13 @@
+---
+// Single native modal reused by every confirmation flow.
+---
+<dialog id="app-dialog" class="app-dialog" aria-modal="true" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-message">
+  <div class="app-dialog-panel relative w-full max-w-md rounded-2xl p-5 tg-card">
+    <h2 id="app-dialog-title" data-dialog-title class="text-base font-semibold tg-text" hidden></h2>
+    <p id="app-dialog-message" data-dialog-message class="text-sm tg-text"></p>
+    <div class="mt-4 flex gap-2">
+      <button type="button" data-dialog-confirm class="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold tg-button"></button>
+      <button type="button" data-dialog-cancel class="rounded-xl px-3 py-2.5 text-sm font-medium tg-secondary tg-text"></button>
+    </div>
+  </div>
+</dialog>
