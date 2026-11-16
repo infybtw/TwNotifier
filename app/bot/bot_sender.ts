@@ -1,4 +1,4 @@
-import { InlineKeyboard, InputFile } from "grammy";
+import { GrammyError, HttpError, InlineKeyboard, InputFile } from "grammy";
 import { getAdmins, getChannelFollowersByChannelIdAndPlatform, getSettingsStateByUserId, getUsersForNotifications, insertStreamLog, recordUserNotification, setBotBlockedStateByUserId, StreamSummary, UserNotificationStatus } from "../database/db";
 import { t, Locale } from "../i18n";
 import logger from "../logger";
@@ -32,6 +32,73 @@ async function handleSendError(userId: number, notification: string, error: unkn
 
   log.error(`failed to send ${notification}`, { user_id: userId, error });
   return "failed";
+}
+
+function redactBotToken(value: string): string {
+  return value.replace(/bot\d+:[\w-]+/g, "bot<redacted>");
+}
+
+function describeSendError(error: unknown): Record<string, unknown> {
+  if (error instanceof GrammyError) {
+    return {
+      kind: "telegram",
+      error_code: error.error_code,
+      description: error.description,
+      parameters: error.parameters,
+      method: error.method,
+    };
+  }
+  if (error instanceof HttpError) {
+    const cause = (error.error ?? {}) as { name?: unknown; message?: unknown; code?: unknown; errno?: unknown; syscall?: unknown };
+    return {
+      kind: "network",
+      message: redactBotToken(String(cause.message ?? error.message)),
+      cause_name: cause.name,
+      cause_code: cause.code,
+      errno: cause.errno,
+      syscall: cause.syscall,
+    };
+  }
+  return { kind: "unknown", message: redactBotToken(String(error)) };
+}
+
+function safePhotoUrl(photoUrl: string): string {
+  const url = new URL(photoUrl);
+  return `${url.origin}${url.pathname}`;
+}
+
+async function sendStreamOnlineMessage(
+  userId: number,
+  platform: "twitch" | "kick",
+  text: string,
+  keyboard: InlineKeyboard,
+  photoUrl?: string,
+): Promise<boolean> {
+  if (photoUrl) {
+    try {
+      await bot.api.sendPhoto(userId, photoUrl, {
+        caption: text,
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+      return true;
+    } catch (err) {
+      if (isBotBlockedError(err)) throw err;
+      log.error("failed to send stream preview photo, falling back to text message", {
+        user_id: userId,
+        platform,
+        photo_url: safePhotoUrl(photoUrl),
+        error: describeSendError(err),
+      });
+    }
+  }
+
+  await bot.api.sendMessage(userId, text, {
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    reply_markup: keyboard,
+  });
+  return false;
 }
 
 export async function notifyAdminsAndExit(stepName: string, error: unknown): Promise<never> {
@@ -86,22 +153,16 @@ export async function sendTwitchStreamOnlineNotificationToUsers(
     const keyboard = new InlineKeyboard().url(t("platform.twitch", locale), streamUrl);
 
     try {
-      if (previewUrl) {
-        // Generate the URL immediately before sending so every Telegram request
-        // has a fresh cache-busting timestamp.
-        await bot.api.sendPhoto(userId, getStreamPreviewUrl(previewUrl), {
-          caption: text,
-          parse_mode: "HTML",
-          reply_markup: keyboard,
-        });
-      } else {
-        await bot.api.sendMessage(userId, text, {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-          reply_markup: keyboard,
-        });
-      }
-      log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+      // Generate the URL immediately before sending so every Telegram request
+      // has a fresh cache-busting timestamp.
+      const hasStreamPreview = await sendStreamOnlineMessage(
+        userId,
+        "twitch",
+        text,
+        keyboard,
+        previewUrl ? getStreamPreviewUrl(previewUrl) : undefined,
+      );
+      log.info("message sent", { user_id: userId, text, has_stream_preview: hasStreamPreview });
       await recordUserNotification({ userId, platform: "twitch", channelId, event: "stream_online", status: "sent" });
     } catch (err) {
       const status = await handleSendError(userId, "twitch online notification", err);
@@ -249,20 +310,14 @@ export async function sendKickStreamOnlineNotificationToUsers(channel_id: number
       const keyboard = new InlineKeyboard().url(t("platform.kick", locale), streamUrl);
 
       try {
-        if (previewUrl) {
-          await bot.api.sendPhoto(userId, getKickStreamPreviewUrl(previewUrl), {
-            caption: text,
-            parse_mode: "HTML",
-            reply_markup: keyboard,
-          });
-        } else {
-          await bot.api.sendMessage(userId, text, {
-            parse_mode: "HTML",
-            link_preview_options: { is_disabled: true },
-            reply_markup: keyboard,
-          });
-        }
-        log.info("message sent", { user_id: userId, text, has_stream_preview: !!previewUrl });
+        const hasStreamPreview = await sendStreamOnlineMessage(
+          userId,
+          "kick",
+          text,
+          keyboard,
+          previewUrl ? getKickStreamPreviewUrl(previewUrl) : undefined,
+        );
+        log.info("message sent", { user_id: userId, text, has_stream_preview: hasStreamPreview });
         await recordUserNotification({ userId, platform: "kick", channelId: channel_id, event: "stream_online", status: "sent" });
       } catch (err) {
         const status = await handleSendError(userId, "kick online notification", err);
