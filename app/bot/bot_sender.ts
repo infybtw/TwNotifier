@@ -34,10 +34,6 @@ async function handleSendError(userId: number, notification: string, error: unkn
   return "failed";
 }
 
-function redactBotToken(value: string): string {
-  return value.replace(/bot\d+:[\w-]+/g, "bot<redacted>");
-}
-
 function describeSendError(error: unknown): Record<string, unknown> {
   if (error instanceof GrammyError) {
     return {
@@ -52,14 +48,14 @@ function describeSendError(error: unknown): Record<string, unknown> {
     const cause = (error.error ?? {}) as { name?: unknown; message?: unknown; code?: unknown; errno?: unknown; syscall?: unknown };
     return {
       kind: "network",
-      message: redactBotToken(String(cause.message ?? error.message)),
+      message: String(cause.message ?? error.message),
       cause_name: cause.name,
       cause_code: cause.code,
       errno: cause.errno,
       syscall: cause.syscall,
     };
   }
-  return { kind: "unknown", message: redactBotToken(String(error)) };
+  return { kind: "unknown", message: String(error) };
 }
 
 function safePhotoUrl(photoUrl: string): string {

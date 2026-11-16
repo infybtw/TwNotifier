@@ -77,6 +77,10 @@ function formatJson(level: LogLevel, name: string, message: string, args: unknow
   );
 }
 
+function redactBotToken(line: string): string {
+  return line.replace(/bot\d+:[\w-]+/g, "bot<redacted>");
+}
+
 function output(
   level: LogLevel,
   name: string,
@@ -98,6 +102,7 @@ function output(
     default:
       line = formatPlain(level, name, message, args);
   }
+  line = redactBotToken(line);
 
   if (level === "error") {
     process.stderr.write(line + "\n");
